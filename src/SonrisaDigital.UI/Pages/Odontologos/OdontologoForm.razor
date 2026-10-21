@@ -155,6 +155,11 @@
 
             Navigation.NavigateTo($"/odontologo/{model.Id}");
         }
+        catch (UnauthorizedAccessException exception)
+        {
+            // El servicio puede denegar la operación aunque la UI haya sido manipulada.
+            errorMessage = exception.Message;
+        }
         catch (InvalidOperationException exception)
         {
             errorMessage = exception.Message;

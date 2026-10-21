@@ -34,10 +34,20 @@
                 </div>
             </div>
             <div class="header-actions">
-                <a class="secondary-action" href="/odontologo/editar/@odontologo.Id">Editar</a>
-                <button class="@(odontologo.Estado == EstadoRegistro.Activo ? "danger-action" : "primary-action")" @onclick="ToggleStatusAsync">
-                    @(odontologo.Estado == EstadoRegistro.Activo ? "Desactivar" : "Activar")
-                </button>
+                @* La interfaz oculta las acciones no permitidas; el servicio también valida el permiso. *@
+                <AuthorizeView Policy="Odontologos.Editar">
+                    <Authorized>
+                        <a class="secondary-action" href="/odontologo/editar/@odontologo.Id">Editar</a>
+                    </Authorized>
+                </AuthorizeView>
+                @* Activar o desactivar exige un permiso específico distinto al de edición. *@
+                <AuthorizeView Policy="Odontologos.Desactivar">
+                    <Authorized>
+                        <button class="@(odontologo.Estado == EstadoRegistro.Activo ? "danger-action" : "primary-action")" @onclick="ToggleStatusAsync">
+                            @(odontologo.Estado == EstadoRegistro.Activo ? "Desactivar" : "Activar")
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
             </div>
         </div>
 
@@ -106,6 +116,11 @@
                 : EstadoRegistro.Activo;
             await OdontologoService.SetStatusAsync(odontologo.Id, nextStatus);
             odontologo = await OdontologoService.GetByIdAsync(odontologo.Id);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            // La operación se rechazó en el servicio; se muestra el motivo sin cambiar la vista.
+            errorMessage = exception.Message;
         }
         catch (InvalidOperationException exception)
         {

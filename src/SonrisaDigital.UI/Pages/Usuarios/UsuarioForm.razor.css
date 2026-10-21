@@ -133,6 +133,95 @@
     font-size: 10px;
 }
 
+/* Envuelve el input para posicionar el botón Ver/Ocultar dentro del campo. */
+.password-control {
+    position: relative;
+}
+
+/* Deja espacio a la derecha para que el texto no quede debajo del botón. */
+.password-control input {
+    padding-right: 66px;
+}
+
+/* Evita que Edge muestre su propio botón de revelado junto al personalizado. */
+.password-control input::-ms-reveal,
+.password-control input::-ms-clear {
+    display: none;
+}
+
+/* Botón compacto que alterna entre mostrar y ocultar la contraseña. */
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    min-width: 52px;
+    height: 28px;
+    padding: 0 8px;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.password-toggle:hover {
+    background: #eff6ff;
+}
+
+.password-toggle:focus-visible {
+    outline: 2px solid #bfdbfe;
+    outline-offset: 1px;
+}
+
+/* Estado de edición: la contraseña está configurada, pero no se expone. */
+.password-placeholder {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 36px;
+    padding: 0 8px 0 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    background: #f8fafc;
+}
+
+/* Puntos decorativos que representan una contraseña existente. */
+.password-dots {
+    color: #334155;
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+/* Etiqueta breve que refuerza que la contraseña no es visible. */
+.password-status {
+    color: #64748b;
+    font-size: 10px;
+}
+
+/* Mantiene el botón de cambio al extremo derecho del estado protegido. */
+.password-placeholder .secondary-action {
+    margin-left: auto;
+}
+
+/* Enlace para cancelar el cambio sin enviar el formulario. */
+.link-action {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.link-action:hover {
+    text-decoration: underline;
+}
+
 .field ::deep .validation-message {
     color: #dc2626;
     font-size: 10px;
@@ -345,6 +434,9 @@
     .professional-summary { align-items: flex-start; flex-direction: column; }
     .professional-summary .secondary-action { width: 100%; }
     .modal-grid { grid-template-columns: 1fr; }
+    /* En pantallas angostas el botón de cambio pasa a una fila completa. */
+    .password-placeholder { flex-wrap: wrap; padding: 8px 10px; }
+    .password-placeholder .secondary-action { width: 100%; margin-left: 0; }
 }
 
 @media (max-width: 720px) {

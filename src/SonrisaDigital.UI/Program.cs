@@ -78,7 +78,7 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
     }
 
     return Results.Redirect(result.IsLockedOut ? "/login?error=locked" : "/login?error=invalid");
-});
+}).AllowAnonymous();
 
 app.MapGet("/account/logout", async (SignInManager<Usuario> signInManager) =>
 {

@@ -52,11 +52,53 @@
                         <InputText id="user-email" type="email" @bind-Value="model.Email" placeholder="usuario@clinica.com" />
                         <ValidationMessage For="@(() => model.Email)" />
                     </div>
-                    <div class="field field-wide">
-                        <label for="user-password">@(IsEditing ? "Nueva contraseña (opcional)" : "Contraseña inicial")</label>
-                        <InputText id="user-password" type="password" @bind-Value="model.Password" placeholder="••••••••" />
-                        <small class="field-help">Mínimo 8 caracteres, una mayúscula y un número.</small>
-                    </div>
+                    @* Identity guarda la contraseña como hash irreversible. Por eso en edición
+                       no se muestra la original: se ofrece asignar una nueva de forma controlada. *@
+                    @if (IsEditing && !showPasswordChange)
+                    {
+                        <div class="field field-wide">
+                            <span class="field-label">Contraseña actual</span>
+                            <div class="password-placeholder">
+                                <span class="password-dots" aria-hidden="true">••••••••</span>
+                                <span class="password-status">Protegida</span>
+                                <button type="button" class="secondary-action" @onclick="BeginPasswordChange">Cambiar contraseña</button>
+                            </div>
+                            <small class="field-help">Por seguridad, la contraseña actual no se puede mostrar. Puedes asignar una nueva.</small>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Campos para crear la cuenta o para asignar una nueva contraseña. *@
+                        <div class="field">
+                            <label for="user-password">@(IsEditing ? "Nueva contraseña" : "Contraseña inicial")</label>
+                            <div class="password-control">
+                                <InputText id="user-password" type="@(showPassword ? "text" : "password")" @bind-Value="model.Password" placeholder="••••••••" autocomplete="new-password" />
+                                @* type="button" evita que el toggle envíe el formulario. *@
+                                <button type="button" class="password-toggle" @onclick="TogglePassword" aria-label="@(showPassword ? "Ocultar contraseña" : "Mostrar contraseña")">
+                                    @(showPassword ? "Ocultar" : "Ver")
+                                </button>
+                            </div>
+                            <small class="field-help">Mínimo 8 caracteres, una mayúscula y un número. Se guarda protegida y no se puede consultar después.</small>
+                            <ValidationMessage For="@(() => model.Password)" />
+                        </div>
+                        @* La confirmación evita errores de tecleo y solo se valida en el cliente. *@
+                        <div class="field">
+                            <label for="user-password-confirm">Confirmar contraseña</label>
+                            <div class="password-control">
+                                <InputText id="user-password-confirm" type="@(showConfirmPassword ? "text" : "password")" @bind-Value="confirmPassword" placeholder="Repite la contraseña" autocomplete="new-password" />
+                                <button type="button" class="password-toggle" @onclick="ToggleConfirmPassword" aria-label="@(showConfirmPassword ? "Ocultar confirmación de contraseña" : "Mostrar confirmación de contraseña")">
+                                    @(showConfirmPassword ? "Ocultar" : "Ver")
+                                </button>
+                            </div>
+                        </div>
+                        @if (IsEditing)
+                        {
+                            @* Descarta los valores temporales y vuelve al estado de contraseña protegida. *@
+                            <div class="field field-wide">
+                                <button type="button" class="link-action" @onclick="CancelPasswordChange">Cancelar cambio de contraseña</button>
+                            </div>
+                        }
+                    }
                     @if (IsEditing)
                     {
                         <div class="field">
@@ -172,6 +214,17 @@
     private string? errorMessage;
     private bool showDentistModal;
 
+    // Estado temporal del flujo de contraseña. Nunca se persiste en el modelo del servicio.
+    private string? confirmPassword;
+    private bool showPassword;
+    private bool showConfirmPassword;
+    private bool showPasswordChange;
+
+    // Identifica la carga actual para no reiniciar el formulario en re-renderizados
+    // que reciben los mismos parámetros.
+    private string? loadedId;
+    private bool initialized;
+
     private bool IsEditing => !string.IsNullOrWhiteSpace(Id);
 
     private bool IsUserActive
@@ -200,7 +253,27 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // Si el Id no cambió, se conserva lo que el usuario esté escribiendo.
+        if (initialized && string.Equals(loadedId, Id, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        initialized = true;
+        loadedId = Id;
         loading = true;
+        notFound = false;
+        errorMessage = null;
+        showDentistModal = false;
+
+        // Al entrar a crear o cambiar de usuario se limpia todo el estado temporal
+        // para no arrastrar contraseñas o mensajes de la pantalla anterior.
+        showPasswordChange = false;
+        showPassword = false;
+        showConfirmPassword = false;
+        confirmPassword = null;
+        model = new UsuarioFormDto();
+
         availableRoles = (await UsuarioService.GetAvailableRolesAsync()).ToList();
 
         var roles = await RolService.GetRolesAsync();
@@ -223,6 +296,36 @@
 
         loading = false;
     }
+
+    /// <summary>
+    /// Activa el modo de cambio de contraseña y limpia cualquier valor temporal previo.
+    /// </summary>
+    private void BeginPasswordChange()
+    {
+        showPasswordChange = true;
+        showPassword = false;
+        showConfirmPassword = false;
+        confirmPassword = null;
+        model.Password = null;
+    }
+
+    /// <summary>
+    /// Cancela el cambio y devuelve la vista al estado de contraseña protegida.
+    /// </summary>
+    private void CancelPasswordChange()
+    {
+        showPasswordChange = false;
+        showPassword = false;
+        showConfirmPassword = false;
+        confirmPassword = null;
+        model.Password = null;
+    }
+
+    /// <summary>Alterna entre mostrar y ocultar la contraseña nueva.</summary>
+    private void TogglePassword() => showPassword = !showPassword;
+
+    /// <summary>Alterna entre mostrar y ocultar la confirmación de la contraseña.</summary>
+    private void ToggleConfirmPassword() => showConfirmPassword = !showConfirmPassword;
 
     private void ToggleRole(string role, bool selected)
     {
@@ -258,11 +361,35 @@
         saving = true;
         errorMessage = null;
 
+        // En creación la contraseña es obligatoria; en edición solo lo es si se
+        // activó explícitamente el flujo de cambio.
         if (!IsEditing && string.IsNullOrWhiteSpace(model.Password))
         {
             errorMessage = "La contraseña inicial es obligatoria.";
             saving = false;
             return;
+        }
+
+        if (IsEditing && showPasswordChange && string.IsNullOrWhiteSpace(model.Password))
+        {
+            errorMessage = "Escribe la nueva contraseña o cancela el cambio.";
+            saving = false;
+            return;
+        }
+
+        // La confirmación solo existe en la UI; se compara antes de enviar al servicio.
+        if ((!IsEditing || showPasswordChange)
+            && !string.Equals(model.Password, confirmPassword, StringComparison.Ordinal))
+        {
+            errorMessage = "Las contraseñas no coinciden.";
+            saving = false;
+            return;
+        }
+
+        // Sin un cambio explícito se envía null para no resetear la contraseña existente.
+        if (IsEditing && !showPasswordChange)
+        {
+            model.Password = null;
         }
 
         if (model.Roles.Count == 0)
