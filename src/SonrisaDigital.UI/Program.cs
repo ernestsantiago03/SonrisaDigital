@@ -54,7 +54,7 @@ app.UseStatusCodePagesWithReExecute("/404");
 // por lo que funcionan igual en Development y en Production.
 // Con UseStaticFiles() esos archivos solo se servian en Development y el resto
 // de entornos la pagina quedaba sin estilos y sin Blazor.
-app.MapStaticAssets();
+app.MapStaticAssets().AllowAnonymous();
 app.UseAntiforgery();
 
 app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforgery, SignInManager<Usuario> signInManager, UserManager<Usuario> userManager) =>

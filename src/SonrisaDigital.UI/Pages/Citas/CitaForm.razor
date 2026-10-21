@@ -1,5 +1,6 @@
 @page "/cita/nuevo"
 @page "/cita/editar/{Id:int}"
+@attribute [Authorize(Policy = "Citas.Ver")]
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Citas
 @using SonrisaDigital.Services.Citas.DTOs
@@ -526,7 +527,7 @@
             var citasDelDia2 = await CitaService.SearchAsync(model.Fecha, null, null, null);
             var pacienteSeleccionado = pacientes.FirstOrDefault(o => o.Id == model.PacienteId);
 
-            if(pacientes != null)
+            if (pacienteSeleccionado is not null)
             {
                 bool horarioOcupado = citasDelDia2.Any(c =>
                 c.PacienteNombre == pacienteSeleccionado.NombreCompleto &&

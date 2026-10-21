@@ -1,4 +1,5 @@
 @page "/cita"
+@attribute [Authorize(Policy = "Citas.Ver")]
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Citas
 @using SonrisaDigital.Services.Citas.DTOs
