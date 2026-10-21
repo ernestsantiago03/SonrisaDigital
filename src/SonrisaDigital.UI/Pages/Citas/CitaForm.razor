@@ -1,0 +1,571 @@
+@page "/cita/nuevo"
+@page "/cita/editar/{Id:int}"
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Citas
+@using SonrisaDigital.Services.Citas.DTOs
+@using SonrisaDigital.Services.Pacientes
+@using SonrisaDigital.Services.Pacientes.DTOs
+@using SonrisaDigital.Services.Odontologos
+@using SonrisaDigital.Services.Odontologos.DTOs
+@inject ICitaService CitaService
+@inject IPacienteService PacienteService
+@inject IOdontologoService OdontologoService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>@(IsEditing ? "Editar cita 📅" : "Agendar cita 📅") · Sonrisa Digital</PageTitle>
+
+<div class="appointment-form-page">
+    <div class="page-header">
+        <div>
+            <a class="back-link" href="/cita">← Citas</a>
+            <h1>@(IsEditing ? "Editar cita 📅" : "Agendar cita 📅")</h1>
+            <p>@(IsEditing ? "Actualiza los detalles de la cita." : "Programa una nueva cita para el paciente.")</p>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="form-state">Cargando información...</div>
+    }
+    else if (notFound)
+    {
+        <div class="form-state">La cita solicitada no existe.</div>
+    }
+    else
+    {
+        <EditForm Model="model" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="feedback error">@errorMessage</div>
+            }
+
+            @if (IsEditing)
+            {
+                <div class="feedback info">
+                    Después de crear la cita solo puedes cambiar el odontólogo, la hora y el estado.
+                    El paciente, la fecha y el motivo no se pueden modificar.
+                </div>
+            }
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Participantes 👤</h2>
+                    <span>Campos obligatorios marcados en el formulario</span>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="patient-select">Paciente</label>
+                        <InputSelect id="patient-select" @bind-Value="model.PacienteId" disabled="@(IsEditing ? "disabled" : null)">
+                            <option value="0">-- Seleccionar paciente --</option>
+                            @foreach (var paciente in pacientes)
+                            {
+                                <option value="@paciente.Id">@paciente.NombreCompleto</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => model.PacienteId)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="dentist-select">Odontólogo</label>
+                        <InputSelect id="dentist-select" @bind-Value="model.OdontologoId">
+                            <option value="0">-- Seleccionar odontólogo --</option>
+                            @foreach (var odontologo in odontologos)
+                            {
+                                <option value="@odontologo.Id">@odontologo.NombreCompleto</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="@(() => model.OdontologoId)" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Fecha y hora</h2>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="date">Fecha</label>
+                        <InputDate id="date" @bind-Value="FechaSeleccionada" disabled="@(IsEditing ? "disabled" : null)" />
+                        <ValidationMessage For="@(() => model.Fecha)" />
+                        @if (isWeekendError)
+                        {
+                            <span style="color: #dc2626; font-size: 10px; margin-top: 2px;">Solo laboramos de lunes a viernes.</span>
+                        }
+                    </div>
+
+                    <div class="field">
+                        <label for="start-time">Hora de inicio</label>
+                        <select id="start-time" @bind="HoraInicioString">
+                            @foreach (var time in availableStartTimes)
+                            {
+                                <option value="@time.ToString("HH:mm")">@time.ToString("hh:mm tt")</option>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => model.HoraInicio)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="end-time">Hora de fin</label>
+                        <select id="end-time" @bind="HoraFinString">
+                            @foreach (var time in availableEndTimes)
+                            {
+                                <option value="@time.ToString("HH:mm")">@time.ToString("hh:mm tt")</option>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => model.HoraFin)" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Detalles</h2>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="reason">Motivo de la cita</label>
+                        <InputSelect id="reason" @bind-Value="model.Motivo" disabled="@(IsEditing ? "disabled" : null)">
+                            <option value="" disabled selected hidden>Seleccione el motivo principal</option>
+
+                            <optgroup label="🧼 Prevención y Mantenimiento">
+                                <option value="Limpieza dental profesional (profilaxis)">Limpieza dental profesional (profilaxis)</option>
+                                <option value="Revisión o chequeo general de rutina">Revisión o chequeo general de rutina</option>
+                                <option value="Aplicación de flúor o selladores">Aplicación de flúor o selladores</option>
+                            </optgroup>
+
+                            <optgroup label="🦷 Dolor y Restauración">
+                                <option value="Tratamiento de caries (empastes/resinas)">Tratamiento de caries (empastes/resinas)</option>
+                                <option value="Tratamiento de conducto (endodoncia)">Tratamiento de conducto (endodoncia)</option>
+                                <option value="Reparación de un diente roto o astillado">Reparación de un diente roto o astillado</option>
+                                <option value="Dolor de muela severo o sensibilidad">Dolor de muela severo o sensibilidad</option>
+                            </optgroup>
+
+                            <optgroup label="🛠️ Ortodoncia">
+                                <option value="Instalación de brackets o alineadores">Instalación de brackets o alineadores</option>
+                                <option value="Ajuste de brackets o cambio de gomas">Ajuste de brackets o cambio de gomas</option>
+                                <option value="Pegado de un bracket desprendido">Pegado de un bracket desprendido</option>
+                                <option value="Retiro de brackets y retenedores">Retiro de brackets y retenedores</option>
+                            </optgroup>
+
+                            <optgroup label="🩸 Cirugías y Extracciones">
+                                <option value="Extracción de muelas del juicio (cordales)">Extracción de muelas del juicio (cordales)</option>
+                                <option value="Extracción de dientes dañados o de leche">Extracción de dientes dañados o de leche</option>
+                                <option value="Cirugía de encías">Cirugía de encías</option>
+                            </optgroup>
+
+                            <optgroup label="✨ Estética y Reemplazo Dental">
+                                <option value="Blanqueamiento dental">Blanqueamiento dental</option>
+                                <option value="Diseño de sonrisa o carillas">Diseño de sonrisa o carillas</option>
+                                <option value="Colocación de implantes dentales">Colocación de implantes dentales</option>
+                                <option value="Toma de moldes para prótesis/coronas">Toma de moldes para prótesis/coronas</option>
+                                <option value="Ajuste o reparación de prótesis dental">Ajuste o reparación de prótesis dental</option>
+                            </optgroup>
+
+                            <optgroup label="🚨 Emergencias y Otros">
+                                <option value="Sangrado, inflamación o dolor de encías">Sangrado, inflamación o dolor de encías</option>
+                                <option value="Mal aliento persistente (halitosis)">Mal aliento persistente (halitosis)</option>
+                                <option value="Tratamiento para bruxismo (placa)">Tratamiento para bruxismo (placa)</option>
+                                <option value="Evaluación por golpe o trauma en la boca">Evaluación por golpe o trauma en la boca</option>
+                                <option value="Otro motivo">Otro motivo...</option>
+                            </optgroup>
+
+                        </InputSelect>
+                        <ValidationMessage For="@(() => model.Motivo)" />
+                    </div>
+                </div>
+            </section>
+
+            @if (IsEditing)
+            {
+                <section class="form-panel">
+                    <div class="section-heading">
+                        <h2>Estado</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="status-select">Estado de la cita</label>
+                            <InputSelect id="status-select" @bind-Value="model.Estado">
+                                @foreach (var opcion in OpcionesDeEstado())
+                                {
+                                    <option value="@opcion">@NombreEstado(opcion)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+                </section>
+            }
+
+            <div class="form-actions">
+                <a class="cancel-action" href="/cita">Cancelar</a>
+                <button class="primary-action" type="submit" disabled="@saving">
+                    @(saving ? "Guardando..." : "Guardar cita")
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CitaFormDto model = new();
+    private List<PacienteListItemDto> pacientes = [];
+    private List<OdontologoListItemDto> odontologos = [];
+
+    // Variables para manejar las listas de horarios
+    private List<TimeOnly> availableStartTimes = new();
+    private List<TimeOnly> availableEndTimes = new();
+
+    private bool loading;
+    private bool saving;
+    private bool notFound;
+    private string? errorMessage;
+    private bool isWeekendError = false;
+
+    private bool IsEditing => Id.HasValue;
+
+    private ClaimsPrincipal currentUser = new();
+    private EstadoCita estadoOriginal = EstadoCita.Programada;
+
+    private bool PuedeCrear => TienePermiso("Citas.Crear");
+    private bool PuedeEditar => TienePermiso("Citas.Editar");
+    private bool PuedeCancelar => TienePermiso("Citas.Cancelar");
+    private bool PuedeAtender => TienePermiso("Citas.Atender");
+
+    private bool TienePermiso(string permiso) =>
+        currentUser.HasClaim(PermissionCatalog.ClaimType, permiso);
+
+    // Una cita solo puede editarse mientras esté Programada o Confirmada.
+    // Atendida, Cancelada y No asistió son estados finales: solo se pueden ver.
+    private static bool EsEstadoFinal(EstadoCita estado) =>
+        estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio;
+
+    private bool EsRecepcionista => currentUser.IsInRole(RolesSonrisaDigital.Recepcionista);
+
+    // El recepcionista solo edita la cita mientras está Programada: una vez confirmada, deja de
+    // poder modificarla (a partir de ahí es el odontólogo quien la marca como atendida).
+    // El administrador conserva la edición mientras no sea un estado final.
+    private bool PuedeEditarCita(EstadoCita estado) =>
+        PuedeEditar && !EsEstadoFinal(estado) &&
+        !(estado == EstadoCita.Confirmada && EsRecepcionista);
+
+    // Estados a los que el usuario actual puede mover la cita, según su permiso y el estado guardado.
+    // Programada -> Confirmada (editar) / Cancelada o No asistió (cancelar).
+    // Confirmada -> Atendida (atender).
+    private List<EstadoCita> OpcionesDeEstado()
+    {
+        var opciones = new List<EstadoCita> { estadoOriginal };
+
+        if (estadoOriginal == EstadoCita.Programada)
+        {
+            if (PuedeEditar) opciones.Add(EstadoCita.Confirmada);
+            if (PuedeCancelar)
+            {
+                opciones.Add(EstadoCita.Cancelada);
+                opciones.Add(EstadoCita.NoAsistio);
+            }
+        }
+        else if (estadoOriginal == EstadoCita.Confirmada && PuedeAtender)
+        {
+            opciones.Add(EstadoCita.Atendida);
+        }
+
+        return opciones;
+    }
+
+    private static string NombreEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "Programada",
+        EstadoCita.Confirmada => "Confirmada",
+        EstadoCita.Atendida => "Atendida",
+        EstadoCita.Cancelada => "Cancelada",
+        EstadoCita.NoAsistio => "No asistió",
+        _ => estado.ToString()
+    };
+
+    // Propiedad para enlazar la Fecha y validar si es fin de semana en tiempo real
+    private DateOnly FechaSeleccionada
+    {
+        get => model.Fecha;
+        set
+        {
+            model.Fecha = value;
+            isWeekendError = value.DayOfWeek == DayOfWeek.Saturday || value.DayOfWeek == DayOfWeek.Sunday;
+        }
+    }
+
+    // Propiedad para enlazar la hora de inicio con el menú desplegable
+    private string HoraInicioString
+    {
+        get => model.HoraInicio.ToString("HH:mm");
+        set
+        {
+            if (TimeOnly.TryParse(value, out var time))
+            {
+                model.HoraInicio = time;
+                // Ajustar automáticamente la hora de fin a 30 mins después
+                model.HoraFin = time.AddMinutes(30);
+                UpdateEndTimes();
+            }
+        }
+    }
+
+    // Propiedad para enlazar la hora de fin con el menú desplegable
+    private string HoraFinString
+    {
+        get => model.HoraFin.ToString("HH:mm");
+        set
+        {
+            if (TimeOnly.TryParse(value, out var time))
+            {
+                model.HoraFin = time;
+            }
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        errorMessage = null;
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUser = authenticationState.User;
+
+        // Control de acceso por permisos: agendar requiere Citas.Crear y editar requiere Citas.Editar.
+        if (IsEditing && !PuedeEditar)
+        {
+            Navigation.NavigateTo($"/cita/{Id}");
+            return;
+        }
+
+        if (!IsEditing && !PuedeCrear)
+        {
+            Navigation.NavigateTo("/cita");
+            return;
+        }
+
+        // 1. Generar los horarios de inicio permitidos
+        GenerateTimeSlots();
+
+        try
+        {
+            // Carga de catálogos ordenada alfabéticamente (A-Z)
+            var pacientesResultado = await PacienteService.SearchAsync(null, EstadoRegistro.Activo);
+            pacientes = pacientesResultado.OrderBy(p => p.NombreCompleto).ToList();
+
+            var odontologosResultado = await OdontologoService.SearchAsync(null, EstadoRegistro.Activo);
+            odontologos = odontologosResultado.OrderBy(o => o.NombreCompleto).ToList();
+
+            if (Id.HasValue)
+            {
+                var loaded = await CitaService.GetFormAsync(Id.Value);
+                if (loaded is null)
+                {
+                    notFound = true;
+                }
+                else
+                {
+                    // Una cita en estado final (Atendida, Cancelada o No asistió) no puede editarse,
+                    // y el recepcionista tampoco puede editar una cita ya confirmada.
+                    // Si se intenta abrir el formulario por URL directa, se redirige al detalle.
+                    if (!PuedeEditarCita(loaded.Estado))
+                    {
+                        Navigation.NavigateTo($"/cita/{loaded.Id}?bloqueada=1");
+                        return;
+                    }
+
+                    model = loaded;
+                    estadoOriginal = loaded.Estado; // Estado guardado: define las transiciones permitidas
+                    // Verificar si la fecha cargada es fin de semana
+                    isWeekendError = model.Fecha.DayOfWeek == DayOfWeek.Saturday || model.Fecha.DayOfWeek == DayOfWeek.Sunday;
+                }
+            }
+            else
+            {
+                // Para una nueva cita, empezamos buscando el próximo día laborable
+                var defaultDate = DateOnly.FromDateTime(DateTime.Now);
+                if (defaultDate.DayOfWeek == DayOfWeek.Saturday) defaultDate = defaultDate.AddDays(2);
+                else if (defaultDate.DayOfWeek == DayOfWeek.Sunday) defaultDate = defaultDate.AddDays(1);
+
+                model = new CitaFormDto
+                {
+                    Fecha = defaultDate,
+                    HoraInicio = new TimeOnly(8, 0),
+                    HoraFin = new TimeOnly(8, 30),
+                    Estado = EstadoCita.Programada
+                };
+            }
+
+            // 2. Actualizar las horas de fin según la hora de inicio cargada
+            UpdateEndTimes();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar los datos: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void GenerateTimeSlots()
+    {
+        availableStartTimes.Clear();
+        var current = new TimeOnly(8, 0); // 8:00 AM
+        var end = new TimeOnly(17, 30);   // Última cita empieza a las 5:30 PM (termina a las 6:00 PM)
+        var lunchStart = new TimeOnly(12, 0);
+        var lunchEnd = new TimeOnly(14, 0);
+
+        while (current <= end)
+        {
+            // Solo agregar si NO está dentro del bloque de almuerzo
+            if (current < lunchStart || current >= lunchEnd)
+            {
+                availableStartTimes.Add(current);
+            }
+            current = current.AddMinutes(30);
+        }
+    }
+
+    private void UpdateEndTimes()
+    {
+        availableEndTimes.Clear();
+        if (model.HoraInicio == default) return;
+
+        var current = model.HoraInicio.AddMinutes(30);
+        var end = new TimeOnly(18, 0); // Cierre de la clínica a las 6:00 PM
+        var lunchStart = new TimeOnly(12, 0);
+
+        while (current <= end)
+        {
+            // Evitar que una cita cruce hacia la hora del almuerzo
+            if (model.HoraInicio < lunchStart && current > lunchStart)
+                break;
+
+            availableEndTimes.Add(current);
+            current = current.AddMinutes(30);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+        try
+        {
+            // Validaciones base
+            if (model.Fecha.DayOfWeek == DayOfWeek.Saturday || model.Fecha.DayOfWeek == DayOfWeek.Sunday)
+            {
+                errorMessage = "Las citas solo pueden programarse en días laborables (lunes a viernes).";
+                saving = false;
+                return;
+            }
+
+            if (model.PacienteId <= 0)
+            {
+                errorMessage = "Debes seleccionar un paciente.";
+                saving = false;
+                return;
+            }
+
+            if (model.OdontologoId <= 0)
+            {
+                errorMessage = "Debes seleccionar un odontólogo.";
+                saving = false;
+                return;
+            }
+
+            if (model.Fecha == default || model.HoraInicio == default || model.HoraFin == default)
+            {
+                errorMessage = "Debes especificar una fecha y horas válidas.";
+                saving = false;
+                return;
+            }
+
+            if (model.HoraFin <= model.HoraInicio)
+            {
+                errorMessage = "La hora de fin debe ser posterior a la hora de inicio.";
+                saving = false;
+                return;
+            }
+
+            // === VALIDACIÓN DE DOBLE RESERVA (NUEVO) ===
+            // Obtenemos las citas de este día
+            var citasDelDia = await CitaService.SearchAsync(model.Fecha, null, null, null);
+            var odontologoSeleccionado = odontologos.FirstOrDefault(o => o.Id == model.OdontologoId);
+
+            if (odontologoSeleccionado != null)
+            {
+                // Buscamos si existe al menos una cita que se cruce
+                bool horarioOcupado = citasDelDia.Any(c =>
+                    // 1. Debe ser el mismo odontólogo
+                    c.OdontologoNombre == odontologoSeleccionado.NombreCompleto &&
+                    // 2. No contamos citas que fueron canceladas o inasistencias
+                    c.Estado != EstadoCita.Cancelada &&
+                    c.Estado != EstadoCita.NoAsistio &&
+                    // 3. Si estamos editando, no podemos cruzarnos con "nuestra propia" cita actual
+                    (!IsEditing || c.Id != model.Id) &&
+                    // 4. Lógica de solapamiento de tiempo matemático: (Inicio1 < Fin2) Y (Fin1 > Inicio2)
+                    (model.HoraInicio < c.HoraFin && model.HoraFin > c.HoraInicio)
+                );
+
+                if (horarioOcupado)
+                {
+                    errorMessage = $"El odontólogo {odontologoSeleccionado.NombreCompleto} ya tiene una cita ocupando ese horario. Por favor selecciona otra hora.";
+                    saving = false;
+                    return;
+                }
+            }
+
+            var citasDelDia2 = await CitaService.SearchAsync(model.Fecha, null, null, null);
+            var pacienteSeleccionado = pacientes.FirstOrDefault(o => o.Id == model.PacienteId);
+
+            if(pacientes != null)
+            {
+                bool horarioOcupado = citasDelDia2.Any(c =>
+                c.PacienteNombre == pacienteSeleccionado.NombreCompleto &&
+                c.Estado != EstadoCita.Cancelada &&
+                c.Estado != EstadoCita.NoAsistio &&
+
+                (!IsEditing || c.Id != model.Id) &&
+
+                (model.HoraInicio < c.HoraFin && model.HoraFin > c.HoraInicio)
+                );
+
+                if (horarioOcupado)
+                {
+                    errorMessage = $"El Paciente {pacienteSeleccionado.NombreCompleto} ya tiene una cita ocupando ese horario. Por favor selecciona otra hora.";
+                    saving = false;
+                    return;
+                }
+            }
+
+            // ============================================
+
+            if (IsEditing)
+                await CitaService.UpdateAsync(model);
+            else
+                model.Id = await CitaService.CreateAsync(model);
+
+            Navigation.NavigateTo($"/cita/{model.Id}");
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = $"Error al guardar la cita: {exception.Message}";
+        }
+        catch (Exception exception)
+        {
+            errorMessage = $"Error inesperado: {exception.Message}";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

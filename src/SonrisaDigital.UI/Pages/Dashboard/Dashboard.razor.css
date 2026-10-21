@@ -1,0 +1,64 @@
+.dashboard-page { max-width: 1400px; margin: 0 auto; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.page-heading h1 { margin: 0; color: #0f172a; font-size: 18px; font-weight: 700; }
+.page-heading p { margin: 3px 0 0; color: #64748b; font-size: 12px; text-transform: capitalize; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat-card, .dashboard-panel { border: 1px solid #e2e8f0; border-radius: 4px; background: #fff; }
+.stat-card { display: flex; min-height: 110px; flex-direction: column; justify-content: center; padding: 16px; }
+.stat-card span, .stat-card small { color: #64748b; font-size: 11px; }
+.stat-card strong { margin: 4px 0; color: #0f172a; font-size: 24px; line-height: 1.2; }
+.stat-card small.positive { color: #059669; }.stat-card small.negative { color: #dc2626; }
+.dashboard-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr); gap: 16px; margin-bottom: 16px; }
+.panel-heading { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 14px; border-bottom: 1px solid #e2e8f0; }
+.panel-heading h2 { margin: 0; color: #1e293b; font-size: 13px; font-weight: 700; }
+.panel-heading a { color: #2563eb; font-size: 11px; text-decoration: none; }.panel-heading a:hover { text-decoration: underline; }
+.table-scroll { overflow-x: auto; }.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }.data-table th { padding: 8px 12px; background: #f8fafc; color: #64748b; font-size: 10px; text-align: left; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }.data-table td { padding: 9px 12px; border-top: 1px solid #f1f5f9; color: #64748b; white-space: nowrap; }.data-table td strong { color: #334155; font-weight: 600; }.mono { font-family: Consolas, monospace; color: #64748b !important; }.status { padding: 3px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }.status.confirmed { background: #dcfce7; color: #15803d; }.status.scheduled { background: #dbeafe; color: #1d4ed8; }
+.summary-list { padding: 10px 14px 4px; }.summary-list div, .summary-total { display: flex; align-items: center; justify-content: space-between; }.summary-list div { padding: 7px 0; color: #64748b; font-size: 12px; }.summary-list span { display: flex; align-items: center; gap: 8px; }.summary-list strong, .summary-total strong { color: #1e293b; }.dot { width: 7px; height: 7px; border-radius: 50%; }.dot.blue { background: #60a5fa; }.dot.green { background: #34d399; }.dot.gray { background: #94a3b8; }.dot.red { background: #f87171; }.summary-total { margin: 6px 14px 14px; padding-top: 12px; border-top: 1px solid #f1f5f9; color: #64748b; font-size: 11px; }
+.activity-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid #f1f5f9; color: #475569; font-size: 12px; }.activity-row small { margin-left: auto; color: #94a3b8; font-size: 10px; white-space: nowrap; }.activity-icon { width: 20px; height: 20px; display: grid; flex: 0 0 20px; place-items: center; border-radius: 50%; font-size: 11px; font-weight: 700; }.activity-icon.success { background: #dcfce7; color: #16a34a; }.activity-icon.info { background: #dbeafe; color: #2563eb; }.activity-icon.payment { background: #ede9fe; color: #7c3aed; }
+.activity-icon.warning { background: #fef3c7; color: #92400e; }.activity-icon.danger { background: #fee2e2; color: #b91c1c; }
+@media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); }.dashboard-grid { grid-template-columns: 1fr; }.app-content { padding: 14px; } }
+@media (max-width: 560px) { .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }.stat-card { padding: 12px; }.stat-card strong { font-size: 19px; }.activity-row { align-items: flex-start; flex-wrap: wrap; }.activity-row small { width: 100%; margin-left: 30px; } }
+.dot.orange {
+    background-color: #f97316; /* Naranja */
+}
+.dot.teal {
+    background-color: #14b8a6; /* Turquesa */
+}
+.dot.fuchsia {
+    background-color: #d946ef; /* Fucsia */
+}
+
+/* Limita la altura del contenedor y activa el scroll vertical */
+.appointments-panel .table-scroll {
+    max-height: 320px; /* Ajusta este valor si deseas que sea más alto/corto */
+    overflow-y: auto; /* Habilita la barra de desplazamiento cuando las citas sobrepasan la altura */
+    padding-right: 4px; /* Evita que la tabla tape la barra de scroll */
+}
+
+/* Mantiene los encabezados de la tabla fijos mientras deslizas las citas */
+.appointments-panel .data-table thead {
+    position: sticky;
+    top: 0;
+    background-color: #ffffff; /* Evita transparencia al deslizar el contenido */
+    z-index: 2;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); /* Sombra sutil opcional bajo el encabezado */
+}
+
+/* Personalización del diseño de la barra de desplazamiento */
+.appointments-panel .table-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.appointments-panel .table-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.appointments-panel .table-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+    .appointments-panel .table-scroll::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }

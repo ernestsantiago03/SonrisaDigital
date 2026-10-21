@@ -1,0 +1,775 @@
+@page "/pacientes/{Id:int}"
+@attribute [Authorize(Policy = "Pacientes.Ver")]
+@attribute [Authorize]
+@using System.Globalization
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Citas
+@using SonrisaDigital.Services.Citas.DTOs
+@using SonrisaDigital.Services.HistoriasClinicas
+@using SonrisaDigital.Services.HistoriasClinicas.DTOs
+@using SonrisaDigital.Services.Pacientes
+@using SonrisaDigital.Services.Pacientes.DTOs
+@using SonrisaDigital.Services.Pagos
+@using SonrisaDigital.Services.Pagos.DTOs
+@inject IPacienteService PacienteService
+@inject IHistoriaClinicaService HistoriaService
+@inject IPagoService PagoService
+@inject ICitaService CitaService
+
+@* ============================================================================
+   PÁGINA: Ficha del paciente        Ruta: /pacientes/{id}
+
+   ¿Qué hace esta pantalla?
+     Muestra TODO lo de un paciente en una sola página, repartido en 6 pestañas:
+       Información · Historia clínica · Odontograma · Tratamientos · Pagos · Citas
+     Cada pestaña se carga solo cuando el usuario hace clic en ella (carga perezosa):
+     así la ficha abre rápido y no se consulta la base de datos de más.
+
+     La pestaña "Pagos" muestra las tarjetas de totales y la lista de TODOS los pagos que ha
+     hecho el paciente (del más reciente al más antiguo). Cada fila tiene su botón "Ver" que
+     abre el detalle del pago (la página /pagos/{id del tratamiento} con sus cuotas).
+
+   ¿Cómo se lee este archivo?
+     - Markup: encabezado del paciente + las 6 pestañas (una `else if` por pestaña).
+     - @code (al final):
+         OnParametersSetAsync    -> cargar los datos del paciente y olvidar los de la pestaña anterior
+         AbrirTabAsync           -> cambiar de pestaña
+         AsegurarDatosTabAsync   -> cargar los datos de esa pestaña la primera vez que se abre
+         ToggleStatusAsync       -> activar / desactivar al paciente
+         Ayudantes de pintado    -> Money, edades, iniciales, colores y textos de estados
+   ============================================================================ *@
+
+<PageTitle>@(patient is null ? "Paciente" : $"{patient.Nombres} {patient.Apellidos}") · Sonrisa Digital</PageTitle>
+
+<div class="patient-detail-page">
+    @if (loading)
+    {
+        <div class="detail-state">Cargando paciente...</div>
+    }
+    else if (patient is null)
+    {
+        <div class="detail-state"><strong>Paciente no encontrado</strong><a href="/pacientes">Volver a pacientes</a></div>
+    }
+    else
+    {
+        <div class="page-header">
+            <div>
+                <a class="back-link" href="/pacientes">← Pacientes</a>
+                <div class="title-line">
+                    <h1>@patient.Nombres @patient.Apellidos</h1>
+                    <span class="status-badge @(EsActivo ? "active" : "inactive")">@(EsActivo ? "Activo" : "Inactivo")</span>
+                </div>
+                <p>Paciente registrado el @patient.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy")</p>
+            </div>
+            <div class="header-actions">
+                <AuthorizeView Policy="Pacientes.Desactivar">
+                    <Authorized>
+                        <button class="@(EsActivo ? "danger-action" : "primary-action")" @onclick="ToggleStatusAsync">
+                            @(EsActivo ? "Desactivar" : "Activar")
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+                <AuthorizeView Policy="Pacientes.Editar">
+                    <Authorized>
+                        <a class="primary-action" href="/pacientes/editar/@patient.Id">Editar</a>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="feedback error" role="alert">@errorMessage</div>
+        }
+
+        <section class="patient-bar" aria-label="Resumen del paciente">
+            <span class="patient-avatar" aria-hidden="true">@Iniciales</span>
+            <div class="patient-bar-name">
+                <strong>@patient.Nombres @patient.Apellidos</strong>
+                <span>@Mostrar(patient.Direccion)</span>
+            </div>
+            <dl class="patient-bar-meta">
+                <div><dt>Cédula</dt><dd>@Mostrar(patient.Identificacion)</dd></div>
+                <div><dt>Teléfono</dt><dd>@Mostrar(patient.Telefono)</dd></div>
+                <div><dt>Correo</dt><dd>@Mostrar(patient.Correo)</dd></div>
+                <div><dt>Edad</dt><dd>@EdadTexto</dd></div>
+            </dl>
+        </section>
+
+        <div class="tabs" role="tablist">
+            @foreach (var tab in Tabs)
+            {
+                var tabActual = tab.Id;
+                <button type="button"
+                        role="tab"
+                        aria-selected="@Seleccionada(tabActual)"
+                        class="@ClaseTab(tabActual)"
+                        @onclick="() => AbrirTabAsync(tabActual)">
+                    @tab.Titulo
+                </button>
+            }
+        </div>
+
+        @if (tabActiva == "informacion")
+        {
+            <section class="detail-panel">
+                <div class="section-heading"><h2>Datos personales</h2></div>
+                <dl class="detail-grid">
+                    <div><dt>Nombre completo</dt><dd>@patient.Nombres @patient.Apellidos</dd></div>
+                    <div><dt>Cédula</dt><dd>@Mostrar(patient.Identificacion)</dd></div>
+                    <div><dt>Fecha de nacimiento</dt><dd>@(patient.FechaNacimiento?.ToString("dd/MM/yyyy") ?? "No registrada")</dd></div>
+                    <div><dt>Edad</dt><dd>@EdadTexto</dd></div>
+                    <div><dt>Sexo</dt><dd>@Mostrar(patient.Sexo)</dd></div>
+                    <div><dt>Tipo de sangre</dt><dd>@Mostrar(patient.TipoSangre)</dd></div>
+                </dl>
+            </section>
+
+            <section class="detail-panel">
+                <div class="section-heading"><h2>Información de contacto</h2></div>
+                <dl class="detail-grid">
+                    <div><dt>Teléfono</dt><dd>@Mostrar(patient.Telefono)</dd></div>
+                    <div><dt>Correo electrónico</dt><dd>@Mostrar(patient.Correo)</dd></div>
+                    <div class="detail-wide"><dt>Dirección</dt><dd>@Mostrar(patient.Direccion)</dd></div>
+                    <div><dt>Contacto de emergencia</dt><dd>@Mostrar(patient.ContactoEmergenciaNombre)</dd></div>
+                    <div><dt>Teléfono de emergencia</dt><dd>@Mostrar(patient.ContactoEmergenciaTelefono)</dd></div>
+                    <div><dt>Relación</dt><dd>@Mostrar(patient.ContactoEmergenciaRelacion)</dd></div>
+                </dl>
+            </section>
+        }
+        @* ---- Pestaña: Historia clínica (resumen con chips de alergias/enfermedades) ---- *@
+        else if (tabActiva == "historia")
+        {
+            <section class="detail-panel">
+                <div class="section-heading"><h2>Antecedentes clínicos</h2></div>
+
+                @if (historiaCargando)
+                {
+                    <div class="table-state">Cargando historia clínica...</div>
+                }
+                else
+                {
+                    <div class="section-body">
+                        <div class="chip-block">
+                            <span class="chip-label">Alergias</span>
+                            @{ var alergias = SepararEnChips(historia?.Alergias); }
+                            @if (EsNoRefiere(historia?.Alergias))
+                            {
+                                <div class="chip-row"><span class="chip chip-none">No refiere alergias</span></div>
+                            }
+                            else if (alergias.Count == 0)
+                            {
+                                <div class="chip-row"><span class="chip-value-empty">Sin registrar</span></div>
+                            }
+                            else
+                            {
+                                <div class="chip-row">
+                                    @foreach (var item in alergias)
+                                    {
+                                        <span class="chip chip-allergy">@item</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="chip-block">
+                            <span class="chip-label">Enfermedades sistémicas</span>
+                            @{
+                                var enfermedades = SepararEnChips(historia?.Enfermedades);
+                            }
+                            @if (enfermedades.Count == 0)
+                            {
+                                <div class="chip-row"><span class="chip-value-empty">Sin registrar</span></div>
+                            }
+                            else
+                            {
+                                <div class="chip-row">
+                                    @foreach (var item in enfermedades)
+                                    {
+                                        <span class="chip chip-disease">@item</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="panel-actions">
+                        <a class="primary-action" href="/historia-clinica/@patient.Id">Ver historia clínica completa</a>
+                    </div>
+                }
+            </section>
+        }
+        else if (tabActiva == "odontograma")
+        {
+            @* El odontograma completo (las 32 piezas) vive en su propio módulo: este botón lleva allá. *@
+            <section class="detail-panel">
+                <div class="section-heading">
+                    <h2>Odontograma</h2>
+                </div>
+
+                <div class="panel-actions">
+                    <a class="primary-action" href="/odontograma?paciente=@patient.Id">Abrir odontograma completo</a>
+                </div>
+            </section>
+        }
+        @* ---- Pestaña: Tratamientos realizados (tabla de solo lectura) ---- *@
+        else if (tabActiva == "tratamientos")
+        {
+            <section class="detail-panel">
+                <div class="section-heading">
+                    <h2>Tratamientos realizados</h2>
+                    <span class="section-meta">@tratamientos.Count @(tratamientos.Count == 1 ? "tratamiento" : "tratamientos")</span>
+                </div>
+
+                @if (tratamientosCargando)
+                {
+                    <div class="table-state">Cargando tratamientos...</div>
+                }
+                else if (tratamientos.Count == 0)
+                {
+                    <div class="table-state empty-state">
+                        <strong>Este paciente todavía no tiene tratamientos registrados</strong>
+                        <span>Los tratamientos se registran desde el módulo de Tratamientos.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Tratamiento</th>
+                                    <th>Odontólogo</th>
+                                    <th>Fecha</th>
+                                    <th>Pieza</th>
+                                    <th class="col-number">Precio</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tratamiento in tratamientos)
+                                {
+                                    <tr>
+                                        <td class="col-main">@tratamiento.TratamientoNombre</td>
+                                        <td>@tratamiento.OdontologoNombre</td>
+                                        <td>@tratamiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                        <td>@Mostrar(tratamiento.PiezaDental)</td>
+                                        <td class="col-number">@Money(tratamiento.Total)</td>
+                                        <td><span class="status-badge @EstadoTratamientoClase(tratamiento.EstadoClinico)">@EstadoTratamientoLabel(tratamiento.EstadoClinico)</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+        @* ---- Pestaña: Pagos (3 tarjetas de totales + TODOS los pagos del paciente) ----
+           Todo el contenido va dentro de "Pagos.Ver": un rol sin ese permiso (por ejemplo el
+           odontólogo) no ve los montos ni la tabla, así el botón "Ver" nunca lleva a un
+           "Acceso denegado". *@
+        else if (tabActiva == "pagos")
+        {
+            <AuthorizeView Policy="Pagos.Ver">
+                <Authorized>
+                    <section class="kpi-grid">
+                        <article class="kpi-card">
+                            <span class="kpi-label">Total en tratamientos</span>
+                            <strong class="kpi-value">@Money(TotalTratamientos)</strong>
+                            <span class="kpi-hint">@tratamientos.Count @(tratamientos.Count == 1 ? "tratamiento" : "tratamientos")</span>
+                        </article>
+                        <article class="kpi-card">
+                            <span class="kpi-label">Total pagado</span>
+                            <strong class="kpi-value is-success">@Money(TotalPagado)</strong>
+                            <span class="kpi-hint">@PagosDelPaciente.Count @(PagosDelPaciente.Count == 1 ? "pago" : "pagos")</span>
+                        </article>
+                        <article class="kpi-card">
+                            <span class="kpi-label">Saldo pendiente</span>
+                            <strong class="kpi-value @(SaldoPendiente > 0 ? "is-warning" : "is-success")">@Money(SaldoPendiente)</strong>
+                            <span class="kpi-hint">@(SaldoPendiente > 0 ? "Por cobrar" : "Al día")</span>
+                        </article>
+                    </section>
+
+                    <section class="detail-panel">
+                        <div class="section-heading">
+                            <h2>Pagos realizados</h2>
+                            <span class="section-meta">@PagosDelPaciente.Count @(PagosDelPaciente.Count == 1 ? "pago" : "pagos")</span>
+                        </div>
+
+                        @if (tratamientosCargando)
+                        {
+                            <div class="table-state">Cargando pagos...</div>
+                        }
+                        else if (PagosDelPaciente.Count == 0)
+                        {
+                            <div class="table-state empty-state">
+                                <strong>Este paciente todavía no tiene pagos</strong>
+                                <span>Cuando se registre un pago, aparecerá en esta lista.</span>
+                            </div>
+                        }
+                        else
+                        {
+                            @* Una fila por pago. El botón "Ver" abre el detalle del pago: la ficha del
+                               tratamiento al que pertenece (página /pagos/{id}) con sus cuotas. *@
+                            <div class="table-scroll">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Tratamiento</th>
+                                            <th class="col-number">Monto</th>
+                                            <th>Método</th>
+                                            <th>Registrado por</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var pago in PagosDelPaciente)
+                                        {
+                                            <tr>
+                                                <td class="col-main">@pago.Fecha.ToString("dd/MM/yyyy")</td>
+                                                <td>@pago.TratamientoNombre</td>
+                                                <td class="col-number">@Money(pago.Monto)</td>
+                                                <td>@pago.MetodoPago</td>
+                                                <td>@pago.RegistradoPor</td>
+                                                <td class="col-action">
+                                                    <a class="view-action" href="/pagos/@pago.TratamientoRealizadoId">Ver</a>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </section>
+                </Authorized>
+                <NotAuthorized>
+                    <section class="detail-panel">
+                        <div class="table-state empty-state">
+                            <strong>No tienes permiso para ver los pagos</strong>
+                            <span>Tu rol no incluye el permiso "Pagos.Ver". Pídeselo a un administrador.</span>
+                        </div>
+                    </section>
+                </NotAuthorized>
+            </AuthorizeView>
+        }
+        @* ---- Pestaña: Citas del paciente (tabla de solo lectura) ---- *@
+        else if (tabActiva == "citas")
+        {
+            <section class="detail-panel">
+                <div class="section-heading">
+                    <h2>Citas</h2>
+                    <span class="section-meta">@citas.Count @(citas.Count == 1 ? "cita" : "citas")</span>
+                </div>
+
+                @if (citasCargando)
+                {
+                    <div class="table-state">Cargando citas...</div>
+                }
+                else if (citas.Count == 0)
+                {
+                    <div class="table-state empty-state">
+                        <strong>Este paciente no tiene citas registradas</strong>
+                        <span>Las citas se agendan desde el módulo de Citas.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Hora</th>
+                                    <th>Odontólogo</th>
+                                    <th>Motivo</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cita in citas)
+                                {
+                                    <tr>
+                                        <td class="col-main">@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                        <td>@Horario(cita)</td>
+                                        <td>@cita.OdontologoNombre</td>
+                                        <td>@Mostrar(cita.Motivo)</td>
+                                        <td><span class="status-badge @EstadoCitaClase(cita.Estado)">@EstadoCitaLabel(cita.Estado)</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+    }
+</div>
+
+@code {
+    // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 12,500".
+    private static readonly CultureInfo Cultura = new("es-DO");
+
+    /// <summary>
+    /// Define las 6 pestañas de la ficha del paciente: identificador interno (el que usa el
+    /// código para comparar) y el título que ve el usuario.
+    /// </summary>
+    private static readonly IReadOnlyList<(string Id, string Titulo)> Tabs =
+    [
+        ("informacion", "Información"),
+        ("historia", "Historia clínica"),
+        ("odontograma", "Odontograma"),
+        ("tratamientos", "Tratamientos"),
+        ("pagos", "Pagos"),
+        ("citas", "Citas")
+    ];
+
+    // =========================================================================================
+    // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
+    // =========================================================================================
+
+    // El id del paciente que llega por la URL (por ejemplo /pacientes/12).
+    [Parameter] public int Id { get; set; }
+
+    private PacienteDetalleDto? patient;        // los datos del paciente que se está viendo
+    private bool loading = true;                // ¿la ficha sigue cargando?
+    private string? errorMessage;               // mensaje rojo (error)
+    private string tabActiva = "informacion";   // pestaña visible ahora mismo
+
+    // Datos de la pestaña "Historia clínica".
+    private HistoriaClinicaDto? historia;
+    private bool historiaCargando;              // ¿se está trayendo?
+    private bool historiaCargada;               // ¿ya se trajo antes? (si sí, no se vuelve a pedir)
+
+    // Datos de las pestañas "Tratamientos" y "Pagos" (las dos usan la misma lista).
+    private IReadOnlyList<PagoDetalleDto> tratamientos = [];
+    private bool tratamientosCargando;
+    private bool tratamientosCargados;
+
+    // Datos de la pestaña "Citas".
+    private IReadOnlyList<CitaListItemDto> citas = [];
+    private bool citasCargando;
+    private bool citasCargadas;
+
+    /// <summary>
+    /// Indica si el paciente está activo. Se usa para pintar la etiqueta de estado ("Activo"/"Inactivo").
+    /// </summary>
+    private bool EsActivo => patient?.Estado == EstadoRegistro.Activo;
+
+    /// <summary>
+    /// Edad del paciente en años completos a partir de su fecha de nacimiento.
+    /// Si no tiene fecha registrada devuelve "No registrada".
+    /// </summary>
+    private string EdadTexto
+    {
+        get
+        {
+            if (patient?.FechaNacimiento is not DateOnly fechaNacimiento)
+            {
+                return "No registrada";
+            }
+
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            var edad = hoy.Year - fechaNacimiento.Year;
+            if (fechaNacimiento.AddYears(edad) > hoy)
+            {
+                edad--;
+            }
+
+            return $"{edad} años";
+        }
+    }
+
+    /// <summary>
+    /// Primera letra del nombre y del apellido del paciente, para dibujar el avatar
+    /// redondo del encabezado (por ejemplo "Juan Pérez" → "JP").
+    /// </summary>
+    private string Iniciales
+    {
+        get
+        {
+            if (patient is null)
+            {
+                return "?";
+            }
+
+            var nombres = patient.Nombres.Trim();
+            var apellidos = patient.Apellidos.Trim();
+            var iniciales = (nombres.Length > 0 ? nombres[0].ToString() : string.Empty)
+                + (apellidos.Length > 0 ? apellidos[0].ToString() : string.Empty);
+
+            return iniciales.Length == 0 ? "?" : iniciales.ToUpperInvariant();
+        }
+    }
+
+    /// <summary>
+    /// Suma de lo que cuestan todos los tratamientos del paciente (tarjeta "Total en tratamientos").
+    /// </summary>
+    private decimal TotalTratamientos => tratamientos.Sum(tratamiento => tratamiento.Total);
+
+    /// <summary>
+    /// Suma de todo lo que el paciente ha pagado hasta ahora (tarjeta "Total pagado").
+    /// </summary>
+    private decimal TotalPagado => tratamientos.Sum(tratamiento => tratamiento.Pagado);
+
+    /// <summary>
+    /// Lo que falta por pagar (total de tratamientos menos total pagado).
+    /// Es la tarjeta "Saldo pendiente" de la pestaña Pagos.
+    /// </summary>
+    private decimal SaldoPendiente => tratamientos.Sum(tratamiento => tratamiento.Saldo);
+
+    /// <summary>
+    /// TODOS los pagos que ha hecho el paciente, del más reciente al más antiguo, para la
+    /// tabla "Pagos realizados" de la pestaña Pagos. Cada fila lleva el id del tratamiento
+    /// (<c>TratamientoRealizadoId</c>) porque ahí apunta el botón "Ver".
+    ///
+    /// Se arma con la MISMA lista de tratamientos que ya se cargó para las tarjetas de arriba:
+    /// cada tratamiento trae sus cuotas (sus pagos) y aquí se juntan todas en una sola lista,
+    /// así no hay que consultar la base de datos otra vez.
+    ///
+    /// El <c>PacienteNombre</c> también se llena (aunque la pantalla no lo muestre) porque este
+    /// registro se comparte con el historial de pagos del módulo de Pagos.
+    /// </summary>
+    private IReadOnlyList<PagoHistorialDto> PagosDelPaciente
+    {
+        get
+        {
+            // Paso 1: recorrer cada tratamiento y, dentro, cada uno de sus pagos.
+            var filas = tratamientos
+                .SelectMany(tratamiento => tratamiento.Pagos.Select(pago => new PagoHistorialDto(
+                    pago.Id,
+                    tratamiento.TratamientoRealizadoId,
+                    pago.Fecha,
+                    $"{patient?.Nombres} {patient?.Apellidos}",
+                    tratamiento.TratamientoNombre,
+                    pago.Monto,
+                    pago.MetodoPago,
+                    pago.RegistradoPor)));
+
+            // Paso 2: ordenar. Primero el pago más reciente; si dos son del mismo día,
+            // primero el último que se registró (el de Id mayor).
+            return filas
+                .OrderByDescending(pago => pago.Fecha)
+                .ThenByDescending(pago => pago.Id)
+                .ToList();
+        }
+    }
+
+    /// <summary>
+    /// Se ejecuta al abrir la ficha o al cambiar de paciente: carga los datos personales y
+    /// limpia lo que se había cargado de cada pestaña, para que nunca se mezclen datos
+    /// de un paciente con los de otro.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        // Paso 1: ponerse en estado "cargando" y limpiar el error anterior.
+        loading = true;
+        errorMessage = null;
+
+        // Paso 2: pedirle al servicio los datos del paciente de la URL.
+        patient = await PacienteService.GetByIdAsync(Id);
+
+        // Paso 3: olvidar TODO lo que se había cargado de las pestañas.
+        // Al cambiar de paciente se descartan los datos ya cargados de cada pestaña.
+        // (Si no se hiciera, se mezclarían datos de un paciente con los de otro.)
+        historia = null;
+        historiaCargada = false;
+        tratamientos = [];
+        tratamientosCargados = false;
+        citas = [];
+        citasCargadas = false;
+
+        // Paso 4: ya se puede pintar la ficha.
+        loading = false;
+    }
+
+    /// <summary>
+    /// Cambia la pestaña que se está viendo y se asegura de que sus datos estén cargados.
+    /// </summary>
+    private async Task AbrirTabAsync(string tab)
+    {
+        // Paso 1: marcar cuál pestaña se está viendo (el markup pinta la activa con esto).
+        tabActiva = tab;
+
+        // Paso 2: pedir los datos de esa pestaña (si ya se habían cargado, no hace nada).
+        await AsegurarDatosTabAsync(tab);
+    }
+
+    /// <summary>
+    /// Carga los datos de una pestaña la primera vez que se abre (carga perezosa).
+    /// Cada pestaña tiene su propia bandera "...Cargado": así, si el usuario entra y sale
+    /// de la misma pestaña, no se vuelve a consultar la base de datos sin necesidad.
+    /// </summary>
+    private async Task AsegurarDatosTabAsync(string tab)
+    {
+        try
+        {
+            // Se decide qué cargar según la pestaña. El "when !...Cargado" es el truco de la
+            // carga perezosa: solo entra la primera vez que se abre esa pestaña.
+            switch (tab)
+            {
+                // --- Pestaña "Historia clínica": traer la historia completa del paciente ---
+                case "historia" when !historiaCargada:
+                    historiaCargando = true;
+                    historia = await HistoriaService.GetByPatientAsync(Id);
+                    historiaCargada = true;
+                    historiaCargando = false;
+                    break;
+
+                // --- Pestañas "Tratamientos" y "Pagos": las dos usan la misma lista ---
+                case "tratamientos" when !tratamientosCargados:
+                case "pagos" when !tratamientosCargados:
+                    tratamientosCargando = true;
+                    tratamientos = await PagoService.GetByPacienteAsync(Id);
+                    tratamientosCargados = true;
+                    tratamientosCargando = false;
+                    break;
+
+                // --- Pestaña "Citas": traer las citas del paciente ---
+                case "citas" when !citasCargadas:
+                    citasCargando = true;
+                    citas = await CitaService.SearchAsync(pacienteId: Id);
+                    citasCargadas = true;
+                    citasCargando = false;
+                    break;
+            }
+        }
+        catch (Exception)
+        {
+            // Si algo falla, se apagan los tres "cargando" y se muestra un mensaje.
+            historiaCargando = false;
+            tratamientosCargando = false;
+            citasCargando = false;
+            errorMessage = "No fue posible cargar la información de la pestaña seleccionada.";
+        }
+    }
+
+    /// <summary>
+    /// Activa o desactiva al paciente con el botón del encabezado y refresca la ficha
+    /// para que la etiqueta de estado cambie de inmediato.
+    /// </summary>
+    private async Task ToggleStatusAsync()
+    {
+        // Si todavía no se cargó el paciente, no hay nada que activar/desactivar.
+        if (patient is null)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        try
+        {
+            // Paso 1: calcular el estado contrario al que tiene ahora.
+            var nextStatus = patient.Estado == EstadoRegistro.Activo ? EstadoRegistro.Inactivo : EstadoRegistro.Activo;
+
+            // Paso 2: guardar el cambio y volver a leer el paciente para que la etiqueta
+            // "Activo/Inactivo" del encabezado se actualice al instante.
+            await PacienteService.SetStatusAsync(patient.Id, nextStatus);
+            patient = await PacienteService.GetByIdAsync(patient.Id);
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    // =========================================================================================
+    // AYUDANTES DE PINTADO  →  textos, colores y formatos que usa el markup de arriba
+    // =========================================================================================
+
+    /// <summary>
+    /// Da formato de dinero en pesos dominicanos sin decimales: 12500 → "RD$12,500".
+    /// </summary>
+    private static string Money(decimal value) => $"RD${value.ToString("N0", Cultura)}";
+
+    /// <summary>
+    /// Devuelve la clase CSS de una pestaña: agrega "is-active" a la que está seleccionada,
+    /// para que el CSS la pinte como activa.
+    /// </summary>
+    private string ClaseTab(string tab) => tabActiva == tab ? "tab is-active" : "tab";
+
+    /// <summary>
+    /// Devuelve "true" o "false" como texto para indicar si una pestaña está seleccionada.
+    /// Se usa en el atributo aria-selected (accesibilidad para lectores de pantalla).
+    /// </summary>
+    private string Seleccionada(string tab) => tabActiva == tab ? "true" : "false";
+
+    /// <summary>
+    /// Une la hora de inicio y de fin de una cita en un solo texto: "09:00 - 09:45".
+    /// </summary>
+    private static string Horario(CitaListItemDto cita) =>
+        string.Concat(cita.HoraInicio.ToString("HH:mm"), " - ", cita.HoraFin.ToString("HH:mm"));
+
+    /// <summary>
+    /// Muestra el valor recibido o el texto "No registrado" cuando el dato viene vacío.
+    /// </summary>
+    private static string Mostrar(string? value) => string.IsNullOrWhiteSpace(value) ? "No registrado" : value;
+
+    /// <summary>
+    /// Detecta los textos del tipo "No refiere alergias" para pintarlos con una etiqueta
+    /// gris neutral y poder diferenciarlos de un dato simplemente vacío ("sin registrar").
+    /// </summary>
+    private static bool EsNoRefiere(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Contains("no refiere", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Parte un texto en varias etiquetas (chips) usando coma, punto y coma o salto de línea
+    /// como separadores. Ejemplo: "Látex; Penicilina" → ["Látex", "Penicilina"].
+    /// </summary>
+    private static IReadOnlyList<string> SepararEnChips(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        return value
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => item.Length > 0)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Texto visible del estado de un tratamiento: En proceso, Completado o Cancelado.
+    /// </summary>
+    private static string EstadoTratamientoLabel(EstadoTratamiento estado) => estado switch
+    {
+        EstadoTratamiento.EnProceso => "En proceso",
+        EstadoTratamiento.Completado => "Completado",
+        EstadoTratamiento.Cancelado => "Cancelado",
+        _ => "—"
+    };
+
+    /// <summary>
+    /// Color (clase CSS) de la etiqueta del estado de un tratamiento.
+    /// </summary>
+    private static string EstadoTratamientoClase(EstadoTratamiento estado) => estado switch
+    {
+        EstadoTratamiento.Completado => "active",
+        EstadoTratamiento.Cancelado => "cancelled",
+        EstadoTratamiento.EnProceso => "confirmed",
+        _ => "pending"
+    };
+
+    /// <summary>
+    /// Texto visible del estado de una cita: Programada, Confirmada, Atendida, Cancelada o No asistió.
+    /// </summary>
+    private static string EstadoCitaLabel(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "Programada",
+        EstadoCita.Confirmada => "Confirmada",
+        EstadoCita.Atendida => "Atendida",
+        EstadoCita.Cancelada => "Cancelada",
+        _ => "No asistió"
+    };
+
+    /// <summary>
+    /// Color (clase CSS) de la etiqueta del estado de una cita.
+    /// </summary>
+    private static string EstadoCitaClase(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Atendida => "active",
+        EstadoCita.Confirmada => "confirmed",
+        EstadoCita.Cancelada or EstadoCita.NoAsistio => "cancelled",
+        _ => "pending"
+    };
+}

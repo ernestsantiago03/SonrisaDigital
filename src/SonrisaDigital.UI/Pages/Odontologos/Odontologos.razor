@@ -1,0 +1,125 @@
+@page "/odontologo"
+@attribute [Authorize(Policy = "Odontologos.Ver")]
+@attribute [Authorize]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Odontologos
+@using SonrisaDigital.Services.Odontologos.DTOs
+@inject IOdontologoService OdontologoService
+
+<PageTitle>Odontólogos · Sonrisa Digital</PageTitle>
+
+<div class="patients-page">
+    <div class="page-header">
+        <div>
+            <h1>Odontólogos 🦷</h1>
+            <p>Administra la información de los odontólogos de la clínica.</p>
+        </div>
+        <AuthorizeView Policy="Odontologos.Crear">
+            <Authorized><a class="primary-action" href="/odontologo/nuevo">+ Registrar odontólogo</a></Authorized>
+        </AuthorizeView>
+    </div>
+
+    <section class="filter-panel" aria-label="Filtros de odontólogos">
+        <div class="search-field">
+            <label for="dentist-search">Buscar</label>
+            <input id="dentist-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Nombre, licencia, especialidad o teléfono" />
+        </div>
+        <button class="secondary-action" @onclick="LoadOdontologosAsync">Buscar</button>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    <section class="table-panel">
+        <div class="table-summary">@odontologos.Count odontólogo(s) encontrado(s)</div>
+        @if (loading)
+        {
+            <div class="table-state">Cargando odontólogos...</div>
+        }
+        else if (odontologos.Count == 0)
+        {
+            <div class="table-state empty-state">
+                <strong>No hay odontólogos para mostrar</strong>
+                <span>Prueba con otros filtros o registra el primer odontólogo.</span>
+            </div>
+        }
+        else
+        {
+            <div class="activity-scroll" style="max-height: 600px; overflow-y: auto;">
+                <table class="patients-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre completo</th>
+                            <th>Licencia</th>
+                            <th>Especialidad</th>
+                            <th>Teléfono</th>
+                            <th>Correo</th>
+                            <th>Opciones</th>
+                            <th><span class="visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var odontologo in odontologos)
+                        {
+                            <tr>
+                                <td><a class="patient-name" href="/odontologo/@odontologo.Id">@odontologo.NombreCompleto</a></td>
+                                <td>@(odontologo.NumeroLicencia ?? "-")</td>
+                                <td>@(odontologo.Especialidad ?? "-")</td>
+                                <td>@(odontologo.Telefono ?? "-")</td>
+                                <td>@(odontologo.Correo ?? "-")</td>
+                                <td class="row-actions">
+                                    <a href="/odontologo/@odontologo.Id">Ver</a>
+                                    <AuthorizeView Policy="Odontologos.Editar">
+                                        <Authorized><a href="/odontologo/editar/@odontologo.Id">Editar</a></Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private List<OdontologoListItemDto> odontologos = [];
+    private string searchTerm = string.Empty;
+    private string statusFilter = "Todos";
+    private bool loading;
+    private string? errorMessage;
+
+    protected override Task OnInitializedAsync() => LoadOdontologosAsync();
+
+    private async Task LoadOdontologosAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            var status = statusFilter switch
+            {
+                "Activo" => EstadoRegistro.Activo,
+                _ => EstadoRegistro.Activo
+            };
+            // 1. Obtenemos los datos desde el servicio
+            var result = await OdontologoService.SearchAsync(searchTerm, status);
+
+            // 2. Ordenamos alfabéticamente por NombreCompleto usando LINQ (.OrderBy)
+            odontologos = result.OrderBy(o => o.NombreCompleto).ToList();
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar los odontólogos.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? LoadOdontologosAsync() : Task.CompletedTask;
+}

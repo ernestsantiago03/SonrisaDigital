@@ -1,0 +1,67 @@
+/* ============================================================================
+   ESTILOS de la pantalla 404
+
+   Objetivo:
+     1. Que la imagen ocupe TODO el espacio disponible (sin el hueco blanco
+        que dejaba antes).
+     2. Que cuando la pantalla se haga mas chica (o la ventana sea baja),
+        la imagen se contRAYga sin cortarse ni deformarse.
+     3. Que el enlace transparente encima del boton siga cayendo en el mismo
+        lugar, sin importar el tamano.
+   ============================================================================ */
+
+/* Caja que ocupa todo el alto del area de contenido y centra la imagen */
+.notfound-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+}
+
+/* Aqui esta el truco del "llena pero se contrae":
+   el ancho es el MENOR entre dos limites (min), asi que siempre cabe:
+
+     - 100% ................. el ancho disponible.
+     - (100dvh - 36px) * proporcion
+          100dvh es el alto de la ventana y los 36px son los 18px de margen
+          que el sistema pone arriba y abajo del area de contenido. Multiplicado
+          por la proporcion de la imagen (1264 de ancho x 843 de alto) da el
+          ancho maximo que permite el alto disponible.
+
+   Cuando la ventana es ancha y baja, gana el segundo limite y la imagen queda
+   centrada con aire a los lados. Cuando la ventana es angosta, gana el primero
+   y la imagen ocupa todo el ancho. Nunca se corta ni se estira.
+
+   aspect-ratio conserva la proporcion exacta de la imagen: es lo que hace que
+   los porcentajes del enlace del boton (.notfound-art-action) sigan cuadrando. */
+.notfound-art {
+    position: relative;
+    width: min(100%, calc((100dvh - 36px) * 1264 / 843));
+    aspect-ratio: 1264 / 843;
+}
+
+.notfound-art img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+}
+
+/* Enlace transparente encima del boton "Volver al inicio" de la imagen.
+   Los porcentajes salen de medir el boton dentro del PNG:
+   el boton esta en x 737..965  y  y 536..592  (imagen de 1264 x 843). */
+.notfound-art-action {
+    position: absolute;
+    left: 58%;
+    top: 63.3%;
+    width: 18.6%;
+    height: 7.3%;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+/* Al pasar el mouse se oscurece un poco el boton (asi se siente cliqueable) */
+.notfound-art-action:hover { background: rgba(15, 23, 42, .08); }
+
+/* Cuando se navega con el teclado (Tab) se marca el boton */
+.notfound-art-action:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }

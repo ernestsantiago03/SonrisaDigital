@@ -1,0 +1,181 @@
+@page "/usuarios"
+@attribute [Authorize(Policy = "Usuarios.Ver")]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Usuarios
+@using SonrisaDigital.Services.Usuarios.DTOs
+@inject IUsuarioService UsuarioService
+
+<PageTitle>Usuarios · Sonrisa Digital</PageTitle>
+
+<div class="users-page">
+    <header class="users-header">
+        <div>
+            <span class="page-eyebrow">Administración</span>
+            <h1>Usuarios</h1>
+            <p>Gestiona las cuentas, estados y roles de acceso a Sonrisa Digital.</p>
+        </div>
+        <AuthorizeView Policy="Usuarios.Crear">
+            <Authorized>
+                <a class="primary-action" href="/usuarios/nuevo">
+                    <span aria-hidden="true">+</span>
+                    Registrar usuario
+                </a>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <section class="users-toolbar" aria-label="Filtros de usuarios">
+        <div class="search-field">
+            <label for="user-search">Buscar usuario</label>
+            <div class="search-control">
+                <span aria-hidden="true">⌕</span>
+                <input id="user-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Nombre o correo electrónico" />
+            </div>
+        </div>
+        <div class="status-field">
+            <label for="user-status">Estado</label>
+            <select id="user-status" @bind="statusFilter">
+                <option value="Todos">Todos los estados</option>
+                <option value="Activo">Activos</option>
+                <option value="Inactivo">Inactivos</option>
+            </select>
+        </div>
+        <button class="secondary-action" @onclick="LoadUsersAsync">Aplicar filtros</button>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    <section class="users-table-panel">
+        @if (loading)
+        {
+            <div class="table-state">Cargando usuarios...</div>
+        }
+        else if (users.Count == 0)
+        {
+            <div class="table-state empty-state">
+                <strong>No hay usuarios para mostrar</strong>
+                <span>Prueba con otros filtros o registra un usuario.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Roles asignados</th>
+                            <th>Creación</th>
+                            <th>Estado</th>
+                            <th><span class="visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr>
+                                <td>
+                                    <a class="user-cell" href="/usuarios/editar/@user.Id">
+                                        <span class="user-avatar">@GetInitials(user.Nombre)</span>
+                                        <span>
+                                            <strong>@user.Nombre</strong>
+                                            <small>@user.Email</small>
+                                        </span>
+                                    </a>
+                                </td>
+                                <td>
+                                    <div class="roles-list">
+                                        @foreach (var role in user.Roles)
+                                        {
+                                            <span class="role-badge">@role</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="date-cell">@user.FechaCreacion.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                <td>
+                                    <span class="status-badge @(user.Estado == EstadoRegistro.Activo ? "active" : "inactive")">
+                                        <span class="status-dot"></span>
+                                        @user.Estado
+                                    </span>
+                                </td>
+                                <td class="row-actions">
+                                    <AuthorizeView Policy="Usuarios.Editar">
+                                        <Authorized><a href="/usuarios/editar/@user.Id" title="Editar usuario" aria-label="Editar @user.Nombre">Editar</a></Authorized>
+                                    </AuthorizeView>
+                                    <AuthorizeView Policy="Usuarios.Desactivar">
+                                        <Authorized><button @onclick="() => ToggleStatusAsync(user)">@(user.Estado == EstadoRegistro.Activo ? "Desactivar" : "Activar")</button></Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private List<UsuarioListItemDto> users = [];
+    private string searchTerm = string.Empty;
+    private string statusFilter = "Todos";
+    private bool loading;
+    private string? errorMessage;
+
+    protected override Task OnInitializedAsync() => LoadUsersAsync();
+
+    private async Task LoadUsersAsync()
+    {
+        loading = true;
+        errorMessage = null;
+
+        try
+        {
+            var status = statusFilter switch
+            {
+                "Activo" => EstadoRegistro.Activo,
+                "Inactivo" => EstadoRegistro.Inactivo,
+                _ => (EstadoRegistro?)null
+            };
+
+            users = (await UsuarioService.SearchAsync(searchTerm, status)).ToList();
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar los usuarios.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task ToggleStatusAsync(UsuarioListItemDto user)
+    {
+        try
+        {
+            var nextStatus = user.Estado == EstadoRegistro.Activo
+                ? EstadoRegistro.Inactivo
+                : EstadoRegistro.Activo;
+
+            await UsuarioService.SetStatusAsync(user.Id, nextStatus);
+            await LoadUsersAsync();
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? LoadUsersAsync() : Task.CompletedTask;
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+}

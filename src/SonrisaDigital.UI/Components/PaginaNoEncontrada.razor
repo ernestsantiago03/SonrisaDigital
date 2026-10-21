@@ -1,0 +1,38 @@
+@* ============================================================================
+   COMPONENTE: "No encontramos esta pagina" (error 404) - la parte visual
+
+   ¿Que hace?
+     Es la pantalla que ve el usuario cuando la direccion que abrio NO existe.
+     Antes el sistema no mostraba nada (pantalla en blanco); ahora muestra la
+     ilustracion con el boton para volver al inicio.
+
+   ¿Donde se usa? (por eso esta aparte: los dos lugares muestran LO MISMO)
+     1. Pages/Error/Pagina404.razor -> cuando la direccion se escribe directo en
+        el navegador (Program.cs manda las direcciones malas a /404).
+     2. Components/Routes.razor     -> cuando la direccion mala se alcanza
+        navegando dentro de la aplicacion (un enlace roto, por ejemplo).
+
+   ¿Como se lee este archivo?
+     Solo hay markup: la imagen y un enlace transparente ENCIMA del boton
+     "Volver al inicio" que ya viene dibujado en la imagen, para que ese boton
+     responda al clic. Los estilos estan en PaginaNoEncontrada.razor.css.
+
+   ¿Como cambio la imagen?
+     Reemplaza el archivo wwwroot/images/404.png por el tuyo (mismo nombre).
+     Si en tu imagen el boton esta en otro lugar, ajusta los porcentajes de la
+     clase .notfound-art-action en PaginaNoEncontrada.razor.css.
+   ============================================================================ *@
+
+<PageTitle>Página no encontrada · Sonrisa Digital</PageTitle>
+
+<div class="notfound-wrap">
+    <div class="notfound-art">
+        @* La ilustracion completa: el 404, el mensaje y el boton "Volver al inicio". *@
+        <img src="images/404.png" alt="404: la página que buscas no está en su lugar" />
+
+        @* Enlace invisible COLOCADO ENCIMA del boton dibujado. Las medidas
+           (left/top/ancho/alto) se sacaron midiendo el boton pixel a pixel
+           dentro de la imagen, por eso queda justo encima. *@
+        <a class="notfound-art-action" href="/" aria-label="Volver al inicio" title="Volver al inicio"></a>
+    </div>
+</div>

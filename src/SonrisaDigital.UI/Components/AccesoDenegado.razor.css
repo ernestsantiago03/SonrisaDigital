@@ -1,0 +1,6 @@
+.denied-page { max-width: 560px; margin: 40px auto; padding: 28px; border: 1px solid #dbe4ee; border-radius: 6px; background: #fff; box-shadow: 0 2px 8px rgba(15, 23, 42, .035); text-align: center; }
+.denied-badge { display: inline-block; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; background: #fef2f2; color: #b91c1c; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.denied-page h1 { margin: 0 0 10px; color: #0f172a; font-size: 20px; }
+.denied-page p { margin: 0 0 20px; color: #64748b; font-size: 13px; line-height: 1.6; }
+.denied-action { display: inline-block; padding: 9px 16px; border-radius: 4px; background: #2563eb; color: #fff; font-size: 12px; font-weight: 600; text-decoration: none; }
+.denied-action:hover { background: #1d4ed8; }

@@ -1,0 +1,96 @@
+﻿@page "/acercaDe"
+@attribute [Authorize]
+
+<PageTitle>Acerca de · Sonrisa Digital</PageTitle>
+
+<div class="appointments-page">
+    @* --- CABECERA DE LA PÁGINA --- *@
+    <div class="page-header">
+        <div>
+            <h1>Información de la Empresa</h1>
+            <p>Datos corporativos, institucionales y de contacto de la clínica.</p>
+        </div>
+    </div>
+
+    @* --- PANEL 1: IDENTIDAD --- *@
+    <section class="form-panel">
+        <div class="section-heading">
+            <h2>Identidad Institucional</h2>
+            <span>Información general y eslogan de nuestra marca.</span>
+        </div>
+
+        <div class="form-grid">
+            <div class="field">
+                <label>Nombre Comercial</label>
+                <input type="text" class="form-control-readonly" value="Sonrisa Digital, Clínica Dental" readonly />
+            </div>
+
+            <div class="field">
+                <label>RNC / Identificación Fiscal</label>
+                <input type="text" class="form-control-readonly mono" value="123-456789-0" readonly />
+            </div>
+
+            <div class="field field-wide">
+                <label>Eslogan corporativo</label>
+                <input type="text" class="form-control-readonly italic" value="&quot;Tu sonrisa en las mejores manos profesionales.&quot;" readonly />
+            </div>
+        </div>
+    </section>
+
+    @* --- PANEL 2: CONTACTO Y UBICACIÓN --- *@
+    <section class="form-panel">
+        <div class="section-heading">
+            <h2>Contacto y Ubicación</h2>
+            <span>Canales de atención al cliente y localización física.</span>
+        </div>
+
+        <div class="form-grid">
+            <div class="field">
+                <label>Teléfono Principal</label>
+                <input type="text" class="form-control-readonly" value="809-555-5555" readonly />
+            </div>
+
+            <div class="field">
+                <label>Correo Electrónico</label>
+                <input type="text" class="form-control-readonly" value="contacto@sonrisadigital.com" readonly />
+            </div>
+
+            <div class="field">
+                <label>Horario de Atención</label>
+                <input type="text" class="form-control-readonly" value="Lunes a Viernes: 8:00 AM - 6:00 PM " readonly />
+            </div>
+
+            <div class="field field-wide">
+                <label>Dirección Física</label>
+                <input type="text" class="form-control-readonly" value="Av. Pedro A. Rivera, Plaza Comercial Sonrisa Digital, 2do Nivel, La Vega, República Dominicana." readonly />
+            </div>
+        </div>
+    </section>
+</div>
+
+@* --- ESTILOS LOCALES EXACTOS PARA CAMPO DE SOLO LECTURA --- *@
+<style>
+    /* Esto imita perfectamente el borde, tamaño y fuente de los inputs de Sonrisa Digital, pero bloqueado */
+    .form-control-readonly {
+        width: 100%;
+        padding: 10px 14px;
+        background-color: #f8fafc; /* Fondo gris sutil de campo deshabilitado */
+        border: 1px solid #e2e8f0; /* Borde idéntico al de tus formularios */
+        border-radius: 6px; /* Curvatura de esquina del sistema */
+        color: #334155; /* Color de texto oscuro para lectura */
+        font-size: 0.95rem;
+        font-family: inherit;
+        outline: none;
+        cursor: default;
+    }
+
+        /* Variaciones de estilo internas */
+        .form-control-readonly.mono {
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        .form-control-readonly.italic {
+            font-style: italic;
+            color: #64748b;
+        }
+</style>

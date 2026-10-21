@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SonrisaDigital.UI/SonrisaDigital.UI.csproj" />
+    <Project Path="src/SonrisaDigital.Services/SonrisaDigital.Services.csproj" />
+    <Project Path="src/SonrisaDigital.Data/SonrisaDigital.Data.csproj" />
+  </Folder>
+</Solution>

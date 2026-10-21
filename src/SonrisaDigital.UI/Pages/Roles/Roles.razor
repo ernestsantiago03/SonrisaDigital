@@ -1,0 +1,155 @@
+@page "/roles"
+@attribute [Authorize(Policy = "Roles.Ver")]
+@using SonrisaDigital.Services.Autorizacion
+@inject IRolService RolService
+
+<PageTitle>Roles y permisos · Sonrisa Digital</PageTitle>
+
+<div class="roles-page">
+    <header class="roles-header">
+        <div>
+            <span class="page-eyebrow">Administración</span>
+            <h1>Roles y permisos</h1>
+            <p>Define qué acciones puede realizar cada rol dentro del sistema.</p>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error">@errorMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="feedback success">@successMessage</div>
+    }
+
+    @if (loading)
+    {
+        <div class="roles-state">Cargando roles y permisos...</div>
+    }
+    else
+    {
+        <div class="roles-layout">
+            <aside class="role-list" aria-label="Roles disponibles">
+                <div class="role-list-heading"><strong>Roles del sistema</strong><span>@roles.Count</span></div>
+                @foreach (var role in roles)
+                {
+                    <button class="role-list-item @(selectedRole?.Id == role.Id ? "selected" : "")" @onclick="() => SelectRole(role)">
+                        <span class="role-list-icon">@GetInitials(role.Nombre)</span>
+                        <span><strong>@role.Nombre</strong><small>@role.Permisos.Count permiso(s)</small></span>
+                        <span class="role-chevron">›</span>
+                    </button>
+                }
+            </aside>
+
+            @if (selectedRole is not null)
+            {
+                <section class="permissions-panel">
+                    <div class="permissions-heading">
+                        <div><span class="page-eyebrow">Configuración del rol</span><h2>@selectedRole.Nombre</h2><p>@(selectedRole.Descripcion ?? "Permisos efectivos para este rol.")</p></div>
+                        <AuthorizeView Policy="Roles.Editar">
+                            <Authorized><button class="primary-action" @onclick="SavePermissionsAsync" disabled="@saving">@(saving ? "Guardando..." : "Guardar permisos")</button></Authorized>
+                        </AuthorizeView>
+                    </div>
+                    @if (selectedRole.Nombre == RolesSonrisaDigital.Administrador)
+                    {
+                        <p class="permission-hint">El rol <strong>@RolesSonrisaDigital.Administrador</strong> conserva siempre <strong>Roles.Ver</strong> y <strong>Roles.Editar</strong>, para que el sistema nunca quede sin acceso a esta pantalla.</p>
+                    }
+                    <div class="permission-groups">
+                        @foreach (var group in permissions.GroupBy(permission => permission.Modulo).OrderBy(group => group.Key))
+                        {
+                            <div class="permission-group">
+                                <div class="group-heading"><h3>@group.Key</h3><span>@group.Count() permiso(s)</span></div>
+                                <div class="permission-grid">
+                                    @foreach (var permission in group)
+                                    {
+                                        <label class="permission-option">
+                                            <input type="checkbox" checked="@selectedPermissions.Contains(permission.Nombre)" disabled="@IsMandatory(permission.Nombre)" @onchange="eventArgs => TogglePermission(permission.Nombre, eventArgs.Value is true)" />
+                                            <span><strong>@permission.Nombre</strong><small>@permission.Descripcion</small></span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<RolePermissionDto> roles = [];
+    private List<PermissionDefinition> permissions = [];
+    private RolePermissionDto? selectedRole;
+    private HashSet<string> selectedPermissions = new(StringComparer.Ordinal);
+    private bool loading = true;
+    private bool saving;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            roles = (await RolService.GetRolesAsync()).ToList();
+            permissions = (await RolService.GetPermissionsAsync()).ToList();
+            SelectRole(roles.FirstOrDefault());
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar los roles y permisos.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void SelectRole(RolePermissionDto? role)
+    {
+        selectedRole = role;
+        selectedPermissions = role is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : role.Permisos.ToHashSet(StringComparer.Ordinal);
+        successMessage = null;
+    }
+
+    private void TogglePermission(string permission, bool selected)
+    {
+        if (IsMandatory(permission)) return;
+
+        if (selected) selectedPermissions.Add(permission);
+        else selectedPermissions.Remove(permission);
+    }
+
+    private bool IsMandatory(string permission) =>
+        selectedRole?.Nombre == RolesSonrisaDigital.Administrador
+        && (permission == "Roles.Ver" || permission == "Roles.Editar");
+
+    private async Task SavePermissionsAsync()
+    {
+        if (selectedRole is null) return;
+        saving = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            await RolService.UpdatePermissionsAsync(selectedRole.Id, selectedPermissions);
+            roles = (await RolService.GetRolesAsync()).ToList();
+            selectedRole = roles.First(role => role.Id == selectedRole.Id);
+            successMessage = "Los permisos del rol fueron actualizados y se aplican de inmediato.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string GetInitials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => char.ToUpperInvariant(part[0])));
+}

@@ -1,0 +1,347 @@
+@page "/pacientes/nuevo"
+@page "/pacientes/editar/{Id:int}"
+@attribute [Authorize(Policy = "Pacientes.Editar")]
+@attribute [Authorize]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Pacientes
+@using SonrisaDigital.Services.Pacientes.DTOs
+@inject IPacienteService PacienteService
+@inject NavigationManager Navigation
+
+@* ============================================================================
+   PÁGINA: Registrar / Editar paciente        Rutas: /pacientes/nuevo y /pacientes/editar/{id}
+
+   ¿Qué hace esta pantalla?
+     Es el formulario para crear un paciente o editar los datos administrativos de uno que ya
+     existe (nombre, cédula, teléfono, dirección...). Además, dentro de un recuadro que solo
+     ven los roles con permiso "HistoriaClinica.Crear", permite anotar las alergias.
+     Si no hay alergias se marca la casilla "No refiere alergias", que es distinto de dejar
+     el campo vacío ("sin registrar").
+
+   ¿Cómo se lee este archivo?
+     - Markup: datos generales del paciente + recuadro de alergias.
+     - @code (al final):
+         OnParametersSetAsync -> si es edición, cargar el paciente
+         AddAlergia           -> botones rápidos de alergias frecuentes
+         SaveAsync            -> crear o actualizar y volver a la ficha
+   ============================================================================ *@
+
+<PageTitle>@(IsEditing ? "Editar paciente" : "Registrar paciente") · Sonrisa Digital</PageTitle>
+
+<div class="patient-form-page">
+    <div class="page-header"><div><a class="back-link" href="/pacientes">← Pacientes </a><h1>@(IsEditing ? "Editar paciente 👤" : "Registrar paciente 👤")</h1><p>@(IsEditing ? "Actualiza la información administrativa del paciente." : "Registra la información general del paciente.")</p></div></div>
+    @if (loading)
+    {
+        <div class="form-state">Cargando información...</div>
+    }
+    else if (notFound)
+    {
+        <div class="form-state">El paciente solicitado no existe.</div>
+    }
+    else
+    {
+<EditForm Model="model" OnValidSubmit="SaveAsync">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error">@errorMessage</div>
+    }
+
+    <section class="form-panel">
+        <div class="section-heading">
+            <h2>Información personal</h2>
+            <span>Campos obligatorios marcados en el formulario</span>
+        </div>
+
+        <div class="form-grid">
+
+            <div class="field">
+                <label for="first-name">Nombres</label>
+                <InputText id="first-name" @bind-Value="model.Nombres" />
+                <ValidationMessage For="@(() => model.Nombres)" />
+            </div>
+
+            <div class="field">
+                <label for="last-name">Apellidos</label>
+                <InputText id="last-name" @bind-Value="model.Apellidos" />
+                <ValidationMessage For="@(() => model.Apellidos)" />
+            </div>
+
+            <div class="field">
+                <label for="identification">Identificación</label>
+                <InputText id="identification" @bind-Value="model.Identificacion" />
+                <ValidationMessage For="@(() => model.Identificacion)" />
+            </div>
+
+            <div class="field">
+                <label for="birth-date">Fecha de nacimiento</label>
+                <InputDate id="birth-date" @bind-Value="model.FechaNacimiento" />
+                <ValidationMessage For="@(() => model.FechaNacimiento)" />
+            </div>
+
+            <div class="field">
+                <label for="sex">Sexo</label>
+                <InputSelect id="sex" @bind-Value="model.Sexo">
+                    <option value="" disabled selected hidden>Seleccione un sexo</option>
+                    <option value="Femenino">Femenino</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Otro">Otro</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => model.Sexo)" />
+            </div>
+
+                   <div class="field">
+                    <label for="sex">Tipo de sangre</label>
+                    <InputSelect id="tipo-sangre" @bind-Value="model.TipoSangre">
+                        <option value="" disabled selected hidden>Seleccione su tipo de sangre</option>
+                            <option value="O+">O Rh Positivo (O+)</option>
+                            <option value="O-">O Rh Negativo (O-)</option>
+                            <option value="A+">A Rh Positivo (A+)</option>
+                            <option value="A-">A Rh Negativo (A-)</option>
+                            <option value="B+">B Rh Positivo (B+)</option>
+                            <option value="B-">B Rh Negativo (B-)</option>
+                            <option value="AB+">AB Rh Positivo (AB+)</option>
+                            <option value="AB-">AB Rh Negativo (AB-)</option>
+                    </InputSelect>
+                    <ValidationMessage For="@(() => model.TipoSangre)" />
+                </div>
+
+        </div>
+    </section>
+
+    <section class="form-panel">
+        <div class="section-heading">
+            <h2>Información de contacto</h2>
+        </div>
+
+        <div class="form-grid">
+
+            <div class="field">
+                <label for="phone">Teléfono</label>
+                <InputText id="phone" @bind-Value="model.Telefono" />
+                <ValidationMessage For="@(() => model.Telefono)" />
+            </div>
+
+            <div class="field">
+                <label for="email">Correo electrónico</label>
+                <InputText id="email" type="email" @bind-Value="model.Correo" />
+                <ValidationMessage For="@(() => model.Correo)" />
+            </div>
+
+            <div class="field field-wide">
+                <label for="address">Dirección</label>
+                <InputText id="address" @bind-Value="model.Direccion" />
+                <ValidationMessage For="@(() => model.Direccion)" />
+            </div>
+
+        </div>
+    </section>
+
+    <section class="form-panel">
+        <div class="section-heading">
+            <h2>Contacto de emergencia</h2>
+        </div>
+
+        <div class="form-grid">
+
+            <div class="field">
+                <label for="emergency-name">Nombre</label>
+                <InputText id="emergency-name" @bind-Value="model.ContactoEmergenciaNombre" />
+                <ValidationMessage For="@(() => model.ContactoEmergenciaNombre)" />
+            </div>
+
+            <div class="field">
+                <label for="emergency-phone">Teléfono</label>
+                <InputText id="emergency-phone" @bind-Value="model.ContactoEmergenciaTelefono" />
+                <ValidationMessage For="@(() => model.ContactoEmergenciaTelefono)" />
+            </div>
+
+                        <div class="field">
+            <label for="emergency-relation">Relación</label>
+            <InputSelect id="emergency-relation" @bind-Value="model.ContactoEmergenciaRelacion">
+                <option value="" disabled selected hidden>Seleccione una relación</option>
+                <option value="Familiar">Familiar</option>
+                <option value="Amigo(a)">Amigo/a</option>
+                <option value="Otro">Otro</option>
+            </InputSelect>
+            <ValidationMessage For="@(() => model.ContactoEmergenciaRelacion)" />
+            </div>
+        </div>
+    </section>
+
+    <AuthorizeView Policy="HistoriaClinica.Crear" Context="clinica">
+        <section class="form-panel allergy-panel">
+            <div class="section-heading">
+                <h2>Alergias</h2>
+                <span>Dato clínico</span>
+            </div>
+
+            <div class="allergy-body">
+                <label class="allergy-check">
+                    <InputCheckbox @bind-Value="NoRefiereAlergias" />
+                    <span>El paciente no refiere alergias</span>
+                </label>
+
+                @if (!model.NoRefiereAlergias)
+                {
+                    <div class="allergy-chips">
+                        <span class="chips-label">Agregar rápido</span>
+                        @foreach (var alergia in AlergiasFrecuentes)
+                        {
+                            <button type="button" class="allergy-chip" @onclick="() => AddAlergia(alergia)">+ @alergia</button>
+                        }
+                    </div>
+                }
+
+                <div class="field field-wide">
+                    <label for="allergies">Detalle</label>
+                    <InputTextArea id="allergies" @bind-Value="model.Alergias"
+                                   disabled="@model.NoRefiereAlergias" rows="3"
+                                   placeholder="Ej.: Penicilina: sarpullido; Látex: irritación de la piel" />
+                    <ValidationMessage For="@(() => model.Alergias)" />
+                </div>
+
+                <p class="allergy-hint">
+                    Si todavía no le preguntaste al paciente, dejá la casilla y el detalle vacíos: así se distingue "sin registrar" de "no refiere alergias".
+                </p>
+            </div>
+        </section>
+    </AuthorizeView>
+
+    <div class="form-actions">
+        <a class="cancel-action" href="/pacientes">Cancelar</a>
+
+        <button class="primary-action" type="submit" disabled="@saving">
+            @(saving ? "Guardando..." : "Guardar paciente")
+        </button>
+    </div>
+</EditForm>
+
+
+    }
+</div>
+
+@code {
+    // =========================================================================================
+    // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
+    // =========================================================================================
+
+    // El id del paciente que llega por la URL al editar; si es null, se está creando uno nuevo.
+    [Parameter] public int? Id { get; set; }
+
+    private PacienteFormDto model = new();   // los datos del formulario
+    private bool loading;                    // ¿cargando el paciente a editar?
+    private bool saving;                     // ¿guardando?
+    private bool notFound;                   // ¿el paciente de la URL no existe?
+    private string? errorMessage;            // mensaje rojo (error)
+
+    /// <summary>
+    /// Lista de alergias más comunes que el formulario ofrece como botones rápidos
+    /// para no tener que escribirlas a mano.
+    /// </summary>
+    private static readonly string[] AlergiasFrecuentes =
+    [
+        "Penicilina / Amoxicilina",
+        "Anestésicos locales",
+        "Látex",
+        "AINEs (ibuprofeno)",
+        "Sulfas",
+        "Yodo / antisépticos"
+    ];
+
+    /// <summary>
+    /// Casilla "No refiere alergias". Si el usuario la marca, se borra el detalle de alergias
+    /// para no guardar dos datos contradictorios a la vez.
+    /// </summary>
+    private bool NoRefiereAlergias
+    {
+        get => model.NoRefiereAlergias;
+        set
+        {
+            model.NoRefiereAlergias = value;
+            if (value) model.Alergias = null;
+        }
+    }
+
+    /// <summary>
+    /// Agrega una de las alergias frecuentes (botones rápidos del formulario) al texto del
+    /// paciente. No repite una alergia que ya esté escrita y usa "; " como separador.
+    /// </summary>
+    private void AddAlergia(string alergia)
+    {
+        // Al agregar una alergia concreta se desmarca "No refiere alergias"
+        // (sería contradictorio).
+        model.NoRefiereAlergias = false;
+
+        // Paso 1: leer lo que ya había escrito, sin espacios sobrantes.
+        var actual = model.Alergias?.Trim();
+
+        // Paso 2: si no había nada, esta pasa a ser la primera alergia.
+        if (string.IsNullOrEmpty(actual))
+        {
+            model.Alergias = alergia;
+            return;
+        }
+
+        // Paso 3: si esa alergia ya estaba escrita (sin importar mayúsculas), no se repite.
+        if (actual.Contains(alergia, StringComparison.OrdinalIgnoreCase)) return;
+
+        // Paso 4: si no estaba, se agrega al final separada por "; ".
+        model.Alergias = $"{actual.TrimEnd(';', ',', ' ')}; {alergia}";
+    }
+
+    private bool IsEditing => Id.HasValue;
+    private bool IsPatientActive
+    {
+        get => model.Estado == EstadoRegistro.Activo;
+        set => model.Estado = value ? EstadoRegistro.Activo : EstadoRegistro.Inactivo;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Si no hay id en la URL, es un paciente nuevo: no hay nada que cargar.
+        if (!Id.HasValue) return;
+
+        // Paso 1: encender el "Cargando..." y pedir los datos del paciente.
+        loading = true;
+        var loaded = await PacienteService.GetFormAsync(Id.Value);
+
+        // Paso 2: si no existe, se marca notFound (el markup muestra "no encontrado");
+        // si existe, se llena el formulario con sus datos.
+        if (loaded is null) notFound = true;
+        else model = loaded;
+
+        loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        // Paso 1: encender el "Guardando..." y limpiar el error anterior.
+        saving = true;
+        errorMessage = null;
+        try
+        {
+            // Paso 2: decidir qué hacer según el caso.
+            if (IsEditing)
+            {
+                // Ya existe: se actualizan sus datos.
+                await PacienteService.UpdateAsync(model);
+            }
+            else
+            {
+                // Es nuevo: se crea y el servicio devuelve el id que le tocó.
+                model.Id = await PacienteService.CreateAsync(model);
+            }
+
+            // Paso 3: ir a la ficha del paciente (así el usuario ve el resultado).
+            Navigation.NavigateTo($"/pacientes/{model.Id}");
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Errores esperados del servicio (por ejemplo, cédula repetida): se muestran tal cual.
+            errorMessage = exception.Message;
+        }
+        finally { saving = false; }
+    }
+}

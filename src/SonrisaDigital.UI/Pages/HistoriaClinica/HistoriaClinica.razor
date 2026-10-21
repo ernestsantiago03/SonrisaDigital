@@ -1,0 +1,1246 @@
+@page "/historia-clinica"
+@page "/historia-clinica/{PacienteId:int}"
+@attribute [Authorize(Policy = "HistoriaClinica.Ver")]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.HistoriasClinicas
+@using SonrisaDigital.Services.HistoriasClinicas.DTOs
+@inject IHistoriaClinicaService HistoriaService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@* ============================================================================
+   PÁGINA: Historia clínica        Rutas: /historia-clinica y /historia-clinica/{id}
+
+   ¿Qué hace esta pantalla?
+     1. Panel de búsqueda (izquierda): escribes nombre o apellido y aparece la lista.
+     2. Haces clic en un paciente y se carga su historia clínica.
+     3. Se ven dos pestañas: Historia general y Consultas.
+     4. Historia general tiene dos modos: DETALLE (lo que está guardado, con fichas) y EDICIÓN.
+        Se entra a editar con el lápiz ✏️ del encabezado de cada sección (solo con el permiso
+        "HistoriaClinica.Editar") y se sale con "Guardar cambios" o "Cancelar".
+
+   ¿Cómo se lee este archivo?
+     - Primero el markup: la parte visible de la pantalla.
+     - Al final, el bloque @code: la lógica. Se lee de arriba a abajo así:
+         OnParametersSetAsync     -> validar permiso y abrir el paciente que venga en la URL
+         BuscarAsync              -> buscar pacientes por nombre/apellido
+         SeleccionarPacienteAsync -> elegir un paciente y cargar su historia
+         LoadAsync                -> traer la historia del paciente elegido (y volver a modo detalle)
+         EmpezarEdicion           -> abrir una sección de la historia general para editarla
+         CancelarEdicionAsync     -> cerrar la edición sin guardar
+         SaveAsync                -> guardar los cambios del formulario
+   ============================================================================ *@
+
+<PageTitle>Historia clínica · Sonrisa Digital</PageTitle>
+
+<div class="history-page">
+    <div class="page-header">
+        <div>
+            <a class="back-link" href="/pacientes">← Pacientes</a>
+            <h1>Historia clínica</h1>
+            <p>@(model is null ? "Consulta los antecedentes y las consultas clínicas del paciente." : model.PacienteNombre)</p>
+        </div>
+        <div class="header-actions">
+            <a class="secondary-action" href="/pacientes">Volver</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="feedback success" role="status">@successMessage</div>
+    }
+
+    <section class="filter-panel search-panel" aria-label="Buscar paciente">
+        <div class="search-field">
+            <label for="patient-search">Buscar paciente</label>
+            <input id="patient-search"
+                   type="search"
+                   @bind="searchTerm"
+                   @bind:event="oninput"
+                   @bind:after="BuscarAsync"
+                   @onkeydown="HandleSearchKeyDown"
+                   placeholder="Escribe el nombre o apellido del paciente" />
+        </div>
+        <button type="button" class="primary-action" @onclick="BuscarAsync" disabled="@buscando">
+            @(buscando ? "Buscando..." : "Buscar")
+        </button>
+    </section>
+
+    @if (buscandoResultados)
+    {
+        <section class="search-results" aria-label="Resultados de la búsqueda">
+            @if (resultados.Count == 0)
+            {
+                <div class="search-empty">
+                    @(string.IsNullOrWhiteSpace(searchTerm)
+                        ? "Todavía no hay pacientes registrados."
+                        : "No se encontró ningún paciente con ese nombre o apellido.")
+                </div>
+            }
+            else
+            {
+                <div class="search-results-head">
+                    @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
+                </div>
+                <ul class="search-results-list">
+                    @foreach (var patient in resultados)
+                    {
+                        var pacienteId = patient.Id;
+                        <li>
+                            <button type="button" class="search-result" @onclick="() => SeleccionarPacienteAsync(pacienteId)">
+                                <span class="search-result-name">@patient.NombreCompleto</span>
+                                <span class="search-result-meta">@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "Sin cédula" : patient.Identificacion)</span>
+                                @if (!patient.Activo)
+                                {
+                                    <span class="status-badge inactive">Inactivo</span>
+                                }
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+
+    @if (loading)
+    {
+        <section class="detail-panel">
+            <div class="table-state">Cargando historia clínica...</div>
+        </section>
+    }
+    else if (model is null)
+    {
+        <section class="detail-panel">
+            <div class="table-state empty-state">
+                @if (selectedPatientId > 0)
+                {
+                    <strong>No se pudo cargar la historia clínica</strong>
+                    <span>Vuelve a intentarlo o busca otro paciente.</span>
+                }
+                else
+                {
+                    <strong>Selecciona un paciente</strong>
+                    <span>Usa la búsqueda de arriba para encontrar al paciente y ver su historia clínica.</span>
+                }
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="filter-panel patient-bar" aria-label="Datos del paciente">
+            <div class="meta-field meta-patient">
+                <label>Paciente</label>
+                <strong>@model.PacienteNombre</strong>
+            </div>
+            <div class="meta-field">
+                <label>Cédula</label>
+                <strong>@Mostrar(model.Identificacion)</strong>
+            </div>
+            <div class="meta-field">
+                <label>Edad</label>
+                <strong>@EdadTexto</strong>
+            </div>
+            <div class="meta-field">
+                <label>Tipo de sangre</label>
+                <strong>@Mostrar(model.TipoSangre)</strong>
+            </div>
+            <div class="meta-field">
+                <label>Estado</label>
+                <strong><span class="status-badge @(model.PacienteActivo ? "active" : "inactive")">@(model.PacienteActivo ? "Activo" : "Inactivo")</span></strong>
+            </div>
+        </section>
+
+        <div class="tabs" role="tablist">
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(tabActiva == "general")"
+                    class="tab @(tabActiva == "general" ? "is-active" : "")"
+                    @onclick='() => tabActiva = "general"'>
+                Historia general
+            </button>
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(tabActiva == "consultas")"
+                    class="tab @(tabActiva == "consultas" ? "is-active" : "")"
+                    @onclick='() => tabActiva = "consultas"'>
+                Consultas
+            </button>
+        </div>
+
+        @if (tabActiva == "general")
+        {
+            @* La historia general tiene dos modos:
+                  - DETALLE (por defecto): se lee lo que está guardado (fichas, textos y filas).
+                  - EDICIÓN: al pulsar el lápiz ✏️ de una sección, esa sección cambia a campos
+                    para corregir lo que hay o agregar más, y aparecen "Guardar cambios" y "Cancelar". *@
+            <EditForm Model="model!" OnValidSubmit="SaveAsync">
+                <div class="card-grid">
+                    <section class="detail-panel">
+                        <div class="section-heading">
+                            <h2>Antecedentes médicos</h2>
+                            @if (canEdit)
+                            {
+                                <button type="button"
+                                        class="icon-action"
+                                        @onclick="() => EmpezarEdicion(SeccionMedicos)"
+                                        disabled="@(EditandoOdontologicos)"
+                                        title="Editar antecedentes médicos"
+                                        aria-label="Editar antecedentes médicos">✏️</button>
+                            }
+                        </div>
+                        <div class="section-body">
+                            <div class="field">
+                                <label for="alergias">Alergias</label>
+                                @if (EditandoMedicos)
+                                {
+                                    <InputTextArea id="alergias"
+                                                   @bind-Value="model.Alergias"
+                                                   rows="2"
+                                                   placeholder="Una alergia por línea. Ej.: Penicilina (sarpullido)" />
+                                    <ValidationMessage For="@(() => model.Alergias)" />
+                                    var alergiasEdicion = SepararEnChips(model.Alergias);
+                                    if (EsNoRefiere(model.Alergias))
+                                    {
+                                        <div class="chip-row">
+                                            <span class="chip-row-label">Vista previa:</span>
+                                            <span class="chip chip-none">No refiere alergias</span>
+                                        </div>
+                                    }
+                                    else if (alergiasEdicion.Count > 0)
+                                    {
+                                        <div class="chip-row">
+                                            <span class="chip-row-label">Vista previa:</span>
+                                            @foreach (var item in alergiasEdicion)
+                                            {
+                                                <span class="chip chip-allergy">@item</span>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else if (EsNoRefiere(model.Alergias))
+                                {
+                                    <div class="chip-row">
+                                        <span class="chip chip-none">No refiere alergias</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    var alergias = SepararEnChips(model.Alergias);
+                                    if (alergias.Count > 0)
+                                    {
+                                        <div class="chip-row">
+                                            @foreach (var item in alergias)
+                                            {
+                                                <span class="chip chip-allergy">@item</span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="detail-empty">Sin registrar</span>
+                                    }
+                                }
+                            </div>
+
+                            <div class="field">
+                                <label for="enfermedades">Enfermedades sistémicas</label>
+                                @if (EditandoMedicos)
+                                {
+                                    <InputTextArea id="enfermedades"
+                                                   @bind-Value="model.Enfermedades"
+                                                   rows="2"
+                                                   placeholder="Una enfermedad por línea. Ej.: Hipertensión arterial" />
+                                    <ValidationMessage For="@(() => model.Enfermedades)" />
+                                    var enfermedadesEdicion = SepararEnChips(model.Enfermedades);
+                                    if (enfermedadesEdicion.Count > 0)
+                                    {
+                                        <div class="chip-row">
+                                            <span class="chip-row-label">Vista previa:</span>
+                                            @foreach (var item in enfermedadesEdicion)
+                                            {
+                                                <span class="chip chip-disease">@item</span>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    var enfermedades = SepararEnChips(model.Enfermedades);
+                                    if (enfermedades.Count > 0)
+                                    {
+                                        <div class="chip-row">
+                                            @foreach (var item in enfermedades)
+                                            {
+                                                <span class="chip chip-disease">@item</span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="detail-empty">Sin registrar</span>
+                                    }
+                                }
+                            </div>
+
+                            <div class="field">
+                                <label for="medicamentos">Medicamentos actuales</label>
+                                @if (EditandoMedicos)
+                                {
+                                    <InputTextArea id="medicamentos"
+                                                   @bind-Value="model.Medicamentos"
+                                                   rows="2"
+                                                   placeholder="Un medicamento por línea. Ej.: Losartán 50 mg, 1 vez al día" />
+                                    <ValidationMessage For="@(() => model.Medicamentos)" />
+                                }
+                                else
+                                {
+                                    var medicamentos = SepararEnFilas(model.Medicamentos);
+                                    if (medicamentos.Count > 0)
+                                    {
+                                        <ul class="detail-rows">
+                                            @foreach (var medicamento in medicamentos)
+                                            {
+                                                <li>
+                                                    <span class="detail-row-name">@medicamento.Nombre</span>
+                                                    @if (!string.IsNullOrWhiteSpace(medicamento.Detalle))
+                                                    {
+                                                        <span class="detail-row-meta">@medicamento.Detalle</span>
+                                                    }
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                    else
+                                    {
+                                        <span class="detail-empty">Sin registrar</span>
+                                    }
+                                }
+                            </div>
+
+                            <div class="field">
+                                <label for="antecedentes-medicos">Antecedentes médicos</label>
+                                @if (EditandoMedicos)
+                                {
+                                    <InputTextArea id="antecedentes-medicos"
+                                                   @bind-Value="model.AntecedentesMedicos"
+                                                   rows="2"
+                                                   placeholder="Cirugías, hospitalizaciones, antecedentes familiares..." />
+                                    <ValidationMessage For="@(() => model.AntecedentesMedicos)" />
+                                }
+                                else if (string.IsNullOrWhiteSpace(model.AntecedentesMedicos))
+                                {
+                                    <span class="detail-empty">Sin registrar</span>
+                                }
+                                else
+                                {
+                                    <p class="detail-text">@model.AntecedentesMedicos</p>
+                                }
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="detail-panel">
+                        <div class="section-heading">
+                            <h2>Antecedentes odontológicos</h2>
+                            @if (canEdit)
+                            {
+                                <button type="button"
+                                        class="icon-action"
+                                        @onclick="() => EmpezarEdicion(SeccionOdontologicos)"
+                                        disabled="@(EditandoMedicos)"
+                                        title="Editar antecedentes odontológicos"
+                                        aria-label="Editar antecedentes odontológicos">✏️</button>
+                            }
+                        </div>
+                        <div class="section-body">
+                            <div class="field">
+                                <label for="antecedentes-odontologicos">Tratamientos previos</label>
+                                @if (EditandoOdontologicos)
+                                {
+                                    <InputTextArea id="antecedentes-odontologicos"
+                                                   @bind-Value="model.AntecedentesOdontologicos"
+                                                   rows="3"
+                                                   placeholder="Ej.: Extracciones: piezas 18, 28" />
+                                    <ValidationMessage For="@(() => model.AntecedentesOdontologicos)" />
+                                }
+                                else if (string.IsNullOrWhiteSpace(model.AntecedentesOdontologicos))
+                                {
+                                    <span class="detail-empty">Sin registrar</span>
+                                }
+                                else
+                                {
+                                    <p class="detail-text">@model.AntecedentesOdontologicos</p>
+                                }
+                            </div>
+
+                            <div class="field">
+                                <label for="habitos">Hábitos</label>
+                                @if (EditandoOdontologicos)
+                                {
+                                    <InputTextArea id="habitos"
+                                                   @bind-Value="model.Habitos"
+                                                   rows="2"
+                                                   placeholder="Un hábito por línea. Ej.: Bruxismo nocturno" />
+                                    <ValidationMessage For="@(() => model.Habitos)" />
+                                    var habitosEdicion = SepararEnChips(model.Habitos);
+                                    if (habitosEdicion.Count > 0)
+                                    {
+                                        <div class="chip-row">
+                                            <span class="chip-row-label">Vista previa:</span>
+                                            @foreach (var item in habitosEdicion)
+                                            {
+                                                <span class="chip chip-habit">@item</span>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    var habitos = SepararEnChips(model.Habitos);
+                                    if (habitos.Count > 0)
+                                    {
+                                        <div class="chip-row">
+                                            @foreach (var item in habitos)
+                                            {
+                                                <span class="chip chip-habit">@item</span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="detail-empty">Sin registrar</span>
+                                    }
+                                }
+                            </div>
+
+                            <div class="field">
+                                <label for="observaciones">Observaciones generales</label>
+                                @if (EditandoOdontologicos)
+                                {
+                                    <InputTextArea id="observaciones"
+                                                   @bind-Value="model.Observaciones"
+                                                   rows="4"
+                                                   placeholder="Notas generales de la historia clínica." />
+                                    <ValidationMessage For="@(() => model.Observaciones)" />
+                                }
+                                else if (string.IsNullOrWhiteSpace(model.Observaciones))
+                                {
+                                    <span class="detail-empty">Sin registrar</span>
+                                }
+                                else
+                                {
+                                    <p class="detail-text">@model.Observaciones</p>
+                                }
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                @if (EditandoAlgunaSeccion)
+                {
+                    <div class="form-actions">
+                        <span class="form-hint">Los cambios importantes quedan registrados en auditoría.</span>
+                        <button type="button" class="secondary-action" @onclick="CancelarEdicionAsync" disabled="@saving">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="primary-action" disabled="@saving">
+                            @(saving ? "Guardando..." : "Guardar cambios")
+                        </button>
+                    </div>
+                }
+                else if (canEdit)
+                {
+                    <span class="edit-hint">Pulsa el lápiz ✏️ de una sección para editarla.</span>
+                }
+                else
+                {
+                    <div class="read-only-note">
+                        Tu rol tiene acceso de consulta. Solo un usuario autorizado puede modificar la información clínica.
+                    </div>
+                }
+            </EditForm>
+        }
+        else
+        {
+            @* ---- Pestaña: Consultas clínicas (historial + botón "Nueva consulta") ---- *@
+            <section class="detail-panel">
+                <div class="section-heading">
+                    <h2>Consultas clínicas</h2>
+                    <div class="heading-actions">
+                        <span class="section-meta">@model.Consultas.Count @(model.Consultas.Count == 1 ? "consulta" : "consultas")</span>
+                        @if (canCreateConsulta)
+                        {
+                            <button type="button" class="primary-action" @onclick="AbrirModalConsulta">+ Nueva consulta</button>
+                        }
+                    </div>
+                </div>
+
+                @if (model.Consultas.Count == 0)
+                {
+                    <div class="table-state empty-state">
+                        <strong>Todavía no hay consultas registradas</strong>
+                        <span>Usa el botón "+ Nueva consulta" para registrar la primera.</span>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var consulta in model.Consultas)
+                    {
+                        var abierta = consultasAbiertas.Contains(consulta.Id);
+                        <div class="consultation @(abierta ? "is-open" : "")">
+                            <button type="button" class="consultation-head" @onclick="() => ToggleConsulta(consulta.Id)">
+                                <span class="consultation-date">@consulta.Fecha.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                                <span class="consultation-reason">@Mostrar(consulta.Motivo)</span>
+                                <span class="status-badge @EstadoClass(consulta.Estado)">@EstadoLabel(consulta.Estado)</span>
+                                <span class="consultation-doctor">@consulta.Odontologo</span>
+                                <span class="consultation-caret" aria-hidden="true">@(abierta ? "▲" : "▼")</span>
+                            </button>
+
+                            @if (abierta)
+                            {
+                                <div class="consultation-body">
+                                    <div>
+                                        <dt>Observaciones</dt>
+                                        <dd>@Mostrar(consulta.Observaciones)</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Diagnóstico</dt>
+                                        <dd>@Mostrar(consulta.Diagnostico)</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Plan de tratamiento</dt>
+                                        <dd>@Mostrar(consulta.PlanTratamiento)</dd>
+                                    </div>
+                                    @* Si la consulta nació de una cita atendida, se deja el enlace a esa cita. *@
+                                    @if (consulta.CitaId.HasValue)
+                                    {
+                                        <div>
+                                            <dt>Origen</dt>
+                                            <dd>
+                                                Consulta de la <a href="/cita/@consulta.CitaId">cita #@consulta.CitaId</a>
+                                            </dd>
+                                        </div>
+                                    }
+
+                                    @* Acciones de una consulta que sigue abierta (una cerrada ya es de
+                                       solo lectura):
+                                        - "Completar consulta" → permiso HistoriaClinica.Editar (modificar
+                                          información clínica: aquí se termina el diagnóstico y el plan).
+                                        - "Cerrar consulta"    → permiso HistoriaClinica.Crear (es parte del
+                                          registro de la consulta). *@
+                                    @if (consulta.Estado == EstadoConsulta.Abierta && (canEdit || canCreateConsulta))
+                                    {
+                                        <div class="consultation-actions">
+                                            @if (canEdit)
+                                            {
+                                                <button type="button" class="secondary-action"
+                                                        @onclick="() => AbrirModalConsultaParaCompletar(consulta)">
+                                                    Completar consulta
+                                                </button>
+                                            }
+                                            @if (canCreateConsulta)
+                                            {
+                                                <button type="button" class="secondary-action"
+                                                        @onclick="() => CerrarConsultaAsync(consulta.Id)"
+                                                        disabled="@cerrandoConsulta">
+                                                    Cerrar consulta
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </section>
+        }
+    }
+</div>
+
+@* ---- Ventana (modal) para registrar una consulta clínica nueva ---- *@
+@if (mostrarModalConsulta)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="consulta-modal-title">
+            <div class="modal-header">
+                <h3 class="modal-title" id="consulta-modal-title">@(consultaForm.Id == 0 ? "Nueva consulta clínica" : "Completar consulta clínica")</h3>
+                <button type="button" class="modal-close-btn" @onclick="CerrarModalConsulta" aria-label="Cerrar">&times;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorConsulta))
+            {
+                <div class="alert-error" role="alert">@errorConsulta</div>
+            }
+
+            <EditForm Model="consultaForm" OnValidSubmit="GuardarConsultaAsync">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="consulta-odontologo">Odontólogo tratante</label>
+                        <select id="consulta-odontologo" class="form-control" @bind="consultaForm.OdontologoId">
+                            <option value="0">Selecciona un odontólogo…</option>
+                            @foreach (var odontologo in odontologos)
+                            {
+                                <option value="@odontologo.Id">@odontologo.Nombre</option>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => consultaForm.OdontologoId)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="consulta-fecha">Fecha</label>
+                        <input id="consulta-fecha" type="date" class="form-control" @bind="consultaForm.Fecha" />
+                        <ValidationMessage For="@(() => consultaForm.Fecha)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="consulta-motivo">Motivo</label>
+                        <textarea id="consulta-motivo" class="form-control" rows="2" @bind="consultaForm.Motivo" placeholder="¿Qué trajo al paciente?"></textarea>
+                        <ValidationMessage For="@(() => consultaForm.Motivo)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="consulta-diagnostico">Diagnóstico</label>
+                        <textarea id="consulta-diagnostico" class="form-control" rows="2" @bind="consultaForm.Diagnostico" placeholder="¿Qué se encontró?"></textarea>
+                        <ValidationMessage For="@(() => consultaForm.Diagnostico)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="consulta-plan">Plan de tratamiento</label>
+                        <textarea id="consulta-plan" class="form-control" rows="2" @bind="consultaForm.PlanTratamiento" placeholder="Opcional"></textarea>
+                        <ValidationMessage For="@(() => consultaForm.PlanTratamiento)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="consulta-obs">Observaciones</label>
+                        <textarea id="consulta-obs" class="form-control" rows="2" @bind="consultaForm.Observaciones" placeholder="Opcional"></textarea>
+                        <ValidationMessage For="@(() => consultaForm.Observaciones)" />
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="secondary-action" @onclick="CerrarModalConsulta">Cancelar</button>
+                    <button type="submit" class="primary-action" disabled="@guardandoConsulta">
+                        @(guardandoConsulta ? "Guardando..." : (consultaForm.Id == 0 ? "Guardar consulta" : "Guardar cambios"))
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    // =========================================================================================
+    // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
+    // =========================================================================================
+
+    // El id del paciente que llega por la URL al abrir /historia-clinica/12.
+    [Parameter] public int? PacienteId { get; set; }
+
+    private readonly List<HistoriaClinicaPacienteDto> resultados = [];   // filas del panel de búsqueda
+    private readonly HashSet<int> consultasAbiertas = [];                 // qué consultas están desplegadas
+    private HistoriaClinicaDto? model;                                    // la historia que se está viendo
+    private int selectedPatientId;                                        // paciente elegido (0 = ninguno)
+    private string searchTerm = string.Empty;                             // lo que hay escrito en la caja de búsqueda
+    private bool buscandoResultados;                                      // ¿se está buscando?
+    private bool buscando;                                                // (bandera auxiliar de la búsqueda)
+    private bool loading = true;                                          // ¿la página sigue cargando?
+    private bool saving;                                                  // ¿se está guardando?
+    private bool canEdit;                                                 // ¿puede modificar datos clínicos? (permiso HistoriaClinica.Editar)
+    private bool canCreateConsulta;                                       // ¿puede registrar/cerrar consultas? (permiso HistoriaClinica.Crear)
+    private bool datosInicialesCargados;                                  // para validar los permisos una sola vez
+    private string tabActiva = "general";                                 // pestaña visible ahora mismo
+    private string? seccionEditando;                                      // sección abierta para editar (null = todo en modo detalle)
+    private string? usuarioId;                                            // id del usuario conectado (firma la consulta)
+    private string? errorMessage;                                         // mensaje rojo (error)
+    private string? successMessage;                                       // mensaje verde (éxito)
+
+    // --- Ventana "+ Nueva consulta" ---
+    private bool mostrarModalConsulta;                                    // ¿la ventana está abierta?
+    private ConsultaClinicaFormDto consultaForm = new();                  // el formulario de esa ventana
+    private List<OdontologoOptionDto> odontologos = [];                   // odontólogos para la lista desplegable
+    private bool guardandoConsulta;                                       // ¿se está guardando una consulta?
+    private bool cerrandoConsulta;                                        // ¿se está cerrando una consulta?
+    private string? errorConsulta;                                        // mensaje rojo dentro de la ventana
+
+    // --- Modo detalle / edición de la historia general ---
+    // Las secciones se identifican con estos dos nombres para saber cuál está abierta.
+    private const string SeccionMedicos = "medicos";
+    private const string SeccionOdontologicos = "odontologicos";
+
+    /// <summary>¿La sección "Antecedentes médicos" está en modo edición?</summary>
+    private bool EditandoMedicos => seccionEditando == SeccionMedicos;
+
+    /// <summary>¿La sección "Antecedentes odontológicos" está en modo edición?</summary>
+    private bool EditandoOdontologicos => seccionEditando == SeccionOdontologicos;
+
+    /// <summary>¿Hay alguna sección abierta para editar? (si no, todo se ve en modo detalle)</summary>
+    private bool EditandoAlgunaSeccion => seccionEditando is not null;
+
+    /// <summary>
+    /// Edad del paciente en años completos, calculada a partir de su fecha de nacimiento.
+    /// Si el paciente no tiene fecha de nacimiento registrada devuelve "—".
+    /// </summary>
+    private string EdadTexto
+    {
+        get
+        {
+            if (model?.FechaNacimiento is not DateOnly fechaNacimiento)
+            {
+                return "—";
+            }
+
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            var edad = hoy.Year - fechaNacimiento.Year;
+            if (fechaNacimiento.AddYears(edad) > hoy)
+            {
+                edad--;
+            }
+
+            return $"{edad} años";
+        }
+    }
+
+    /// <summary>
+    /// Se ejecuta cuando la página recibe sus parámetros. Hace dos cosas:
+    /// 1) valida una sola vez si el usuario tiene permiso para editar la historia clínica;
+    /// 2) si la URL trae un paciente (por ejemplo /historia-clinica/12) abre esa historia
+    ///    directamente, sin pasar por la búsqueda.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        // Paso 1: validar los permisos UNA sola vez (no en cada refresco de pantalla).
+        if (!datosInicialesCargados)
+        {
+            datosInicialesCargados = true;
+
+            try
+            {
+                // Se le pregunta al sistema quién está conectado y qué permisos tiene su rol:
+                //  - "HistoriaClinica.Editar" → puede guardar los antecedentes clínicos y
+                //    completar una consulta que siga abierta.
+                //  - "HistoriaClinica.Crear"  → puede registrar y cerrar consultas.
+                // También se guarda el id del usuario, para preseleccionar al odontólogo cuando
+                // el propio usuario es un odontólogo.
+                var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                var usuario = authenticationState.User;
+
+                canEdit = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Editar");
+                // El permiso del rol es lo que da acceso a registrar y cerrar consultas.
+                canCreateConsulta = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Crear");
+                usuarioId = usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            }
+            catch (Exception)
+            {
+                errorMessage = "No fue posible validar tus permisos.";
+            }
+        }
+
+        // Paso 2: si la URL trae un paciente, abrirlo directo (sin pasar por la búsqueda).
+        // Con un enlace directo (/historia-clinica/12) se abre ese paciente sin pasar por la búsqueda.
+        if (PacienteId.HasValue && PacienteId.Value != selectedPatientId)
+        {
+            selectedPatientId = PacienteId.Value;
+            await LoadAsync();
+        }
+
+        // Paso 3: ya se puede pintar la pantalla (se apaga el "Cargando...").
+        loading = false;
+    }
+
+    // =========================================================================================
+    // BÚSQUEDA DE PACIENTES  →  panel de la izquierda
+    // =========================================================================================
+
+    /// <summary>
+    /// Busca pacientes por nombre o apellido con lo que el usuario escribió en la caja de búsqueda.
+    /// Si la caja está vacía, el servicio devuelve todos los pacientes activos en orden alfabético.
+    /// El resultado se guarda en <c>resultados</c> para dibujarlo como lista en pantalla.
+    /// </summary>
+    private async Task BuscarAsync()
+    {
+        // Paso 1: marcar que la búsqueda empezó y limpiar mensajes anteriores.
+        buscandoResultados = true;
+        buscando = true;
+        errorMessage = null;
+
+        try
+        {
+            // Paso 2: pedirle al servicio los pacientes que coincidan con lo escrito.
+            // Si la caja está vacía, devuelve todos (en orden alfabético).
+            var encontrados = await HistoriaService.GetPatientsAsync(searchTerm);
+
+            // Paso 3: reemplazar la lista vieja por los resultados nuevos.
+            resultados.Clear();
+            resultados.AddRange(encontrados);
+        }
+        catch (Exception)
+        {
+            // Si algo falla: lista vacía + mensaje de error (nunca se deja la pantalla a medias).
+            resultados.Clear();
+            errorMessage = "No fue posible buscar los pacientes.";
+        }
+
+        // Paso 4: terminar la búsqueda (apaga el "Buscando...").
+        buscando = false;
+    }
+
+    /// <summary>
+    /// Permite hacer la búsqueda presionando la tecla Enter dentro de la caja de texto,
+    /// como alternativa al botón "Buscar".
+    /// </summary>
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        // Si la tecla es Enter se busca; si es cualquier otra no pasa nada
+        // (Task.CompletedTask significa "ya terminé, no hay nada que hacer").
+        args.Key == "Enter" ? BuscarAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Se ejecuta al hacer clic en un resultado de la búsqueda: guarda el paciente elegido,
+    /// limpia la caja y la lista de resultados, y carga su historia clínica.
+    /// </summary>
+    private async Task SeleccionarPacienteAsync(int pacienteId)
+    {
+        // Paso 1: quedarse con el paciente elegido.
+        selectedPatientId = pacienteId;
+
+        // Paso 2: limpiar la búsqueda (caja, lista y mensajes) porque ya se eligió a alguien.
+        searchTerm = string.Empty;
+        buscandoResultados = false;
+        resultados.Clear();
+        successMessage = null;
+        errorMessage = null;
+
+        // Paso 3: cargar su historia clínica.
+        await LoadAsync();
+    }
+
+    // =========================================================================================
+    // CARGA Y GUARDADO DE LA HISTORIA  →  al elegir un paciente o pulsar "Guardar"
+    // =========================================================================================
+
+    /// <summary>
+    /// Carga la historia clínica del paciente seleccionado (datos, antecedentes y consultas).
+    /// Si todavía no hay paciente elegido (id 0) deja la pantalla vacía para que el usuario busque primero.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        // Al (re)cargar la historia siempre se vuelve al modo detalle: no se deja una sección
+        // abierta para editar si se cambió de paciente o si se acaba de guardar.
+        seccionEditando = null;
+
+        // Caso especial: todavía no hay paciente elegido → pantalla vacía y a esperar la búsqueda.
+        if (selectedPatientId <= 0)
+        {
+            model = null;
+            return;
+        }
+
+        try
+        {
+            // Paso 1: pedirle al servicio la historia completa de ese paciente.
+            model = await HistoriaService.GetByPatientAsync(selectedPatientId);
+            if (model is null)
+            {
+                errorMessage = "El paciente seleccionado ya no existe.";
+                return;
+            }
+
+            // Paso 2: dejar abierta la primera consulta (la más reciente) para que no salga
+            // todo cerrado al entrar; las demás quedan plegadas.
+            consultasAbiertas.Clear();
+            if (model.Consultas.Count > 0)
+            {
+                consultasAbiertas.Add(model.Consultas[0].Id);
+            }
+        }
+        catch (Exception)
+        {
+            model = null;
+            errorMessage = "No fue posible cargar la historia clínica del paciente.";
+        }
+    }
+
+    /// <summary>
+    /// Pasa una sección de la historia general a modo edición (el lápiz ✏️ del encabezado).
+    /// Los campos aparecen con lo que ya estaba guardado, para corregirlo o agregarle más.
+    /// </summary>
+    private void EmpezarEdicion(string seccion)
+    {
+        // Se limpian los mensajes viejos para no arrastrar un aviso de una acción anterior.
+        successMessage = null;
+        errorMessage = null;
+
+        // Se abre la sección pedida (la otra queda en modo detalle).
+        seccionEditando = seccion;
+    }
+
+    /// <summary>
+    /// Sale del modo edición sin guardar: vuelve a traer la historia de la base de datos (así se
+    /// descartan los cambios escritos) y deja todo en modo detalle.
+    /// </summary>
+    private async Task CancelarEdicionAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        // Recargar ya devuelve la pantalla al modo detalle (lo hace LoadAsync).
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Guarda en la base de datos los cambios del formulario de historia clínica y vuelve a
+    /// cargar los datos. Si el servicio rechaza la operación muestra su mensaje de error.
+    /// </summary>
+    private async Task SaveAsync()
+    {
+        // Paso 1: no se puede guardar si no hay paciente cargado o si ya se está guardando
+        // (esto último evita que dos clics seguidos manden dos veces el mismo guardado).
+        if (model is null || saving)
+        {
+            return;
+        }
+
+        // Paso 2: encender el estado "guardando" y limpiar los mensajes viejos.
+        saving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Paso 3: mandar la historia al servicio (él valida y graba en la base de datos).
+            await HistoriaService.SaveAsync(model);
+
+            // Paso 4: recargar desde la base de datos y avisar que se guardó.
+            await LoadAsync();
+            successMessage = "La historia clínica se guardó correctamente.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Los errores "esperados" (por ejemplo "el paciente no existe") traen su propio
+            // mensaje y se muestran tal cual.
+            errorMessage = exception.Message;
+        }
+        catch (Exception)
+        {
+            // Cualquier otro error se muestra con un mensaje general.
+            errorMessage = "No fue posible guardar la historia clínica.";
+        }
+        finally
+        {
+            // Paso 5: se haya guardado o no, se apaga el estado "guardando".
+            saving = false;
+        }
+    }
+
+    // =========================================================================================
+    // CONSULTAS CLÍNICAS  →  registrar una consulta nueva, completar una abierta y cerrarla
+    // =========================================================================================
+
+    /// <summary>
+    /// Abre la ventana "+ Nueva consulta": deja el formulario en blanco, con la fecha de hoy y el
+    /// paciente de la historia que se está viendo. También carga la lista de odontólogos y
+    /// preselecciona al que le corresponde al usuario de la sesión (si el usuario es odontólogo).
+    /// </summary>
+    private async Task AbrirModalConsulta()
+    {
+        // Sin paciente cargado no hay a quién asociarle la consulta.
+        if (model is null)
+        {
+            return;
+        }
+
+        // Paso 1: limpiar errores anteriores y armar el formulario en blanco.
+        errorConsulta = null;
+        consultaForm = new ConsultaClinicaFormDto
+        {
+            PacienteId = model.PacienteId,
+            Fecha = DateTime.Today
+        };
+
+        // Paso 2: cargar los odontólogos y preseleccionar al vinculado al usuario de la sesión,
+        // si ese usuario es odontólogo.
+        await PrepararVentanaConsultaAsync();
+
+        // Paso 3: mostrar la ventana.
+        mostrarModalConsulta = true;
+    }
+
+    /// <summary>
+    /// Abre la misma ventana, pero en modo "completar": carga los datos de una consulta que
+    /// sigue Abierta (por ejemplo la que se creó sola al atender una cita) para terminarle el
+    /// diagnóstico y el plan de tratamiento.
+    /// </summary>
+    private async Task AbrirModalConsultaParaCompletar(ConsultaClinicaItemDto consulta)
+    {
+        // Sin paciente cargado no hay historia a la que pertenezca la consulta.
+        if (model is null)
+        {
+            return;
+        }
+
+        // Paso 1: limpiar errores anteriores y llenar el formulario con lo que ya tenía la
+        // consulta. El "Id" es lo que le dice al servicio que se está completando una consulta
+        // que ya existe (y no creando una nueva).
+        errorConsulta = null;
+        consultaForm = new ConsultaClinicaFormDto
+        {
+            Id = consulta.Id,
+            PacienteId = model.PacienteId,
+            OdontologoId = consulta.OdontologoId,
+            Fecha = consulta.Fecha,
+            Motivo = consulta.Motivo,
+            Diagnostico = consulta.Diagnostico,
+            PlanTratamiento = consulta.PlanTratamiento,
+            Observaciones = consulta.Observaciones
+        };
+
+        // Paso 2: cargar los odontólogos (el tratante se puede corregir). No se preselecciona el
+        // odontólogo de la sesión: se respeta el que ya tenía la consulta.
+        await PrepararVentanaConsultaAsync(preseleccionarVinculado: false);
+
+        // Paso 3: si el odontólogo que firmó la consulta ya no está activo, no aparece en la
+        // lista; en ese caso se deja el desplegable sin elegir (así lo que se ve en pantalla y
+        // el valor del formulario coinciden) y el usuario escoge al profesional actual.
+        if (odontologos.All(odontologo => odontologo.Id != consultaForm.OdontologoId))
+        {
+            consultaForm.OdontologoId = 0;
+        }
+
+        // Paso 4: mostrar la ventana.
+        mostrarModalConsulta = true;
+    }
+
+    /// <summary>
+    /// Prepara la parte común de la ventana de consulta: carga en memoria los odontólogos
+    /// activos (solo la primera vez) y, si se pide, deja preseleccionado en el formulario al
+    /// odontólogo vinculado al usuario de la sesión.
+    /// </summary>
+    private async Task PrepararVentanaConsultaAsync(bool preseleccionarVinculado = true)
+    {
+        try
+        {
+            // Paso 1: cargar los odontólogos activos. La lista se guarda en memoria, así que
+            // solo se consulta la base de datos la primera vez que se abre la ventana.
+            if (odontologos.Count == 0)
+            {
+                odontologos = [.. await HistoriaService.GetOdontologosAsync()];
+            }
+
+            // Paso 2: si el usuario de la sesión es odontólogo, dejarlo ya elegido.
+            if (preseleccionarVinculado && !string.IsNullOrWhiteSpace(usuarioId))
+            {
+                var vinculado = await HistoriaService.GetOdontologoVinculadoAsync(usuarioId);
+                if (vinculado.HasValue && odontologos.Any(odontologo => odontologo.Id == vinculado.Value))
+                {
+                    consultaForm.OdontologoId = vinculado.Value;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            errorConsulta = "No fue posible cargar la lista de odontólogos.";
+        }
+    }
+
+    /// <summary>Cierra la ventana de la consulta sin guardar nada.</summary>
+    private void CerrarModalConsulta()
+    {
+        mostrarModalConsulta = false;
+        errorConsulta = null;
+    }
+
+    /// <summary>
+    /// Guarda la consulta de la ventana: si el formulario no trae id es una consulta nueva; si
+    /// trae id se está completando una consulta abierta. Después cierra la ventana, recarga la
+    /// historia y deja abierta la pestaña de consultas para que se vea el resultado.
+    /// </summary>
+    private async Task GuardarConsultaAsync()
+    {
+        // Sin historia cargada no hay a quién asociarle la consulta.
+        if (model is null)
+        {
+            errorConsulta = "No se pudo cargar la historia clínica.";
+            return;
+        }
+
+        // Paso 1: encender el "Guardando..." y limpiar el error anterior.
+        guardandoConsulta = true;
+        errorConsulta = null;
+        try
+        {
+            // Paso 2: decidir si es una consulta nueva o se está completando una existente.
+            var esNueva = consultaForm.Id == 0;
+
+            // Paso 3: mandar la consulta al servicio (él valida y graba en la base de datos).
+            if (esNueva)
+            {
+                await HistoriaService.CreateConsultaAsync(consultaForm);
+            }
+            else
+            {
+                await HistoriaService.UpdateConsultaAsync(consultaForm);
+            }
+
+            // Paso 4: cerrar la ventana y recargar la historia para ver la consulta.
+            mostrarModalConsulta = false;
+            await LoadAsync();
+
+            // Paso 5: quedarse en la pestaña de consultas y avisar de lo que se hizo.
+            tabActiva = "consultas";
+            successMessage = esNueva
+                ? "La consulta clínica se registró correctamente."
+                : "La consulta clínica se completó correctamente.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Errores "esperados" del servicio (falta el odontólogo, fecha futura...):
+            // se muestran dentro de la ventana para que el usuario corrija.
+            errorConsulta = exception.Message;
+        }
+        catch (Exception)
+        {
+            errorConsulta = "No fue posible registrar la consulta clínica.";
+        }
+        finally
+        {
+            // Paso 5: se haya guardado o no, se apaga el "Guardando...".
+            guardandoConsulta = false;
+        }
+    }
+
+    /// <summary>
+    /// Cierra una consulta clínica para que quede de solo lectura y refresca la lista.
+    /// </summary>
+    private async Task CerrarConsultaAsync(int consultaId)
+    {
+        cerrandoConsulta = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            // Paso 1: pedirle al servicio que cambie el estado de la consulta.
+            await HistoriaService.CerrarConsultaAsync(consultaId);
+
+            // Paso 2: recargar y avisar.
+            await LoadAsync();
+            tabActiva = "consultas";
+            successMessage = "La consulta se cerró correctamente.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cerrar la consulta.";
+        }
+        finally
+        {
+            cerrandoConsulta = false;
+        }
+    }
+
+    // =========================================================================================
+    // DETALLE Y PINTADO  →  el acordeón de consultas y los textos que usa el markup
+    // =========================================================================================
+
+    /// <summary>
+    /// Abre o cierra el detalle de una consulta clínica (funciona como un acordeón):
+    /// si ya estaba abierta la quita de la lista, y si estaba cerrada la agrega.
+    /// </summary>
+    private void ToggleConsulta(int consultaId)
+    {
+        // Add devuelve true si la consulta NO estaba en la lista (y la agrega);
+        // si devuelve false es porque ya estaba abierta, así que se cierra (se quita).
+        if (!consultasAbiertas.Add(consultaId))
+        {
+            consultasAbiertas.Remove(consultaId);
+        }
+    }
+
+    /// <summary>
+    /// Muestra el texto recibido o "—" cuando el dato viene vacío, para no dejar espacios en blanco.
+    /// </summary>
+    private static string Mostrar(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    /// <summary>
+    /// Indica si un texto es del tipo "no refiere ..." (por ejemplo "No refiere alergias").
+    /// Sirve para mostrarlo como una etiqueta gris neutral y poder distinguirlo
+    /// del caso "sin registrar" (que es simplemente un dato vacío).
+    /// </summary>
+    private static bool EsNoRefiere(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Contains("no refiere", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Convierte un texto largo en una lista de etiquetas (chips) separadas por coma,
+    /// punto y coma o salto de línea. Ejemplo: "Látex; Penicilina" → ["Látex", "Penicilina"].
+    /// Si el texto viene vacío devuelve una lista vacía.
+    /// </summary>
+    private static IReadOnlyList<string> SepararEnChips(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        // Paso 1: partir el texto por coma, punto y coma o salto de línea.
+        // RemoveEmptyEntries descarta los pedazos vacíos y TrimEntries quita los espacios
+        // de cada pedazo (por ejemplo "Látex; Penicilina" queda como dos etiquetas limpias).
+        return value
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => item.Length > 0)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Convierte un texto guardado en filas para la vista de detalle (una fila por línea).
+    /// Si una línea trae una coma se parte en dos: el nombre y su detalle. Por ejemplo,
+    /// "Losartán 50 mg, 1 vez al día" queda como nombre "Losartán 50 mg" y detalle "1 vez al día".
+    /// Si el texto viene vacío devuelve una lista vacía.
+    /// </summary>
+    private static IReadOnlyList<(string Nombre, string? Detalle)> SepararEnFilas(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        // Paso 1: partir el texto en líneas (se descartan las líneas vacías y se quitan espacios).
+        return value
+            .Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(linea =>
+            {
+                // Paso 2: si la línea trae una coma, lo que va después es el detalle (la dosis,
+                // la frecuencia...). Se corta solo en la PRIMERA coma (por eso el 2).
+                var partes = linea.Split(',', 2, StringSplitOptions.TrimEntries);
+                var detalle = partes.Length > 1 && partes[1].Length > 0 ? partes[1] : null;
+
+                return (partes[0], detalle);
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Traduce el estado de la consulta (Abierta / Cerrada / Cancelada) al texto que se ve en pantalla.
+    /// </summary>
+    private static string EstadoLabel(EstadoConsulta estado) => estado switch
+    {
+        EstadoConsulta.Abierta => "Abierta",
+        EstadoConsulta.Cerrada => "Cerrada",
+        _ => "Cancelada"
+    };
+
+    /// <summary>
+    /// Devuelve la clase CSS (el color de la etiqueta) que corresponde a cada estado de consulta.
+    /// </summary>
+    private static string EstadoClass(EstadoConsulta estado) => estado switch
+    {
+        EstadoConsulta.Abierta => "active",
+        EstadoConsulta.Cerrada => "inactive",
+        _ => "cancelled"
+    };
+}

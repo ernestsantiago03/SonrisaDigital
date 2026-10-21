@@ -1,0 +1,22 @@
+@page "/404"
+
+@* ============================================================================
+   PAGINA: /404  ->  "No encontramos esta pagina"
+
+   ¿Que hace?
+     Muestra la pantalla de error 404. Su contenido visual esta en el componente
+     Components/PaginaNoEncontrada.razor (asi el mismo diseno se reusa cuando la
+     direccion mala se alcanza navegando dentro de la aplicacion).
+
+   ¿Como llega el usuario aqui?
+     - Directo: http://localhost:5199/404  (sirve para ver la pantalla, o para
+       tomarle una foto, sin tener que inventar una direccion mala).
+     - Automatico: cuando alguien escribe una direccion que no existe, el
+       servidor responde 404 y la linea UseStatusCodePagesWithReExecute de
+       Program.cs trae al usuario hasta aqui, conservando el codigo 404.
+
+   ¿Como se lee?
+     Es una linea: se dibuja el componente compartido.
+   ============================================================================ *@
+
+<PaginaNoEncontrada />

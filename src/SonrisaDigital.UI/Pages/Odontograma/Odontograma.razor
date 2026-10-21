@@ -1,0 +1,577 @@
+@page "/odontograma"
+@attribute [Authorize(Policy = "Odontograma.Ver")]
+@using System.Globalization
+@using System.Security.Claims
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Odontograma
+@using SonrisaDigital.Services.Odontograma.DTOs
+@using SonrisaDigital.Services.Autorizacion
+@inject IOdontogramaService OdontogramaService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@* ============================================================================
+   PÁGINA: Odontograma        Ruta: /odontograma   (también /odontograma?paciente=12)
+
+   ¿Qué hace esta pantalla?
+     Muestra las 32 piezas dentales de un paciente para ir marcando su estado (sano, caries,
+     restauración, ausente, fracturado, tratamiento realizado). Arriba a la izquierda está el
+     panel de búsqueda: se escribe nombre o apellido y sale la lista de pacientes ACTIVOS.
+     La página empieza sin nadie seleccionado ("Sin seleccionar").
+
+   ¿Cómo se lee este archivo?
+     - Markup: panel de búsqueda, encabezado del paciente y el dibujo del odontograma
+       (arcada superior e inferior) con el panel lateral para editar la pieza elegida.
+     - @code (al final):
+         OnInitializedAsync    -> validar permiso y abrir el paciente de la URL (si viene)
+         BuscarAsync           -> buscar pacientes activos
+         SeleccionarPacienteAsync -> elegir paciente y cargar sus piezas
+         LoadPiecesAsync       -> traer las 32 piezas del paciente
+         SaveSelectedPieceAsync-> guardar el estado de la pieza elegida
+         Ayudantes de dibujo   -> orden de los dientes, forma del arco y colores por estado
+   ============================================================================ *@
+
+<PageTitle>Odontograma · Sonrisa Digital</PageTitle>
+
+<div class="odontogram-page">
+    <header class="odontogram-header">
+        <div class="header-copy">
+            <span class="page-eyebrow">Clínica dental</span>
+            <h1>Odontograma</h1>
+            <p>Visualiza y actualiza el estado dental de cada paciente.</p>
+        </div>
+
+        <div class="patient-card">
+            <span class="patient-avatar" aria-hidden="true">@SelectedPatientInitials</span>
+            <div class="patient-field">
+                <label>Paciente en consulta</label>
+                <span class="patient-name">@(selectedPatientName ?? "Sin seleccionar")</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="filter-panel search-panel" aria-label="Buscar paciente">
+        <div class="search-field">
+            <label for="odontograma-search">Buscar paciente</label>
+            <input id="odontograma-search"
+                   type="search"
+                   @bind="searchTerm"
+                   @bind:event="oninput"
+                   @bind:after="BuscarAsync"
+                   @onkeydown="HandleSearchKeyDown"
+                   placeholder="Escribe el nombre o apellido del paciente" />
+        </div>
+        <button type="button" class="primary-action" @onclick="BuscarAsync" disabled="@buscando">
+            @(buscando ? "Buscando..." : "Buscar")
+        </button>
+    </section>
+
+    @if (buscandoResultados)
+    {
+        <section class="search-results" aria-label="Resultados de la búsqueda">
+            @if (resultados.Count == 0)
+            {
+                <div class="search-empty">
+                    @(string.IsNullOrWhiteSpace(searchTerm)
+                        ? "Todavía no hay pacientes activos registrados."
+                        : "No se encontró ningún paciente activo con ese nombre o apellido.")
+                </div>
+            }
+            else
+            {
+                <div class="search-results-head">
+                    @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
+                </div>
+                <ul class="search-results-list">
+                    @foreach (var patient in resultados)
+                    {
+                        var paciente = patient;
+                        <li>
+                            <button type="button" class="search-result" @onclick="() => SeleccionarPacienteAsync(paciente)">
+                                <span class="search-result-name">@patient.NombreCompleto</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error">@errorMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="feedback success">@successMessage</div>
+    }
+
+    @if (loading)
+    {
+        <div class="odontogram-state">
+            <span class="state-spinner" aria-hidden="true"></span>
+            <strong>Cargando odontograma...</strong>
+            <span>Estamos preparando las arcadas del paciente.</span>
+        </div>
+    }
+    else if (selectedPatientId <= 0)
+    {
+        <div class="odontogram-state">
+            <strong>Selecciona un paciente</strong>
+            <span>Usa el panel de búsqueda de arriba para encontrar al paciente y ver su odontograma.</span>
+        </div>
+    }
+    else if (pieces.Count == 0)
+    {
+        <div class="odontogram-state">
+            <strong>No hay piezas dentales configuradas.</strong>
+            <span>Revisa el catálogo FDI de la base de datos.</span>
+        </div>
+    }
+    else
+    {
+        <div class="odontogram-layout">
+            <section class="odontogram-panel">
+                <div class="panel-heading">
+                    <div class="panel-title">
+                        <span class="panel-eyebrow">Mapa dental</span>
+                        <h2>Arcadas · Numeración FDI</h2>
+                    </div>
+                    <div class="legend">
+                        @foreach (var state in Enum.GetValues<EstadoOdontograma>())
+                        {
+                            var count = pieces.Count(piece => piece.Estado == state);
+                            <span class="legend-item @GetStateClass(state) @(count == 0 ? "is-empty" : "")">
+                                <i class="legend-tooth" aria-hidden="true">
+                                    <ToothFigure NumeroFdi="16" IsUpper="true" IdPrefix="@($"legend-{state}")" />
+                                </i>
+                                <span class="legend-label">@GetStateLabel(state)</span>
+                                <span class="legend-count">@count</span>
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                @{
+                    var upperList = UpperPieces.ToList();
+                    var lowerList = LowerPieces.ToList();
+                }
+
+                <div class="mouth">
+                    <div class="mouth-cavity" aria-hidden="true"></div>
+
+                    <div class="arch arch-upper" style="grid-template-columns: repeat(@(upperList.Count), minmax(0, 1fr));">
+                        <span class="arch-label">Arcada superior</span>
+                        @for (var i = 0; i < upperList.Count; i++)
+                        {
+                            var piece = upperList[i];
+                            var style = GetArchStyle(i, upperList.Count, isUpper: true);
+                            <button type="button"
+                                    class="tooth is-upper @GetStateClass(piece.Estado) @(selectedPiece?.Id == piece.Id ? "is-selected" : "")"
+                                    style="@style"
+                                    @onclick="() => SelectPiece(piece)"
+                                    title="Pieza @piece.NumeroFDI · @GetStateLabel(piece.Estado)">
+                                <span class="tooth-halo" aria-hidden="true"></span>
+                                <ToothFigure NumeroFdi="@piece.NumeroFDI" IsUpper="true" IdPrefix="@($"u{i}")" />
+                                <span class="tooth-number">@piece.NumeroFDI</span>
+                            </button>
+                        }
+                    </div>
+
+                    <div class="mouth-centerline" aria-hidden="true">
+                        <span></span>
+                        <small>Línea media</small>
+                        <span></span>
+                    </div>
+
+                    <div class="arch arch-lower" style="grid-template-columns: repeat(@(lowerList.Count), minmax(0, 1fr));">
+                        @for (var i = 0; i < lowerList.Count; i++)
+                        {
+                            var piece = lowerList[i];
+                            var style = GetArchStyle(i, lowerList.Count, isUpper: false);
+                            <button type="button"
+                                    class="tooth is-lower @GetStateClass(piece.Estado) @(selectedPiece?.Id == piece.Id ? "is-selected" : "")"
+                                    style="@style"
+                                    @onclick="() => SelectPiece(piece)"
+                                    title="Pieza @piece.NumeroFDI · @GetStateLabel(piece.Estado)">
+                                <span class="tooth-halo" aria-hidden="true"></span>
+                                <ToothFigure NumeroFdi="@piece.NumeroFDI" IsUpper="false" IdPrefix="@($"l{i}")" />
+                                <span class="tooth-number">@piece.NumeroFDI</span>
+                            </button>
+                        }
+                        <span class="arch-label lower-label">Arcada inferior</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="piece-panel">
+                @if (selectedPiece is null)
+                {
+                    <div class="piece-empty">
+                        <span class="piece-empty-icon" aria-hidden="true">🦷</span>
+                        <strong>Ninguna pieza seleccionada</strong>
+                        <span>Elige una pieza del mapa para consultar o editar su estado y observaciones.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="piece-hero @GetStateClass(selectedPiece.Estado)">
+                        <div class="hero-figure">
+                            <ToothFigure NumeroFdi="@selectedPiece.NumeroFDI"
+                                         IsUpper="@IsUpperFdi(selectedPiece.NumeroFDI)"
+                                         IdPrefix="preview" />
+                        </div>
+                        <div class="hero-meta">
+                            <h2 class="hero-title">@selectedPiece.Nombre</h2>
+                            <span class="state-badge @GetStateClass(selectedPiece.Estado)">
+                                @GetStateLabel(selectedPiece.Estado)
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="piece-content">
+                        <div class="field">
+                            <label>Estado actual</label>
+                            <NiceSelect TValue="EstadoOdontograma"
+                                        Items="StateOptions"
+                                        Value="selectedPiece.Estado"
+                                        ValueChanged="HandleStateChanged"
+                                        Disabled="@(!canEdit)" />
+                        </div>
+
+                        <div class="field">
+                            <label for="tooth-notes">Observaciones</label>
+                            <InputTextArea id="tooth-notes"
+                                           @bind-Value="selectedPiece.Observaciones"
+                                           disabled="@(!canEdit)"
+                                           placeholder="Describe hallazgos o cambios relevantes..." />
+                        </div>
+
+                        @if (selectedPiece.FechaModificacion.HasValue)
+                        {
+                            <div class="last-change">
+                                <span>Última modificación</span>
+                                <strong>@selectedPiece.FechaModificacion.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                                <small>@(selectedPiece.Odontologo ?? "Odontólogo no disponible")</small>
+                            </div>
+                        }
+
+                        @if (canEdit)
+                        {
+                            <button class="save-action" @onclick="SaveSelectedPieceAsync" disabled="@saving">
+                                @(saving ? "Guardando..." : "Guardar cambios")
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="read-only-note">
+                                Tu rol tiene acceso de consulta. Solo un odontólogo autorizado puede modificar el odontograma.
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    // =========================================================================================
+    // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
+    // =========================================================================================
+
+    private readonly List<OdontogramaPacienteDto> resultados = [];  // filas del panel de búsqueda
+    private List<OdontogramaPiezaDto> pieces = [];                  // las 32 piezas del paciente
+    private OdontogramaPiezaDto? selectedPiece;                     // la pieza que se está editando
+    private int selectedPatientId;                                  // paciente elegido (0 = ninguno)
+    private string? selectedPatientName;                            // su nombre, para el encabezado
+    private string searchTerm = string.Empty;                       // lo escrito en el buscador
+    private bool buscandoResultados;                                 // ¿se está buscando?
+    private bool buscando;                                           // (bandera auxiliar de la búsqueda)
+
+    /// <summary>
+    /// Permite abrir el odontograma de un paciente concreto desde su ficha clínica:
+    /// <c>/odontograma?paciente=12</c>.
+    /// </summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "paciente")]
+    public int? PacienteDesdeUrl { get; set; }
+
+    private bool loading = true;
+    private bool saving;
+    private bool canEdit;
+    private string? userId;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private IEnumerable<OdontogramaPiezaDto> UpperPieces =>
+        pieces.Where(p => p.NumeroFDI.StartsWith('1') || p.NumeroFDI.StartsWith('2'))
+              .OrderBy(p => GetFdiVisualOrder(p.NumeroFDI));
+
+    private IEnumerable<OdontogramaPiezaDto> LowerPieces =>
+        pieces.Where(p => p.NumeroFDI.StartsWith('3') || p.NumeroFDI.StartsWith('4'))
+              .OrderBy(p => GetFdiVisualOrder(p.NumeroFDI));
+
+    private static IEnumerable<NiceSelectItem<EstadoOdontograma>> StateOptions =>
+        Enum.GetValues<EstadoOdontograma>()
+            .Select(state => new NiceSelectItem<EstadoOdontograma>(state, GetStateLabel(state)));
+
+    /// <summary>
+    /// Iniciales del paciente seleccionado para el avatar del encabezado
+    /// (por ejemplo "Juan Pérez" → "JP"). Muestra "··" mientras no haya paciente elegido.
+    /// </summary>
+    private string SelectedPatientInitials
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(selectedPatientName)) return "··";
+
+            var parts = selectedPatientName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "··";
+
+            return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+        }
+    }
+
+    /// <summary>
+    /// Al abrir la página se valida el permiso de edición y, si la URL trae un paciente
+    /// (por ejemplo /odontograma?paciente=12) se abre directamente su odontograma.
+    /// Si no viene ninguno, la página queda esperando a que se use el panel de búsqueda.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Paso 1: ver quién está conectado y si puede editar el odontograma.
+            // También se guarda el id del usuario, porque al guardar una pieza queda
+            // registrado qué odontólogo hizo el cambio.
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authenticationState.User;
+            canEdit = user.HasClaim(PermissionCatalog.ClaimType, "Odontograma.Editar");
+            userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            // Paso 2: si la URL trae un paciente, abrirlo directo.
+            if (PacienteDesdeUrl.HasValue)
+            {
+                // Se busca dentro de los pacientes ACTIVOS: el odontograma es clínico.
+                var pacientes = await OdontogramaService.GetActivePatientsAsync();
+                var paciente = pacientes.FirstOrDefault(item => item.Id == PacienteDesdeUrl.Value);
+
+                if (paciente is null)
+                {
+                    // El paciente no existe o está inactivo: se avisa y se deja la búsqueda.
+                    errorMessage = "Ese paciente no está activo en el odontograma. Búscalo en el panel de búsqueda.";
+                }
+                else
+                {
+                    // Con un enlace directo (/odontograma?paciente=12) se abre ese paciente sin pasar por la búsqueda.
+                    await SeleccionarPacienteAsync(paciente);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar el odontograma.";
+        }
+        finally
+        {
+            // Paso 3: terminar el "Cargando..." pase lo que pase.
+            loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Busca pacientes activos por nombre o apellido con lo escrito en el panel de búsqueda.
+    /// Si la caja está vacía, el servicio devuelve todos los activos en orden alfabético.
+    /// Los resultados se guardan en <c>resultados</c> para dibujarlos como lista.
+    /// </summary>
+    private async Task BuscarAsync()
+    {
+        // Paso 1: marcar que la búsqueda empezó y limpiar mensajes anteriores.
+        buscandoResultados = true;
+        buscando = true;
+        errorMessage = null;
+
+        try
+        {
+            // Paso 2: pedir los pacientes activos que coincidan con lo escrito.
+            // Si la caja está vacía, devuelve todos en orden alfabético.
+            var encontrados = await OdontogramaService.GetActivePatientsAsync(searchTerm);
+
+            // Paso 3: reemplazar la lista vieja por los resultados nuevos.
+            resultados.Clear();
+            resultados.AddRange(encontrados);
+        }
+        catch (Exception)
+        {
+            resultados.Clear();
+            errorMessage = "No fue posible buscar los pacientes.";
+        }
+
+        // Paso 4: terminar la búsqueda.
+        buscando = false;
+    }
+
+    /// <summary>
+    /// Permite hacer la búsqueda con la tecla Enter, además de con el botón "Buscar".
+    /// </summary>
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? BuscarAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Se ejecuta al hacer clic en un resultado de la búsqueda: guarda el paciente elegido,
+    /// cierra la lista de resultados y carga sus piezas dentales en el odontograma.
+    /// </summary>
+    private async Task SeleccionarPacienteAsync(OdontogramaPacienteDto paciente)
+    {
+        // Paso 1: guardar al paciente elegido (id y nombre para el encabezado).
+        selectedPatientId = paciente.Id;
+        selectedPatientName = paciente.NombreCompleto;
+
+        // Paso 2: limpiar la búsqueda y los mensajes, porque ya se eligió a alguien.
+        searchTerm = string.Empty;
+        buscandoResultados = false;
+        resultados.Clear();
+        errorMessage = null;
+        successMessage = null;
+
+        // Paso 3: traer sus 32 piezas dentales.
+        await LoadPiecesAsync();
+    }
+
+    private void HandleStateChanged(EstadoOdontograma state)
+    {
+        if (selectedPiece is not null)
+        {
+            selectedPiece.Estado = state;
+        }
+    }
+
+    /// <summary>
+    /// Carga las 32 piezas dentales del paciente seleccionado desde la base de datos.
+    /// Si todavía no hay paciente elegido (id 0) deja el odontograma vacío a propósito.
+    /// </summary>
+    private async Task LoadPiecesAsync()
+    {
+        // Caso especial: no hay paciente elegido → odontograma vacío a propósito
+        // (así la pantalla arranca "Sin seleccionar" y sin dientes).
+        if (selectedPatientId <= 0)
+        {
+            pieces = [];
+            selectedPiece = null;
+            return;
+        }
+
+        // Traer las 32 piezas del paciente y quitar cualquier selección anterior.
+        pieces = (await OdontogramaService.GetByPatientAsync(selectedPatientId)).ToList();
+        selectedPiece = null;
+        successMessage = null;
+    }
+
+    /// <summary>
+    /// Marca una pieza como "la que se está editando": el panel lateral muestra sus datos
+    /// y el color de la pieza seleccionada cambia.
+    /// </summary>
+    private void SelectPiece(OdontogramaPiezaDto piece)
+    {
+        selectedPiece = piece;
+        successMessage = null;
+    }
+
+    /// <summary>
+    /// Guarda en la base de datos el estado y las observaciones de la pieza elegida
+    /// (solo lo pueden hacer los roles con permiso "Odontograma.Editar").
+    /// </summary>
+    private async Task SaveSelectedPieceAsync()
+    {
+        // No se guarda si no hay pieza elegida o si no se sabe quién es el usuario.
+        if (selectedPiece is null || string.IsNullOrWhiteSpace(userId)) return;
+
+        // Paso 1: encender el "Guardando..." y limpiar mensajes.
+        saving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Paso 2: mandar el cambio al servicio (paciente, pieza, estado, observaciones y quién lo hizo).
+            await OdontogramaService.SaveAsync(selectedPatientId, selectedPiece.Id, selectedPiece.Estado, selectedPiece.Observaciones, userId);
+
+            // Paso 3: recargar las piezas y avisar que se guardó.
+            await LoadPiecesAsync();
+            successMessage = "Los cambios del odontograma fueron guardados.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            // Paso 4: apagar el "Guardando..." pase lo que pase.
+            saving = false;
+        }
+    }
+
+    // =========================================================================================
+    // AYUDANTES DEL DIBUJO  →  orden, forma del arco y colores de las piezas
+    // =========================================================================================
+
+    /// <summary>
+    /// Indica si una pieza es de la arcada superior (cuadrantes 1 y 2 del sistema FDI).
+    /// </summary>
+    private static bool IsUpperFdi(string fdi) => fdi.StartsWith('1') || fdi.StartsWith('2');
+
+    // Orden visual FDI: 18..11 → 21..28 (arriba)  48..41 → 31..38 (abajo)
+    private static int GetFdiVisualOrder(string fdi)
+    {
+        if (!int.TryParse(fdi, out var value)) return int.MaxValue;
+        var quadrant = value / 10;
+        var position = value % 10;
+        return quadrant switch
+        {
+            1 => 8 - position,
+            2 => 7 + position,
+            4 => 8 - position,
+            3 => 7 + position,
+            _ => int.MaxValue
+        };
+    }
+
+    // --- Cálculo del arco con forma de boca ---
+    // Cada pieza se desliza sobre una elipse (los molares se elevan/descienden
+    // hacia los extremos) y se inclina radialmente como en una arcada real.
+    private static string GetArchStyle(int index, int total, bool isUpper)
+    {
+        if (total <= 1)
+            return "--ty: 0px; --rot: 0deg;";
+
+        var center = (total - 1) / 2.0;
+        var normalized = (index - center) / center; // -1 .. 1
+
+        // Profundidad del arco: cuánto se separan los extremos del centro.
+        const double archDepth = 46.0;
+        var lift = 1 - Math.Sqrt(Math.Max(0, 1 - normalized * normalized)); // 0 en el centro, 1 en los extremos
+        var vertical = archDepth * lift;
+        if (isUpper) vertical = -vertical;
+
+        // Giro radial: los dientes anteriores quedan casi verticales y los
+        // posteriores van abriéndose hacia los extremos.
+        const double maxRotation = 30.0;
+        var rotation = normalized * maxRotation * (0.6 + 0.4 * Math.Abs(normalized));
+        if (!isUpper) rotation = -rotation;
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"--ty: {vertical:F1}px; --rot: {rotation:F2}deg;");
+    }
+
+    // --- Clases y etiquetas por estado ---
+    private static string GetStateClass(EstadoOdontograma state) =>
+        $"state-{state.ToString().ToLowerInvariant()}";
+
+    private static string GetStateLabel(EstadoOdontograma state) => state switch
+    {
+        EstadoOdontograma.Restauracion => "Restauración",
+        EstadoOdontograma.TratamientoRealizado => "Tratamiento realizado",
+        _ => state.ToString()
+    };
+}

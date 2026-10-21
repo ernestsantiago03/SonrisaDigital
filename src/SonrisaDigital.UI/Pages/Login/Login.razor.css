@@ -1,0 +1,458 @@
+.login-form-wrap { width: 100%; max-width: 360px; }
+.mobile-login-brand { display: none; align-items: center; gap: 8px; margin-bottom: 32px; color: #1e293b; font-size: 16px; }
+.mobile-login-brand .brand-mark { width: 28px; height: 28px; font-size: 20px; }
+.login-form-wrap h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: 0; }
+.login-subtitle { margin: 0 0 24px; color: #64748b; font-size: 13px; }
+.form-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+.form-field label { color: #475569; font-size: 12px; font-weight: 600; }
+.field-label-row { display: flex; align-items: center; justify-content: space-between; }
+.field-label-row a { color: #2563eb; font-size: 11px; text-decoration: none; }
+.field-label-row a:hover { text-decoration: underline; }
+.form-field input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 4px; background: white; color: #0f172a; font: inherit; font-size: 13px; }
+.form-field input:focus { outline: 2px solid #bfdbfe; border-color: #60a5fa; }
+.validation-message { color: #dc2626; font-size: 11px; }
+.login-submit { width: 100%; height: 36px; margin-top: 4px; border: 0; border-radius: 4px; background: #2563eb; color: white; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.login-submit:hover { background: #1d4ed8; }
+.login-demo { margin-top: 24px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; color: #64748b; font-size: 11px; }
+.login-demo strong { color: #334155; }
+.login-error { margin-top: 12px; padding: 9px 11px; border: 1px solid #fecaca; border-radius: 4px; background: #fef2f2; color: #b91c1c; font-size: 11px; }
+@media (max-width: 720px) { .mobile-login-brand { display: flex; } }
+
+/* Contenedor principal de toda la página */
+.auth-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #f1f5f9;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* Tarjeta principal dividida en 2 mitades exactas */
+.auth-card {
+    display: flex;
+    width: 900px;
+    max-width: 100%;
+    min-height: 520px;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+/* Sección izquierda (Formulario) */
+.auth-form-section {
+    flex: 1;
+    padding: 40px 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.auth-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 4px 0;
+}
+
+.login-subtitle {
+    color: #64748b;
+    font-size: 0.88rem;
+    margin: 0 0 24px 0;
+}
+
+/* Campos de formulario organizados */
+.form-field {
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+    .form-field label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 6px;
+    }
+
+.field-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.forgot-link {
+    font-size: 0.78rem;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+    .forgot-link:hover {
+        text-decoration: underline;
+    }
+
+.form-field input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+    .form-field input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+/* Botón de ingreso */
+.login-submit {
+    width: 100%;
+    padding: 11px;
+    background-color: #0f172a;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background-color 0.2s;
+}
+
+    .login-submit:hover {
+        background-color: #1e293b;
+    }
+
+/* Alertas de error y caja demo */
+.login-error {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+
+.login-demo {
+    margin-top: 18px;
+    padding: 8px;
+    background-color: #f8fafc;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    color: #64748b;
+    text-align: center;
+    border: 1px solid #e2e8f0;
+}
+
+/* Logotipo superior en móviles */
+.mobile-login-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.brand-mark {
+    width: 26px;
+    height: 26px;
+    background-color: #2563eb;
+    color: white;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+/* Sección derecha (Banner decorativo) */
+.auth-banner-section {
+    flex: 1;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.banner-content {
+    max-width: 280px;
+}
+
+.banner-brand-icon {
+    width: 52px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 0 auto 16px auto;
+    color: #38bdf8;
+}
+
+.banner-content h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+}
+
+.banner-content p {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Responsivo para celulares (oculta el banner y expande el formulario) */
+@media (max-width: 768px) {
+    .auth-banner-section {
+        display: none;
+    }
+
+    .auth-card {
+        max-width: 420px;
+        min-height: auto;
+    }
+
+    .auth-form-section {
+        padding: 30px 20px;
+    }
+}
+/* Contenedor general que asla la página de login */
+.auth-page {
+    all: unset; /* Limpia cualquier herencia molesta */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 100vh !important;
+    width: 100vw !important;
+    background-color: #f1f5f9 !important;
+    box-sizing: border-box !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 9999 !important;
+}
+
+    /* Tarjeta principal contenedora */
+    .auth-page .auth-card {
+        display: flex !important;
+        flex-direction: row !important;
+        width: 860px !important;
+        max-width: 90% !important;
+        height: 500px !important;
+        background: #ffffff !important;
+        border-radius: 20px !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+        overflow: hidden !important;
+    }
+
+    /* Lado izquierdo: Formulario */
+    .auth-page .auth-form-section {
+        width: 50% !important;
+        height: 100% !important;
+        padding: 40px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        background-color: #ffffff !important;
+    }
+
+        /* Forzar que los elementos internos no se desborden */
+        .auth-page .auth-form-section .login-form-wrap,
+        .auth-page .auth-form-section form {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+        }
+
+        .auth-page .auth-form-section h1 {
+            font-size: 1.6rem !important;
+            font-weight: 700 !important;
+            color: #0f172a !important;
+            margin: 0 0 4px 0 !important;
+        }
+
+        .auth-page .auth-form-section .login-subtitle {
+            color: #64748b !important;
+            font-size: 0.85rem !important;
+            margin: 0 0 20px 0 !important;
+        }
+
+    .auth-page .form-field {
+        margin-bottom: 14px !important;
+        width: 100% !important;
+    }
+
+        .auth-page .form-field label {
+            display: block !important;
+            font-size: 0.8rem !important;
+            font-weight: 600 !important;
+            color: #334155 !important;
+            margin-bottom: 4px !important;
+        }
+
+    .auth-page .field-label-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+
+    .auth-page .forgot-link {
+        font-size: 0.75rem !important;
+        color: #2563eb !important;
+        text-decoration: none !important;
+    }
+
+    .auth-page .form-field input {
+        width: 100% !important;
+        padding: 9px 12px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        font-size: 0.9rem !important;
+        box-sizing: border-box !important;
+        outline: none !important;
+        background: #fff !important;
+        color: #0f172a !important;
+    }
+
+    .auth-page .login-submit {
+        width: 100% !important;
+        padding: 10px !important;
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        margin-top: 8px !important;
+    }
+
+    .auth-page .login-error {
+        margin-top: 10px !important;
+        padding: 8px !important;
+        background-color: #fef2f2 !important;
+        border: 1px solid #fecaca !important;
+        color: #dc2626 !important;
+        border-radius: 6px !important;
+        font-size: 0.8rem !important;
+    }
+
+    .auth-page .login-demo {
+        margin-top: 12px !important;
+        padding: 6px !important;
+        background-color: #f8fafc !important;
+        border-radius: 6px !important;
+        font-size: 0.75rem !important;
+        color: #64748b !important;
+        text-align: center !important;
+    }
+
+    /* Lado derecho: Banner Corporativo Sonrisa Digital */
+    .auth-page .auth-banner-section {
+        width: 50% !important;
+        height: 100% !important;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+        color: #ffffff !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 40px !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+    }
+
+    .auth-page .banner-content {
+        max-width: 240px !important;
+    }
+
+    .auth-page .banner-brand-icon {
+        width: 48px !important;
+        height: 48px !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 12px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1.4rem !important;
+        font-weight: bold !important;
+        margin: 0 auto 12px auto !important;
+        color: #38bdf8 !important;
+    }
+
+    .auth-page .banner-content h2 {
+        font-size: 1.5rem !important;
+        font-weight: 700 !important;
+        margin: 0 0 6px 0 !important;
+        color: #ffffff !important;
+    }
+
+    .auth-page .banner-content p {
+        color: #94a3b8 !important;
+        font-size: 0.85rem !important;
+        line-height: 1.4 !important;
+        margin: 0 !important;
+    }
+
+/* Ocultar banner en pantallas pequeñas */
+@media (max-width: 768px) {
+    .auth-page .auth-banner-section {
+        display: none !important;
+    }
+
+    .auth-page .auth-card {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 400px !important;
+    }
+
+    .auth-page .auth-form-section {
+        width: 100% !important;
+        padding: 30px 20px !important;
+    }
+}
+
+.brand-mark {
+    width: 32px;
+    height: 32px;
+    background-color: #2563eb;
+    color: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.banner-brand-icon {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px auto;
+    color: #38bdf8;
+}

@@ -1,0 +1,38 @@
+﻿@page "/Error"
+@using System.Diagnostics
+
+<PageTitle>Error</PageTitle>
+
+<div class="error-page">
+<h1>Error.</h1>
+    <h2>Ocurrió un error al procesar su solicitud.</h2>
+
+@if (ShowRequestId)
+{
+    <p>
+        <strong>Request ID:</strong> <code>@RequestId</code>
+    </p>
+}
+
+    <h3>Modo de Desarrollo</h3>
+<p>
+        Cambiar al entorno de <strong>Desarrollo</strong> mostrará información más detallada sobre el error que ocurrió.
+</p>
+</div>
+<p>
+    <strong>El entorno de Desarrollo no debe estar habilitado para aplicaciones desplegadas.</strong>
+    Puede dar lugar a que se muestre información confidencial de las excepciones a los usuarios finales.
+    Para la depuración local, habilite el entorno de <strong>Desarrollo</strong> estableciendo la variable de entorno <strong>ASPNETCORE_ENVIRONMENT</strong> en <strong>Development</strong>
+    y reiniciando la aplicación.
+</p>
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

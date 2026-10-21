@@ -1,0 +1,19 @@
+﻿<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+            <NotAuthorized>
+                <AccesoDenegado />
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        @* Cuando la direccion mala se alcanza NAVEGANDO DENTRO DE LA APP
+           (un enlace roto, por ejemplo) no pasa por el servidor: lo resuelve
+           este router. Aqui se muestra la misma pantalla 404, con el mismo
+           Layout (la barra lateral del sistema). *@
+        <LayoutView Layout="typeof(MainLayout)">
+            <PaginaNoEncontrada />
+        </LayoutView>
+    </NotFound>
+</Router>

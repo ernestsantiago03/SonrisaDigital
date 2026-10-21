@@ -1,0 +1,195 @@
+@page "/cita"
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Citas
+@using SonrisaDigital.Services.Citas.DTOs
+@inject ICitaService CitaService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Citas · Sonrisa Digital</PageTitle>
+
+<div class="appointments-page">
+    <div class="page-header">
+        <div>
+            <h1>Citas 📅</h1>
+            <p>Administra las citas de los pacientes con los odontólogos.</p>
+        </div>
+        @if (PuedeCrear)
+        {
+            <a class="primary-action" href="/cita/nuevo">+ Agendar cita</a>
+        }
+    </div>
+
+    <section class="filter-panel" aria-label="Filtros de citas">
+        <div class="search-field">
+            <label for="cita-date">Fecha</label>
+            <input id="cita-date" type="date" @bind="selectedDate" @bind:event="oninput" />
+        </div>
+        <div class="status-field">
+            <label for="cita-status">Estado</label>
+            <select id="cita-status" @bind="statusFilter">
+                <option value="">Todos</option>
+                <option value="Programada">Programada</option>
+                <option value="Confirmada">Confirmada</option>
+                <option value="Atendida">Atendida</option>
+                <option value="Cancelada">Cancelada</option>
+                <option value="NoAsistio">No asistió</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: flex-end;">
+            <button class="secondary-action" @onclick="LoadCitasAsync">Buscar</button>
+            <button class="secondary-action" style="background-color: transparent; border: 1px solid transparent; color: #64748b; text-decoration: underline;" @onclick="ClearFilters">Ver todas</button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    <section class="table-panel">
+        <div class="table-summary">@citas.Count cita(s) encontrada(s)</div>
+        @if (loading)
+        {
+            <div class="table-state">Cargando citas...</div>
+        }
+        else if (citas.Count == 0)
+        {
+            <div class="table-state empty-state">
+                <strong>No hay citas para mostrar</strong>
+                <span>Prueba con otros filtros o agenda una nueva cita.</span>
+            </div>
+        }
+        else
+        {
+            <div class="activity-scroll" style="max-height: 600px; overflow-y: auto;">
+                <table class="appointments-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Paciente</th>
+                            <th>Odontólogo</th>
+                            <th>Motivo</th>
+                            <th>Estado</th>
+                            <th><span class="visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cita in citas)
+                        {
+                            <tr>
+                                <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td>@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
+                                <td><a class="appointment-name" href="/cita/@cita.Id">@cita.PacienteNombre</a></td>
+                                <td>@cita.OdontologoNombre</td>
+                                <td>@(cita.Motivo ?? "-")</td>
+                                <td><span class="status-badge @GetEstadoClass(cita.Estado)">@NombreEstado(cita.Estado)</span></td>
+                                <td class="row-actions">
+                                    <a href="/cita/@cita.Id">Ver</a>
+                                    @if (PuedeEditarCita(cita.Estado))
+                                    {
+                                        <a href="/cita/editar/@cita.Id">Editar</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private List<CitaListItemDto> citas = [];
+    private bool loading;
+    private string? errorMessage;
+    private string statusFilter = "";
+    private ClaimsPrincipal currentUser = new();
+
+    // EL CAMBIO PRINCIPAL: Se inicializa con la fecha actual
+    private DateOnly? selectedDate = DateOnly.FromDateTime(DateTime.Now);
+
+    private bool PuedeCrear => TienePermiso("Citas.Crear");
+    private bool PuedeEditar => TienePermiso("Citas.Editar");
+
+    private bool TienePermiso(string permiso) =>
+        currentUser.HasClaim(PermissionCatalog.ClaimType, permiso);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUser = authenticationState.User;
+
+        await LoadCitasAsync();
+    }
+
+    private async Task LoadCitasAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            EstadoCita? estado = statusFilter switch
+            {
+                "Programada" => EstadoCita.Programada,
+                "Confirmada" => EstadoCita.Confirmada,
+                "Atendida" => EstadoCita.Atendida,
+                "Cancelada" => EstadoCita.Cancelada,
+                "NoAsistio" => EstadoCita.NoAsistio,
+                _ => null
+            };
+
+            var result = await CitaService.SearchAsync(selectedDate, null, null, estado);
+            citas = result.ToList();
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    // MÉTODO NUEVO: Limpia los filtros y carga el listado completo
+    private async Task ClearFilters()
+    {
+        selectedDate = null;
+        statusFilter = "";
+        await LoadCitasAsync();
+    }
+
+    // Una cita solo puede editarse mientras esté Programada o Confirmada.
+    // Atendida, Cancelada y No asistió son estados finales: solo se pueden ver.
+    private static bool EsEstadoFinal(EstadoCita estado) =>
+        estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio;
+
+    private bool EsRecepcionista => currentUser.IsInRole(RolesSonrisaDigital.Recepcionista);
+
+    // El recepcionista deja de poder editar la cita una vez confirmada.
+    private bool PuedeEditarCita(EstadoCita estado) =>
+        PuedeEditar && !EsEstadoFinal(estado) &&
+        !(estado == EstadoCita.Confirmada && EsRecepcionista);
+
+    private static string NombreEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "Programada",
+        EstadoCita.Confirmada => "Confirmada",
+        EstadoCita.Atendida => "Atendida",
+        EstadoCita.Cancelada => "Cancelada",
+        EstadoCita.NoAsistio => "No asistió",
+        _ => estado.ToString()
+    };
+
+    private string GetEstadoClass(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "programada",
+        EstadoCita.Confirmada => "confirmada",
+        EstadoCita.Atendida => "atendida",
+        EstadoCita.Cancelada => "cancelada",
+        EstadoCita.NoAsistio => "no-asistio",
+        _ => ""
+    };
+}

@@ -1,0 +1,115 @@
+@page "/odontologo/{Id:int}"
+@attribute [Authorize(Policy = "Odontologos.Ver")]
+@attribute [Authorize]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Odontologos
+@using SonrisaDigital.Services.Odontologos.DTOs
+@inject IOdontologoService OdontologoService
+@inject NavigationManager Navigation
+
+<PageTitle>Odontólogo · Sonrisa Digital</PageTitle>
+
+<div class="patient-detail-page">
+    @if (loading)
+    {
+        <div class="detail-state">Cargando odontólogo...</div>
+    }
+    else if (odontologo is null)
+    {
+        <div class="detail-state">
+            <strong>Odontólogo no encontrado</strong>
+            <a href="/odontologo">Volver a odontólogos</a>
+        </div>
+    }
+    else
+    {
+        <div class="page-header">
+            <div>
+                <a class="back-link" href="/odontologo">← Odontólogos</a>
+                <div class="title-line">
+                    <h1>@odontologo.Nombres @odontologo.Apellidos 🦷</h1>
+                    <span class="status-badge @(odontologo.Estado == EstadoRegistro.Activo ? "active" : "inactive")">
+                        @odontologo.Estado
+                    </span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a class="secondary-action" href="/odontologo/editar/@odontologo.Id">Editar</a>
+                <button class="@(odontologo.Estado == EstadoRegistro.Activo ? "danger-action" : "primary-action")" @onclick="ToggleStatusAsync">
+                    @(odontologo.Estado == EstadoRegistro.Activo ? "Desactivar" : "Activar")
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="feedback error">@errorMessage</div>
+        }
+
+        <section class="detail-panel">
+            <div class="section-heading">
+                <h2>Información profesional</h2>
+            </div>
+            <dl class="detail-grid">
+                <div>
+                    <dt>Número de Licencia</dt>
+                    <dd>@(odontologo.NumeroLicencia ?? "No registrado")</dd>
+                </div>
+                <div>
+                    <dt>Especialidad</dt>
+                    <dd>@(odontologo.Especialidad ?? "No registrada")</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="detail-panel">
+            <div class="section-heading">
+                <h2>Información de contacto</h2>
+            </div>
+            <dl class="detail-grid">
+                <div>
+                    <dt>Teléfono</dt>
+                    <dd>@(odontologo.Telefono ?? "No registrado")</dd>
+                </div>
+                <div>
+                    <dt>Correo electrónico</dt>
+                    <dd>@(odontologo.Correo ?? "No registrado")</dd>
+                </div>
+            </dl>
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private OdontologoDetalleDto? odontologo;
+    private bool loading = true;
+    private string? errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        odontologo = await OdontologoService.GetByIdAsync(Id);
+        loading = false;
+    }
+
+    private async Task ToggleStatusAsync()
+    {
+        if (odontologo is null) return;
+        errorMessage = null;
+        try
+        {
+            var nextStatus = odontologo.Estado == EstadoRegistro.Activo 
+                ? EstadoRegistro.Inactivo 
+                : EstadoRegistro.Activo;
+            await OdontologoService.SetStatusAsync(odontologo.Id, nextStatus);
+            odontologo = await OdontologoService.GetByIdAsync(odontologo.Id);
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+}

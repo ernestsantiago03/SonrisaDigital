@@ -1,0 +1,281 @@
+@page "/cita/{Id:int}"
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Citas
+@using SonrisaDigital.Services.Citas.DTOs
+@inject ICitaService CitaService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>Cita · Sonrisa Digital</PageTitle>
+
+<div class="patient-detail-page">
+    @if (loading)
+    {
+        <div class="detail-state">Cargando cita...</div>
+    }
+    else if (cita is null)
+    {
+        <div class="detail-state">
+            <strong>Cita no encontrada</strong>
+            <a href="/cita">Volver a citas</a>
+        </div>
+    }
+    else
+    {
+        <div class="page-header">
+            <div>
+                <a class="back-link" href="/cita">← Citas </a>
+                <div class="title-line">
+                    <h1>Cita #@cita.Id 📅</h1>
+                    <span class="status-badge @GetEstadoClass(cita.Estado)">
+                        @NombreEstado(cita.Estado)
+                    </span>
+                </div>
+                <p>Programada para @cita.Fecha.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-DO")) a las @cita.HoraInicio.ToString("HH:mm")</p>
+            </div>
+            <div class="header-actions">
+                @if (!EsEstadoFinal(cita.Estado))
+                {
+                    @if (PuedeEditarCita(cita.Estado))
+                    {
+                        <a class="secondary-action" href="/cita/editar/@cita.Id">Editar</a>
+                    }
+
+                    @if (cita.Estado == EstadoCita.Programada)
+                    {
+                        @if (PuedeEditar)
+                        {
+                            <button class="primary-action" @onclick="() => CambiarEstadoAsync(EstadoCita.Confirmada)">Confirmar cita</button>
+                        }
+                        @if (PuedeCancelar)
+                        {
+                            <button class="secondary-action" @onclick="() => CambiarEstadoAsync(EstadoCita.Cancelada)">Cancelar cita</button>
+                            <button class="danger-action" @onclick="() => CambiarEstadoAsync(EstadoCita.NoAsistio)">No asistió</button>
+                        }
+                    }
+                    else if (cita.Estado == EstadoCita.Confirmada && PuedeAtender)
+                    {
+                        <button class="primary-action" @onclick="() => CambiarEstadoAsync(EstadoCita.Atendida)">Marcar como atendida</button>
+                    }
+                }
+                else if (PuedeCrear)
+                {
+                    <button class="primary-action" @onclick="Reprogramar">Reprogramar</button>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="feedback error">@errorMessage</div>
+        }
+
+        @* Aviso verde: por ejemplo cuando la cita se marcó como atendida y ya se registró su
+           consulta clínica. El enlace lleva a la Historia Clínica para completarla. *@
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="feedback success">
+                <span>@successMessage</span>
+                <a href="/historia-clinica/@cita.PacienteId">Ver historia clínica →</a>
+            </div>
+        }
+
+        @if (Bloqueada)
+        {
+            <div class="feedback error">
+                @if (EsEstadoFinal(cita.Estado))
+                {
+                    <text>Esta cita ya no puede editarse porque se encuentra en estado final (@NombreEstado(cita.Estado)). Solo puede consultarse o reprogramarse.</text>
+                }
+                else
+                {
+                    <text>Esta cita ya está confirmada y no puede editarse. Solo puede consultarse; el odontólogo es quien la marca como atendida.</text>
+                }
+            </div>
+        }
+        else if (EsEstadoFinal(cita.Estado))
+        {
+            <div class="feedback info">
+                Esta cita está cerrada (@NombreEstado(cita.Estado)). Solo puede consultarse; usa "Reprogramar" para agendar una cita nueva.
+            </div>
+        }
+        else if (!PuedeEditarCita(cita.Estado) && !PuedeAtender)
+        {
+            <div class="feedback info">
+                Esta cita ya está confirmada. El odontólogo es quien la marca como atendida.
+            </div>
+        }
+
+        <section class="detail-panel">
+            <div class="section-heading">
+                <h2>Información de la cita 📅</h2>
+            </div>
+            <dl class="detail-grid">
+                <div>
+                    <dt>Fecha</dt>
+                    <dd>@cita.Fecha.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-DO"))</dd>
+                </div>
+                <div>
+                    <dt>Hora</dt>
+                    <dd>@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</dd>
+                </div>
+                <div>
+                    <dt>Motivo</dt>
+                    <dd>@(cita.Motivo ?? "No especificado")</dd>
+                </div>
+                <div>
+                    <dt>Estado</dt>
+                    <dd><span class="status @GetEstadoClass(cita.Estado)">@NombreEstado(cita.Estado)</span></dd>
+                </div>
+                @* Si la cita ya fue atendida tiene una consulta clínica: se enlaza a la historia. *@
+                @if (cita.ConsultaId.HasValue)
+                {
+                    <div>
+                        <dt>Consulta clínica</dt>
+                        <dd>
+                            <a href="/historia-clinica/@cita.PacienteId">Ver historia clínica del paciente</a>
+                        </dd>
+                    </div>
+                }
+            </dl>
+        </section>
+
+        <section class="detail-panel">
+            <div class="section-heading">
+                <h2>Información de participantes</h2>
+            </div>
+            <dl class="detail-grid">
+                <div>
+                    <dt>Paciente</dt>
+                    <dd>
+                        <a href="/pacientes/@cita.PacienteId">@cita.PacienteNombre</a>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Odontólogo</dt>
+                    <dd>
+                        <a href="/odontologo/@cita.OdontologoId">@cita.OdontologoNombre</a>
+                    </dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="detail-panel">
+            <div class="section-heading">
+                <h2>Información del sistema</h2>
+            </div>
+            <dl class="detail-grid">
+                <div>
+                    <dt>Creada</dt>
+                    <dd>@cita.FechaCreacion.ToString("dd/MM/yyyy HH:mm:ss")</dd>
+                </div>
+            </dl>
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "bloqueada")]
+    public bool Bloqueada { get; set; }
+
+    private CitaDetalleDto? cita;
+    private bool loading = true;
+    private string? errorMessage;
+    private string? successMessage;
+    private ClaimsPrincipal currentUser = new();
+
+    private bool PuedeCrear => TienePermiso("Citas.Crear");
+    private bool PuedeEditar => TienePermiso("Citas.Editar");
+    private bool PuedeCancelar => TienePermiso("Citas.Cancelar");
+    private bool PuedeAtender => TienePermiso("Citas.Atender");
+
+    private bool TienePermiso(string permiso) =>
+        currentUser.HasClaim(PermissionCatalog.ClaimType, permiso);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        currentUser = authenticationState.User;
+
+        cita = await CitaService.GetByIdAsync(Id);
+        loading = false;
+    }
+
+    private async Task CambiarEstadoAsync(EstadoCita nuevoEstado)
+    {
+        if (cita is null) return;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Cancelar y No asistió cierran la cita de forma irreversible, por eso se confirman.
+            // Marcar como atendida es la acción cotidiana del odontólogo: no pide confirmación.
+            if (EsEstadoFinal(nuevoEstado) && nuevoEstado != EstadoCita.Atendida)
+            {
+                var confirmado = await JS.InvokeAsync<bool>(
+                    "confirm",
+                    $"¿Confirmar cambiar la cita a '{NombreEstado(nuevoEstado)}'? Esta acción no se puede deshacer.");
+                if (!confirmado)
+                {
+                    return;
+                }
+            }
+
+            await CitaService.SetEstadoAsync(cita.Id, nuevoEstado);
+            cita = await CitaService.GetByIdAsync(cita.Id);
+
+            // Al atender la cita, el servicio registra su consulta clínica (el puente con
+            // Historia Clínica). Se avisa al usuario y se le ofrece el enlace para completarla.
+            if (nuevoEstado == EstadoCita.Atendida && cita?.ConsultaId.HasValue == true)
+            {
+                successMessage = "Cita marcada como atendida. Se registró su consulta clínica (queda Abierta para que la completes).";
+            }
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    // Al reprogramar se abre el formulario de citas para generar una cita nueva.
+    private void Reprogramar() => Navigation.NavigateTo("/cita/nuevo");
+
+    // Una cita solo puede editarse mientras esté Programada o Confirmada.
+    // Atendida, Cancelada y No asistió son estados finales: solo se pueden ver.
+    private static bool EsEstadoFinal(EstadoCita estado) =>
+        estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio;
+
+    private bool EsRecepcionista => currentUser.IsInRole(RolesSonrisaDigital.Recepcionista);
+
+    // El recepcionista deja de poder editar la cita una vez confirmada.
+    private bool PuedeEditarCita(EstadoCita estado) =>
+        PuedeEditar && !EsEstadoFinal(estado) &&
+        !(estado == EstadoCita.Confirmada && EsRecepcionista);
+
+    private static string NombreEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "Programada",
+        EstadoCita.Confirmada => "Confirmada",
+        EstadoCita.Atendida => "Atendida",
+        EstadoCita.Cancelada => "Cancelada",
+        EstadoCita.NoAsistio => "No asistió",
+        _ => estado.ToString()
+    };
+
+    private static string GetEstadoClass(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "scheduled",
+        EstadoCita.Confirmada => "confirmed",
+        EstadoCita.Atendida => "attended",
+        EstadoCita.Cancelada => "cancelled",
+        EstadoCita.NoAsistio => "no-show",
+        _ => ""
+    };
+}

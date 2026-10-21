@@ -1,0 +1,31 @@
+@page "/acceso-denegado"
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Sin permisos · Sonrisa Digital</PageTitle>
+
+@if (esAnonimo)
+{
+    <RedirectToLogin />
+}
+else
+{
+    <div class="denied-page">
+        <span class="denied-badge">Acceso restringido</span>
+        <h1>No tienes permisos para esta sección</h1>
+        <p>
+            Tu cuenta no tiene habilitado el permiso necesario para entrar aquí.
+            Si necesitas acceso, pídele al administrador que lo revise en <strong>Roles y permisos</strong>.
+        </p>
+        <a class="denied-action" href="/">Volver al inicio</a>
+    </div>
+}
+
+@code {
+    private bool esAnonimo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        esAnonimo = estado.User.Identity?.IsAuthenticated != true;
+    }
+}

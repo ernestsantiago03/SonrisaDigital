@@ -1,0 +1,75 @@
+@* Desplegable con lista a medida. Se usa en lugar de <select> nativo porque
+   el listado abierto de un select nativo no se puede estilizar. *@
+@typeparam TValue
+
+<div class="nice-select variant-@Variant @(Disabled ? "is-disabled" : "") @(_open ? "is-open" : "")">
+    <button type="button"
+            class="nice-select-trigger"
+            disabled="@Disabled"
+            aria-haspopup="listbox"
+            aria-expanded="@(_open ? "true" : "false")"
+            @onclick="Toggle">
+        <span class="nice-select-value">@LabelOf(Value)</span>
+        <span class="nice-select-caret" aria-hidden="true"></span>
+    </button>
+
+    @if (_open)
+    {
+        <div class="nice-select-backdrop" aria-hidden="true" @onclick="Close"></div>
+        <ul class="nice-select-menu" role="listbox">
+            @foreach (var item in Items)
+            {
+                var isSelected = EqualityComparer<TValue>.Default.Equals(item.Value, Value);
+                <li role="option" aria-selected="@(isSelected ? "true" : "false")">
+                    <button type="button"
+                            class="nice-select-option @(isSelected ? "is-selected" : "")"
+                            @onclick="() => ChooseAsync(item.Value)">
+                        <span class="nice-select-option-label">@item.Label</span>
+                        <span class="nice-select-check" aria-hidden="true">✓</span>
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IEnumerable<NiceSelectItem<TValue>> Items { get; set; } = Array.Empty<NiceSelectItem<TValue>>();
+
+    [Parameter]
+    public TValue Value { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>"field" (recuadro) o "inline" (control sin borde, para el encabezado).</summary>
+    [Parameter]
+    public string Variant { get; set; } = "field";
+
+    private bool _open;
+
+    private void Toggle()
+    {
+        if (Disabled)
+        {
+            return;
+        }
+
+        _open = !_open;
+    }
+
+    private void Close() => _open = false;
+
+    private async Task ChooseAsync(TValue value)
+    {
+        _open = false;
+        await ValueChanged.InvokeAsync(value);
+    }
+
+    private string LabelOf(TValue value) =>
+        Items.FirstOrDefault(item => EqualityComparer<TValue>.Default.Equals(item.Value, value))?.Label ?? string.Empty;
+}

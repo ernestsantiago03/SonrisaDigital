@@ -1,0 +1,402 @@
+@page "/pagos/{Id:int}"
+@attribute [Authorize(Policy = "Pagos.Ver")]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Pagos
+@using SonrisaDigital.Services.Pagos.DTOs
+@using System.Globalization
+@inject IPagoService PagoService
+
+@* ============================================================================
+   PÁGINA: Detalle de un pago        Ruta: /pagos/{id}
+
+   ¿Qué hace esta pantalla?
+     Muestra el detalle de UN tratamiento con sus cuotas: cuánto cuesta, cuánto se ha pagado,
+     cuánto falta y la lista de pagos hechos (con fecha, método y quién lo registró).
+     Desde aquí también se registra un pago nuevo con el botón "+ Registrar pago".
+
+   ¿Cómo se lee este archivo?
+     - Markup: tarjetas de montos, datos del paciente/tratamiento, lista de cuotas y el modal.
+     - @code (al final):
+         LoadAsync          -> traer el detalle y las cuotas
+         AbrirModal         -> abrir la ventana de pago
+         RegistrarPagoAsync -> guardar el pago y recargar
+   ============================================================================ *@
+
+<PageTitle>Detalle de pago · Sonrisa Digital</PageTitle>
+
+<div class="payment-detail-page">
+    @if (loading)
+    {
+        <div class="detail-state">Cargando el detalle del pago...</div>
+    }
+    else if (detalle is null)
+    {
+        <div class="detail-state">
+            <strong>Tratamiento no encontrado</strong>
+            <a href="/pagos">Volver a pagos</a>
+        </div>
+    }
+    else
+    {
+        <div class="page-header">
+            <div>
+                <a class="back-link" href="/pagos">← Volver a pagos</a>
+                <div class="title-line">
+                    <h1>@detalle.PacienteNombre</h1>
+                    <span class="status-badge @EstadoFinancieroUi.Clase(detalle.Estado)">@EstadoFinancieroUi.Texto(detalle.Estado)</span>
+                </div>
+                <p>@detalle.TratamientoNombre · realizado el @detalle.Fecha.ToString("dd/MM/yyyy")</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="feedback success" role="status">@successMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="feedback error" role="alert">@errorMessage</div>
+        }
+
+        <section class="detail-panel">
+            <div class="section-heading"><h2>Paciente</h2></div>
+            <dl class="detail-grid">
+                <div><dt>Identificación</dt><dd>@(detalle.PacienteIdentificacion ?? "No registrada")</dd></div>
+                <div><dt>Fecha de nacimiento</dt><dd>@(detalle.PacienteFechaNacimiento?.ToString("dd/MM/yyyy") ?? "No registrada")</dd></div>
+                <div><dt>Teléfono</dt><dd>@(detalle.PacienteTelefono ?? "No registrado")</dd></div>
+                <div><dt>Correo electrónico</dt><dd>@(detalle.PacienteCorreo ?? "No registrado")</dd></div>
+            </dl>
+            <AuthorizeView Policy="Pacientes.Ver">
+                <Authorized>
+                    <div class="panel-link"><a href="/pacientes/@detalle.PacienteId">Ver ficha completa del paciente →</a></div>
+                </Authorized>
+            </AuthorizeView>
+        </section>
+
+        <section class="detail-panel">
+            <div class="section-heading"><h2>Tratamiento</h2></div>
+            <dl class="detail-grid">
+                <div><dt>Tratamiento</dt><dd>@detalle.TratamientoNombre</dd></div>
+                <div><dt>Odontólogo</dt><dd>@detalle.OdontologoNombre</dd></div>
+                <div><dt>Fecha de realización</dt><dd>@detalle.Fecha.ToString("dd/MM/yyyy")</dd></div>
+                <div><dt>Pieza dental</dt><dd>@(detalle.PiezaDental ?? "No aplica")</dd></div>
+                <div><dt>Estado clínico</dt><dd>@EstadoClinicoTexto(detalle.EstadoClinico)</dd></div>
+                <div class="detail-wide"><dt>Observaciones del tratamiento</dt><dd>@(string.IsNullOrWhiteSpace(detalle.ObservacionesTratamiento) ? "Sin observaciones" : detalle.ObservacionesTratamiento)</dd></div>
+            </dl>
+        </section>
+
+        <section class="detail-panel">
+            <div class="section-heading"><h2>Resumen de montos</h2></div>
+            <div class="amount-summary">
+                <div class="amount"><span>Precio total</span><strong class="money total">@Money(detalle.Total)</strong></div>
+                <div class="amount"><span>Total pagado</span><strong class="money paid">@Money(detalle.Pagado)</strong></div>
+                <div class="amount">
+                    <span>Saldo pendiente</span>
+                    @if (detalle.Saldo > 0)
+                    {
+                        <strong class="money saldo-pendiente">@Money(detalle.Saldo)</strong>
+                    }
+                    else
+                    {
+                        <strong class="money saldado">Saldado</strong>
+                    }
+                </div>
+            </div>
+            <div class="amount-foot">
+                <span class="amount-meta">@ResumenCuotas()</span>
+                @if (detalle.Saldo > 0 && detalle.EstadoClinico == EstadoTratamiento.EnProceso)
+                {
+                    <AuthorizeView Policy="Pagos.Crear">
+                        <Authorized>
+                            <button type="button" class="primary-action" @onclick="AbrirModal">+ Registrar pago</button>
+                        </Authorized>
+                    </AuthorizeView>
+                }
+                else if (detalle.EstadoClinico != EstadoTratamiento.EnProceso)
+                {
+                    <span class="amount-meta">
+                        @(detalle.EstadoClinico == EstadoTratamiento.Completado
+                            ? "Tratamiento completado"
+                            : "Tratamiento cancelado")
+                    </span>
+                }
+            </div>
+        </section>
+
+        <section class="detail-panel">
+            <div class="section-heading">
+                <h2>Historial de cuotas</h2>
+                <span class="section-note">Más reciente primero</span>
+            </div>
+            @if (detalle.Pagos.Count == 0)
+            {
+                <div class="table-state">Todavía no se ha registrado ningún pago de este tratamiento.</div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="payments-table">
+                        <thead>
+                            <tr>
+                                <th>Cuota</th>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Método</th>
+                                <th>Registrado por</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var indice = 0; indice < detalle.Pagos.Count; indice++)
+                            {
+                                var cuota = detalle.Pagos[indice];
+                                <tr>
+                                    <td class="mono muted">#@(detalle.Pagos.Count - indice)</td>
+                                    <td class="mono muted">@cuota.Fecha.ToString("dd/MM/yyyy")</td>
+                                    <td class="mono paid">@Money(cuota.Monto)</td>
+                                    <td><span class="method-badge @MethodClass(cuota.MetodoPago)">@cuota.MetodoPago</span></td>
+                                    <td class="muted">@cuota.RegistradoPor</td>
+                                    <td class="notes">@(string.IsNullOrWhiteSpace(cuota.Observaciones) ? "—" : cuota.Observaciones)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@if (mostrarModal && detalle is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title">
+            <div class="modal-header">
+                <h3 class="modal-title" id="pay-modal-title">Registrar pago</h3>
+                <button type="button" class="modal-close-btn" @onclick="CerrarModal" aria-label="Cerrar">&times;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorModal))
+            {
+                <div class="alert-error" role="alert">@errorModal</div>
+            }
+
+            <div class="modal-body">
+                <div class="pay-summary">
+                    <div><span>Paciente:</span> <strong>@detalle!.PacienteNombre</strong></div>
+                    <div><span>Tratamiento:</span> @detalle.TratamientoNombre</div>
+                    <div><span>Saldo pendiente:</span> <strong class="saldo-pendiente">@Money(detalle.Saldo)</strong></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-date">Fecha</label>
+                    <input id="pay-date" type="date" class="form-control" @bind="nuevoPago.Fecha" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-amount">Monto (RD$)</label>
+                    <input id="pay-amount" type="number" step="0.01" min="0.01" class="form-control" @bind="nuevoPago.Monto" placeholder="0.00" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-method">Método de pago</label>
+                    <select id="pay-method" class="form-control" @bind="nuevoPago.MetodoPago">
+                        @foreach (var metodo in Enum.GetValues<MetodoPago>())
+                        {
+                            <option value="@metodo">@metodo</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-notes">Observaciones</label>
+                    <textarea id="pay-notes" rows="2" class="form-control" @bind="nuevoPago.Observaciones" placeholder="Notas opcionales..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" @onclick="CerrarModal" disabled="@saving">Cancelar</button>
+                <button type="button" class="btn-primary" @onclick="RegistrarPagoAsync" disabled="@saving">
+                    @(saving ? "Registrando..." : "Registrar pago")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 12,500".
+    private static readonly CultureInfo Cultura = new("es-DO");
+
+    // =========================================================================================
+    // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
+    // =========================================================================================
+
+    // El id del tratamiento que llega por la URL (por ejemplo /pagos/7).
+    [Parameter] public int Id { get; set; }
+
+    private PagoDetalleDto? detalle;         // el tratamiento con sus montos y cuotas
+    private RegistrarPagoDto nuevoPago = new();  // el formulario de la ventana de pago
+    private bool loading = true;             // ¿cargando? (empieza en true porque carga al abrir)
+    private bool saving;                     // ¿guardando un pago?
+    private bool mostrarModal;               // ¿la ventana de pago está abierta?
+    private string? errorMessage;            // mensaje rojo de la página
+    private string? errorModal;              // mensaje rojo dentro de la ventana
+    private string? successMessage;          // mensaje verde
+
+    /// <summary>
+    /// Al abrir la página se carga el detalle del tratamiento y sus pagos.
+    /// </summary>
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    /// <summary>
+    /// Carga el detalle del pago: el tratamiento, los montos (total, pagado y saldo)
+    /// y la lista de cuotas ya registradas.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        // Paso 1: encender el "Cargando..." y limpiar el error anterior.
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            // Paso 2: pedirle al servicio el detalle completo del tratamiento.
+            // Si el tratamiento no existe, el servicio devuelve null y la pantalla
+            // muestra "no encontrado".
+            detalle = await PagoService.GetDetalleAsync(Id);
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar el detalle del pago.";
+        }
+        finally
+        {
+            // Paso 3: apagar el "Cargando..." pase lo que pase.
+            loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Abre la ventana para registrar un pago nuevo sobre este tratamiento, con la fecha de
+    /// hoy y el método "Efectivo" ya seleccionado.
+    /// </summary>
+    private void AbrirModal()
+    {
+        // Si todavía no se cargó el detalle, no hay tratamiento sobre el que pagar.
+        if (detalle is null) return;
+
+        errorModal = null;
+        successMessage = null;
+
+        // Dejar el formulario listo: el tratamiento de esta página, fecha de hoy,
+        // método "Efectivo" y monto vacío.
+        nuevoPago = new RegistrarPagoDto
+        {
+            TratamientoRealizadoId = detalle.TratamientoRealizadoId,
+            Fecha = DateTime.Today,
+            MetodoPago = MetodoPago.Efectivo
+        };
+
+        // Y abrir la ventana.
+        mostrarModal = true;
+    }
+
+    /// <summary>
+    /// Cierra la ventana de registrar pago y limpia su mensaje de error.
+    /// </summary>
+    private void CerrarModal()
+    {
+        mostrarModal = false;
+        errorModal = null;
+    }
+
+    /// <summary>
+    /// Guarda el pago escrito en la ventana, cierra el formulario, muestra el mensaje de éxito
+    /// y recarga el detalle para que el saldo y las cuotas queden al día.
+    /// </summary>
+    private async Task RegistrarPagoAsync()
+    {
+        // Sin detalle cargado no se puede pagar nada.
+        if (detalle is null) return;
+
+        saving = true;
+        errorModal = null;
+        try
+        {
+            // Paso 1: mandar el pago al servicio (él valida monto y saldo).
+            nuevoPago.TratamientoRealizadoId = detalle.TratamientoRealizadoId;
+            await PagoService.RegistrarAsync(nuevoPago);
+
+            // Paso 2: cerrar la ventana y avisar que se guardó.
+            mostrarModal = false;
+            successMessage = "Pago registrado correctamente.";
+
+            // Paso 3: recargar el detalle para ver el saldo y las cuotas al día.
+            await LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Error esperado del servicio: se muestra dentro de la ventana para corregir.
+            errorModal = ex.Message;
+        }
+        catch (Exception)
+        {
+            errorModal = "No fue posible registrar el pago.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    // =========================================================================================
+    // AYUDANTES DE PINTADO  →  textos, colores y formatos que usa el markup de arriba
+    // =========================================================================================
+
+    /// <summary>
+    /// Escribe el resumen de cuotas que aparece en el encabezado, por ejemplo
+    /// "2 cuotas registradas · último pago 14/10/2026". Si no hay pagos lo dice claramente.
+    /// </summary>
+    private string ResumenCuotas()
+    {
+        if (detalle is null || detalle.Pagos.Count == 0)
+        {
+            return "Sin pagos registrados";
+        }
+
+        // Contar cuántas cuotas hay y escribir "cuota" o "cuotas" según corresponda.
+        var cantidad = detalle.Pagos.Count;
+        var texto = cantidad == 1 ? "1 cuota registrada" : $"{cantidad} cuotas registradas";
+
+        // El servicio devuelve las cuotas más recientes primero, así que la primera es el último pago.
+        return $"{texto} · último pago {detalle.Pagos[0].Fecha:dd/MM/yyyy}";
+    }
+
+    /// <summary>
+    /// Da formato de dinero en pesos dominicanos sin decimales: 12500 → "RD$12,500".
+    /// </summary>
+    private static string Money(decimal value) => $"RD${value.ToString("N0", Cultura)}";
+
+    /// <summary>
+    /// Devuelve la clase CSS que pinta la etiqueta según el método de pago
+    /// (efectivo, tarjeta, transferencia u otro).
+    /// </summary>
+    private static string MethodClass(MetodoPago metodo) => metodo switch
+    {
+        MetodoPago.Efectivo => "method-efectivo",
+        MetodoPago.Tarjeta => "method-tarjeta",
+        MetodoPago.Transferencia => "method-transferencia",
+        _ => "method-otro"
+    };
+
+    /// <summary>
+    /// Texto visible del estado clínico del tratamiento.
+    /// </summary>
+    private static string EstadoClinicoTexto(EstadoTratamiento estado) => estado switch
+    {
+        EstadoTratamiento.EnProceso => "En proceso",
+        EstadoTratamiento.Completado => "Completado",
+        EstadoTratamiento.Cancelado => "Cancelado",
+        _ => "—"
+    };
+}

@@ -1,0 +1,119 @@
+@page "/pacientes"
+@attribute [Authorize(Policy = "Pacientes.Ver")]
+@attribute [Authorize]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Pacientes
+@using SonrisaDigital.Services.Pacientes.DTOs
+@inject IPacienteService PacienteService
+
+<PageTitle>Pacientes · Sonrisa Digital</PageTitle>
+
+<div class="patients-page">
+    <div class="page-header">
+        <div>
+            <h1>Pacientes 👤</h1>
+            <p>Administra la información general de los pacientes de la clínica.</p>
+        </div>
+        <AuthorizeView Policy="Pacientes.Crear">
+            <Authorized><a class="primary-action" href="/pacientes/nuevo">+ Registrar paciente</a></Authorized>
+        </AuthorizeView>
+    </div>
+
+    <section class="filter-panel" aria-label="Filtros de pacientes">
+        <div class="search-field">
+            <label for="patient-search">Buscar</label>
+            <input id="patient-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Nombre, identificación o teléfono" />
+        </div>
+        <button class="secondary-action" @onclick="LoadPatientsAsync">Buscar</button>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    <section class="table-panel">
+        <div class="table-summary">@patients.Count paciente(s) encontrado(s)</div>
+        @if (loading)
+        {
+            <div class="table-state">Cargando pacientes...</div>
+        }
+        else if (patients.Count == 0)
+        {
+            <div class="table-state empty-state">
+                <strong>No hay pacientes para mostrar</strong>
+                <span>Prueba con otros filtros o registra el primer paciente.</span>
+            </div>
+        }
+        else
+        {
+            <div class="activity-scroll" style="max-height: 600px; overflow-y: auto;">
+                <table class="patients-table">
+                    <thead>
+                        <tr><th>Nombre completo</th><th>Identificación</th><th>Tipo de Sangre</th><th>Teléfono</th><th>Correo</th><th>Registro</th><th>Opciones</th><th><span class="visually-hidden">Acciones</span></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var patient in patients)
+                        {
+                            <tr>
+                                <td><a class="patient-name" href="/pacientes/@patient.Id">@patient.NombreCompleto</a></td>
+                                <td>@(patient.Identificacion ?? "-")</td>
+                                <td>@(patient.TipoSangre ?? "-")</td>
+                                <td>@(patient.Telefono ?? "-")</td>
+                                <td>@(patient.Correo ?? "-")</td>
+                                <td>@patient.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                <td class="row-actions">
+                                    <a href="/pacientes/@patient.Id">Ver</a>
+                                    <AuthorizeView Policy="Pacientes.Editar">
+                                        <Authorized><a href="/pacientes/editar/@patient.Id">Editar</a></Authorized>
+                                    </AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private List<PacienteListItemDto> patients = [];
+    private string searchTerm = string.Empty;
+    private string statusFilter = "Todos";
+    private bool loading;
+    private string? errorMessage;
+
+    protected override Task OnInitializedAsync() => LoadPatientsAsync();
+
+    private async Task LoadPatientsAsync()
+    {
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            var status = statusFilter switch
+            {
+                "Activo" => EstadoRegistro.Activo,
+                _ => EstadoRegistro.Activo
+            };
+
+            // 1. Obtenemos los datos desde el servicio
+            var result = await PacienteService.SearchAsync(searchTerm, status);
+
+            // 2. Ordenamos alfabéticamente por NombreCompleto usando LINQ (.OrderBy)
+            patients = result.OrderBy(o => o.NombreCompleto).ToList();
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar los pacientes.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? LoadPatientsAsync() : Task.CompletedTask;
+}

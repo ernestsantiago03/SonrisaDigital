@@ -1,0 +1,42 @@
+@* Silueta anatómica de una pieza dental (corona + raíz) en SVG. *@
+<svg class="tooth-figure @(IsUpper ? "is-upper" : "is-lower")"
+     viewBox="0 0 48 72"
+     preserveAspectRatio="xMidYMid meet"
+     role="img"
+     aria-hidden="true"
+     focusable="false">
+    <defs>
+        <linearGradient id="@CrownGradientId" x1="0" y1="0" x2="0" y2="1">
+            <stop class="tooth-stop-a" offset="0%" />
+            <stop class="tooth-stop-b" offset="100%" />
+        </linearGradient>
+    </defs>
+
+    @foreach (var root in Shape.Roots)
+    {
+        <path class="tooth-root" d="@root" />
+    }
+
+    <path class="tooth-crown" fill="@($"url(#{CrownGradientId})")" d="@Shape.Crown" />
+
+    @if (Shape.Detail is not null)
+    {
+        <path class="tooth-detail" d="@Shape.Detail" />
+    }
+
+    <ellipse class="tooth-gloss" cx="17.5" cy="41" rx="2.6" ry="5.2" />
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string NumeroFdi { get; set; } = string.Empty;
+
+    /// <summary>Indica si la pieza pertenece al arco superior.</summary>
+    [Parameter] public bool IsUpper { get; set; } = true;
+
+    /// <summary>Prefijo para generar identificadores de gradiente únicos y estables.</summary>
+    [Parameter] public string IdPrefix { get; set; } = "t";
+
+    private ToothShape Shape => ToothShapes.For(NumeroFdi);
+
+    private string CrownGradientId => $"crown-{IdPrefix}-{NumeroFdi}";
+}

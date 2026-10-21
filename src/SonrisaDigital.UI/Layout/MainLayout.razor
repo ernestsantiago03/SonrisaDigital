@@ -1,0 +1,203 @@
+﻿@inherits LayoutComponentBase
+@using SonrisaDigital.Services.Autenticacion
+
+<div class="app-shell">
+    <aside class="app-sidebar @(sidebarOpen ? "is-open" : "")">
+        <div class="sidebar-brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="M9.5 10.5c0-.8.7-1.5 1.5-1.5h2c.8 0 1.5.7 1.5 1.5v1.5c0 .8-.7 1.5-1.5 1.5h-2c-.8 0-1.5-.7-1.5-1.5v-1.5z"></path>
+            </svg>
+            <div>
+                <strong>Sonrisa Digital</strong>
+                <span>Sistema de gestión</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Navegación principal">
+            <span class="nav-section">General</span>
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-item">
+                <span class="nav-icon">▦</span>
+                Inicio
+            </NavLink>
+
+            @if (HasPermission("Pacientes.Ver") || HasPermission("Odontologos.Ver") || HasPermission("Citas.Ver"))
+            {
+                <span class="nav-section">Gestión</span>
+                @if (HasPermission("Pacientes.Ver"))
+                {
+                    <NavLink href="/pacientes" class="nav-item"><span class="nav-icon">◉</span>Pacientes</NavLink>
+                }
+                @if (HasPermission("Odontologos.Ver"))
+                {
+                    <NavLink href="/odontologo" class="nav-item"><span class="nav-icon">✚</span>Odontólogos</NavLink>
+                }
+                @if (HasPermission("Citas.Ver"))
+                {
+                    <NavLink href="/cita" class="nav-item"><span class="nav-icon">□</span>Citas</NavLink>
+                }
+            }
+
+            @if (HasPermission("HistoriaClinica.Ver") || HasPermission("Odontograma.Ver") || HasPermission("Tratamientos.Ver"))
+            {
+                <span class="nav-section">Clínica</span>
+                @if (HasPermission("HistoriaClinica.Ver"))
+                {
+                    <NavLink href="/historia-clinica" class="nav-item"><span class="nav-icon">▤</span>Historia clínica</NavLink>
+                }
+                @if (HasPermission("Odontograma.Ver"))
+                {
+                    <NavLink href="/odontograma" class="nav-item"><span class="nav-icon">◌</span>Odontograma</NavLink>
+                }
+                @if (HasPermission("Tratamientos.Ver"))
+                {
+                    <NavLink href="/tratamientos" class="nav-item"><span class="nav-icon">✥</span>Tratamientos</NavLink>
+                }
+            }
+
+            @if (HasPermission("Pagos.Ver"))
+            {
+                <span class="nav-section">Finanzas</span>
+                <NavLink href="/pagos" class="nav-item"><span class="nav-icon">¤</span>Pagos</NavLink>
+            }
+
+            @if (HasPermission("Usuarios.Ver") || HasPermission("Roles.Ver"))
+            {
+                <span class="nav-section">Administración</span>
+                @if (HasPermission("Usuarios.Ver"))
+                {
+                    <NavLink href="/usuarios" class="nav-item"><span class="nav-icon">◎</span>Usuarios</NavLink>
+                }
+                @if (HasPermission("Roles.Ver"))
+                {
+                    <NavLink href="/roles" class="nav-item"><span class="nav-icon">⚿</span>Roles y permisos</NavLink>
+                }
+            }
+
+            @if (HasPermission("Auditoria.Ver") || HasPermission("Reportes.Ver"))
+            {
+                <span class="nav-section">Transversal</span>
+                @if (HasPermission("Auditoria.Ver"))
+                {
+                    <NavLink href="/auditoria" class="nav-item"><span class="nav-icon">≡</span>Auditoría</NavLink>
+                }
+                @if (HasPermission("Reportes.Ver"))
+                {
+                    <NavLink href="/reportes" class="nav-item"><span class="nav-icon">▥</span>Reportes</NavLink>
+
+                }
+            }
+
+            @* --- SECCIÓN DE CONFIGURACIÓN  --- *@
+            <span class="nav-section">Información</span>
+            <NavLink href="/acercaDe" class="nav-item">
+                <span class="nav-icon">⌸</span>
+                Acerca De
+            </NavLink>
+
+            @* --- SECCIÓN DE AYUDA --- *@
+            <span class="nav-section"> Ayuda </span>
+            <NavLink  href="/centro-ayuda" class="nav-item">
+                    <span class="nav-icon">❓</span>
+                    Centro de Ayuda
+                </NavLink>
+        </nav>
+
+        <div class="sidebar-user">
+            <div class="avatar avatar-small">@UserInitials</div>
+            <div class="user-copy">
+                <strong>@UserName</strong>
+                <span>@UserRole</span>
+            </div>
+            <a class="logout-button" href="/account/logout" aria-label="Cerrar sesión" title="Cerrar sesión">↪</a>
+        </div>
+    </aside>
+
+    @if (sidebarOpen)
+    {
+        <button class="sidebar-overlay" @onclick="CloseSidebar" aria-label="Cerrar navegación"></button>
+    }
+
+    <div class="app-main">
+        <main class="app-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui">
+    Se ha producido un error no controlado.
+    <a href="" class="reload">Recargar</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private bool sidebarOpen;
+    private string UserName = "Usuario";
+    private string UserRole = "Sin rol";
+    private string UserInitials = "US";
+    private ClaimsPrincipal CurrentUser = new();
+
+    private string CurrentTitle => Navigation.Uri.ToLowerInvariant() switch
+    {
+        var uri when uri.Contains("pacientes") => "Pacientes",
+        var uri when uri.Contains("odontologos") => "Odontólogos",
+        var uri when uri.Contains("cita") => "Citas", // Se ajustó "citas" por "cita" para coincidir con tus rutas
+        var uri when uri.Contains("historia") => "Historia clínica",
+        var uri when uri.Contains("odontograma") => "Odontograma",
+        var uri when uri.Contains("tratamientos") => "Tratamientos",
+        var uri when uri.Contains("pagos") => "Pagos",
+        var uri when uri.Contains("usuarios") => "Usuarios",
+        var uri when uri.Contains("roles") => "Roles y permisos",
+        var uri when uri.Contains("auditoria") => "Auditoría",
+        var uri when uri.Contains("reportes") => "Reportes",
+        var uri when uri.Contains("empresa") => "La Empresa", // Mapeo de título para la nueva página
+        _ => "Dashboard"
+    };
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = null!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
+
+    [Inject]
+    private ICurrentUserService CurrentUserService { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authenticationState.User;
+        CurrentUser = user;
+
+        if (user.Identity?.IsAuthenticated != true)
+        {
+            return;
+        }
+
+        UserName = user.FindFirst(ClaimTypes.GivenName)?.Value
+            ?? user.FindFirst(ClaimTypes.Name)?.Value
+            ?? "Usuario";
+        UserRole = user.Claims
+            .Where(claim => claim.Type == ClaimTypes.Role)
+            .Select(claim => claim.Value)
+            .FirstOrDefault()
+            ?? "Sin rol";
+        UserInitials = GetInitials(UserName);
+
+        // Deja al usuario actual disponible para los servicios (auditoría de movimientos).
+        CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName);
+    }
+
+    private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
+    private void CloseSidebar() => sidebarOpen = false;
+
+    private bool HasPermission(string permission) =>
+        CurrentUser.HasClaim(PermissionCatalog.ClaimType, permission);
+
+    private static string GetInitials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+}

@@ -1,0 +1,349 @@
+﻿@page "/"
+@attribute [Authorize]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Citas
+@using SonrisaDigital.Services.Citas.DTOs
+@using SonrisaDigital.Services.Pacientes
+@using SonrisaDigital.Services.Pacientes.DTOs
+@using SonrisaDigital.Services.Odontologos
+@using SonrisaDigital.Services.Odontologos.DTOs
+@using SonrisaDigital.Services.Auditoria
+@using SonrisaDigital.Services.Auditoria.DTOs
+@using SonrisaDigital.Services.Pagos
+@using SonrisaDigital.Services.Pagos.DTOs
+@using System.Globalization
+@inject ICitaService CitaService
+@inject IPacienteService PacienteService
+@inject IOdontologoService OdontologoService
+@inject IAuditoriaService AuditoriaService
+@inject IPagoService PagoService
+
+@* ============================================================================
+   PÁGINA: Inicio (Dashboard)        Ruta: /
+
+   ¿Qué hace esta pantalla?
+     Es el panel de bienvenida: resume en tarjetas lo que está pasando hoy (citas con sus
+     contadores, pacientes activos, odontólogos activos), muestra la actividad reciente
+     (sacada de la auditoría) y el saldo pendiente de pagos (los mismos números reales del
+     módulo de Pagos, no datos inventados).
+
+   ¿Cómo se lee este archivo?
+     - Markup: tarjetas de métricas, tabla de citas de hoy, actividad reciente y la tarjeta
+       "Pagos pendientes".
+     - @code (al final):
+         OnInitializedAsync     -> al abrir la página, cargar todo
+         LoadDashboardDataAsync -> 4 bloques: citas, pacientes/odontólogos, auditoría y pagos
+         Ayudantes              -> dinero, plurales, colores y símbolos de las etiquetas
+   ============================================================================ *@
+
+<PageTitle>Inicio · Sonrisa Digital</PageTitle>
+
+<div class="dashboard-page">
+    <div class="page-heading">
+        <div>
+            <h1>Inicio</h1>
+            <p>@DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-DO"))</p>
+        </div>
+    </div>
+
+    @* --- TARJETAS DE ESTADÍSTICAS --- *@
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span>Citas hoy</span>
+            <strong>@totalCitasHoy</strong>
+            <small>@citasProgramadas pendientes de confirmar</small>
+        </div>
+
+        <div class="stat-card">
+            <span>Pacientes activos</span>
+            <strong>@pacientesActivos.ToString("N0")</strong>
+            <small class="positive">+@pacientesNuevosSemana esta semana</small>
+        </div>
+
+        <div class="stat-card">
+            <span>Odontólogos activos</span>
+            <strong>@odontologosActivos.ToString("N0")</strong>
+            <small>Disponibles en clínica</small>
+        </div>
+
+        @* Solo se muestra a quien tiene permiso de consultar pagos, igual que el módulo de Pagos. *@
+        <AuthorizeView Policy="Pagos.Ver">
+            <Authorized>
+                <div class="stat-card">
+                    <span>Pagos pendientes</span>
+                    <strong>@Money(resumen.SaldoPendiente)</strong>
+                    @if (resumen.TratamientosConSaldo > 0)
+                    {
+                        <small class="negative">@FormatTratamientos(resumen.TratamientosConSaldo)</small>
+                    }
+                    else
+                    {
+                        <small class="positive">Sin saldos pendientes</small>
+                    }
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    @* --- CUADRÍCULA PRINCIPAL DEL PANEL --- *@
+    <div class="dashboard-grid">
+        @* Citas del Día *@
+        <section class="dashboard-panel appointments-panel">
+            <div class="panel-heading">
+                <h2>Citas de hoy</h2>
+                <a href="/cita">Ver todas</a>
+            </div>
+
+            <div class="table-scroll" style="max-height: 250px; overflow-y: auto;">
+                @if (loading)
+                {
+                    <div style="padding: 20px; text-align: center;">Cargando citas de hoy...</div>
+                }
+                else if (!citasHoy.Any())
+                {
+                    <div style="padding: 20px; text-align: center; color: #64748b;">No hay citas agendadas para el día de hoy.</div>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead style="position: sticky; top: 0; background-color: #ffffff; z-index: 2;">
+                            <tr>
+                                <th>Hora</th>
+                                <th>Paciente</th>
+                                <th>Odontólogo</th>
+                                <th>Motivo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cita in citasHoy)
+                            {
+                                <tr>
+                                    <td class="mono">@cita.HoraInicio.ToString("HH:mm")</td>
+                                    <td><strong>@cita.PacienteNombre</strong></td>
+                                    <td>@cita.OdontologoNombre</td>
+                                    <td>@(cita.Motivo ?? "-")</td>
+                                    <td>
+                                        <span class="status @GetEstadoClassDashboard(cita.Estado)">
+                                            @GetEstadoTextoDashboard(cita.Estado)
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </section>
+
+        @* Resumen del Día *@
+        <section class="dashboard-panel day-summary">
+            <div class="panel-heading">
+                <h2>Resumen del día</h2>
+            </div>
+
+            <div class="summary-list">
+                <div>
+                </div>
+                <div>
+                    <span><i class="dot blue"></i>Programadas</span>
+                    <strong>@citasProgramadas</strong>
+                </div>
+                <div>
+                    <span><i class="dot green"></i>Confirmadas</span>
+                    <strong>@citasConfirmadas</strong>
+                </div>
+                <div>
+                    <span><i class="dot fuchsia"></i>Atendidas hoy</span>
+                    <strong>@citasAtendidas</strong>
+                </div>
+                <div>
+                    <span><i class="dot red"></i>Canceladas hoy</span>
+                    <strong>@citasCanceladas</strong>
+                </div>
+                <div>
+                    <span><i class="dot gray"></i>No asistio</span>
+                    <strong>@citasNoAsistio</strong>
+                </div>
+                <div>
+                </div>
+            </div>
+
+            <div class="summary-total">
+                <span>Total citas hoy</span>
+                <strong>@totalCitasHoy</strong>
+            </div>
+        </section>
+    </div>
+
+    @* --- PANEL DE ACTIVIDAD RECIENTE --- *@
+    <section class="dashboard-panel activity-panel">
+        <div class="panel-heading">
+            <h2>Actividad reciente</h2>
+        </div>
+
+        <div class="activity-scroll" style="max-height: 270px; overflow-y: auto;">
+        @if (loading)
+        {
+            <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
+                Cargando actividad reciente...
+            </div>
+        }
+        else if (!actividadesRecientes.Any())
+        {
+            <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
+                No hay actividad reciente registrada.
+            </div>
+        }
+        else
+        {
+            @foreach (var act in actividadesRecientes)
+            {
+                <div class="activity-row">
+                    <span class="activity-icon @GetActividadClase(act)">@GetActividadSimbolo(act)</span>
+                    <span>@act.Descripcion</span>
+                    <small>@act.Usuario · @ObtenerTiempoRelativo(act.FechaHora)</small>
+                </div>
+            }
+        }
+        </div>
+    </section>
+</div>
+
+@code {
+    // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 12,500".
+    private static readonly CultureInfo Cultura = new("es-DO");
+
+    // ===== Datos que se pintan en la pantalla =====
+    private List<CitaListItemDto> citasHoy = [];                    // citas de hoy, ordenadas por hora
+    private List<ActividadRecienteDto> actividadesRecientes = [];   // últimos movimientos (auditoría)
+    private PagosResumenDto resumen = new(0, 0, 0, 0);              // números de la tarjeta "Pagos pendientes"
+    private bool loading = true;                                    // ¿la página sigue cargando?
+
+    // ===== Contadores (métricas) que se calculan al cargar =====
+    private int totalCitasHoy = 0;
+    private int citasProgramadas = 0;
+    private int citasConfirmadas = 0;
+    private int citasAtendidas = 0;
+    private int citasCanceladas = 0;
+    private int citasNoAsistio = 0;
+    private int pacientesActivos = 0;
+    private int pacientesNuevosSemana = 0;
+    private int odontologosActivos = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Al abrir la página se carga todo de una sola vez.
+        await LoadDashboardDataAsync();
+    }
+
+    /// <summary>
+    /// Carga todo lo que muestra el panel de inicio: las citas de hoy con sus contadores,
+    /// los pacientes y odontólogos activos, la actividad reciente y el resumen de pagos
+    /// (los mismos números reales del módulo de Pagos, sin datos inventados).
+    /// </summary>
+    private async Task LoadDashboardDataAsync()
+    {
+        loading = true;
+        try
+        {
+            DateOnly hoy = DateOnly.FromDateTime(DateTime.Now);
+
+            // 1. CARGAR CITAS DE HOY
+            var resultCitas = await CitaService.SearchAsync(hoy, null, null, null);
+            citasHoy = resultCitas.OrderBy(c => c.HoraInicio).ToList();
+
+            totalCitasHoy = citasHoy.Count;
+            citasProgramadas = citasHoy.Count(c => c.Estado == EstadoCita.Programada);
+            citasConfirmadas = citasHoy.Count(c => c.Estado == EstadoCita.Confirmada);
+            citasAtendidas = citasHoy.Count(c => c.Estado == EstadoCita.Atendida);
+            citasCanceladas = citasHoy.Count(c => c.Estado == EstadoCita.Cancelada);
+            citasNoAsistio = citasHoy.Count(c => c.Estado == EstadoCita.NoAsistio);
+
+            // 2. CARGAR PACIENTES Y ODONTÓLOGOS
+            var pacientes = (await PacienteService.SearchAsync(null, null)).ToList();
+            var odontologos = (await OdontologoService.SearchAsync(null, null)).ToList();
+
+            pacientesActivos = pacientes.Count(p => p.Estado == EstadoRegistro.Activo);
+            odontologosActivos = odontologos.Count(o => o.Estado == EstadoRegistro.Activo);
+
+            var haceSieteDias = DateTime.Now.AddDays(-7);
+            pacientesNuevosSemana = pacientes.Count(p => p.FechaRegistro >= haceSieteDias);
+
+            // 3. ACTIVIDAD RECIENTE (registros reales de auditoría)
+            actividadesRecientes = (await AuditoriaService.GetRecientesAsync(100)).ToList();
+
+            // 4. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
+            resumen = await PagoService.GetResumenAsync();
+        }
+        catch (Exception)
+        {
+            // Captura de errores silenciosa para no tumbar la interfaz
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Da formato de dinero en pesos dominicanos sin decimales: 12500 → "RD$12,500".
+    /// Se usa en la tarjeta "Pagos pendientes".
+    /// </summary>
+    private static string Money(decimal value) => $"RD${value.ToString("N0", Cultura)}";
+
+    /// <summary>
+    /// Escribe la cantidad de tratamientos en singular o plural: "1 tratamiento" / "3 tratamientos".
+    /// Es el texto pequeño que aparece debajo del saldo pendiente.
+    /// </summary>
+    private static string FormatTratamientos(int cantidad) =>
+        cantidad == 1 ? "1 tratamiento" : $"{cantidad} tratamientos";
+
+    private static string GetActividadClase(ActividadRecienteDto actividad) => actividad.Accion switch
+    {
+        "Activó" => "success",
+        "Desactivó" => "danger",
+        "Modificó" => "warning",
+        _ => "info"
+    };
+
+    private static string GetActividadSimbolo(ActividadRecienteDto actividad) => actividad.Accion switch
+    {
+        "Agregó" or "Creó" or "Agendó" => "+",
+        "Modificó" => "✏️",
+        "Cambió" => "✓",
+        "Desactivó" => "✕",
+        "Activó" => "✓",
+        "Restableció" => "🔑",
+        _ => "•"
+    };
+
+    private static string ObtenerTiempoRelativo(DateTime fecha)
+    {
+        var diferencia = DateTime.UtcNow - fecha;
+        if (diferencia.TotalSeconds < 60) return "hace un momento";
+        if (diferencia.TotalMinutes < 60) return $"hace {(int)diferencia.TotalMinutes} min";
+        if (diferencia.TotalHours < 24) return $"hace {(int)diferencia.TotalHours} hr";
+        if (diferencia.TotalDays < 30) return $"hace {(int)diferencia.TotalDays} días";
+        return fecha.ToString("dd/MM/yyyy");
+    }
+
+    private string GetEstadoClassDashboard(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "scheduled",
+        EstadoCita.Confirmada => "confirmed",
+        EstadoCita.Atendida => "attended",
+        EstadoCita.Cancelada => "cancelled",
+        _ => ""
+    };
+
+    private string GetEstadoTextoDashboard(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "Programada",
+        EstadoCita.Confirmada => "Confirmada",
+        EstadoCita.Atendida => "Atendida",
+        EstadoCita.Cancelada => "Cancelada",
+        EstadoCita.NoAsistio => "No asistió",
+        _ => estado.ToString()
+    };
+}

@@ -1,0 +1,313 @@
+@page "/usuarios/nuevo"
+@page "/usuarios/editar/{Id}"
+@attribute [Authorize(Policy = "Usuarios.Editar")]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Usuarios
+@using SonrisaDigital.Services.Usuarios.DTOs
+@inject IUsuarioService UsuarioService
+@inject IRolService RolService
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsEditing ? "Editar usuario" : "Registrar usuario") · Sonrisa Digital</PageTitle>
+
+<div class="user-form-page">
+    <header class="form-header">
+        <a class="back-link" href="/usuarios">← Volver a usuarios</a>
+        <span class="page-eyebrow">Administración de acceso</span>
+        <h1>@(IsEditing ? "Editar usuario" : "Registrar usuario")</h1>
+        <p>@(IsEditing ? "Actualiza la cuenta, el estado y los roles del usuario." : "Crea una cuenta con acceso al sistema.")</p>
+    </header>
+
+    @if (loading)
+    {
+        <div class="form-state">Cargando información...</div>
+    }
+    else if (notFound)
+    {
+        <div class="form-state">El usuario no existe.</div>
+    }
+    else
+    {
+        <EditForm Model="model" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="feedback error">@errorMessage</div>
+            }
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <div><span class="section-kicker">01</span><h2>Información de la cuenta</h2></div>
+                    <span>Datos básicos de acceso</span>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="user-name">Nombre completo</label>
+                        <InputText id="user-name" @bind-Value="model.Nombre" placeholder="Ej. Ana Rodríguez" />
+                        <ValidationMessage For="@(() => model.Nombre)" />
+                    </div>
+                    <div class="field">
+                        <label for="user-email">Correo electrónico</label>
+                        <InputText id="user-email" type="email" @bind-Value="model.Email" placeholder="usuario@clinica.com" />
+                        <ValidationMessage For="@(() => model.Email)" />
+                    </div>
+                    <div class="field field-wide">
+                        <label for="user-password">@(IsEditing ? "Nueva contraseña (opcional)" : "Contraseña inicial")</label>
+                        <InputText id="user-password" type="password" @bind-Value="model.Password" placeholder="••••••••" />
+                        <small class="field-help">Mínimo 8 caracteres, una mayúscula y un número.</small>
+                    </div>
+                    @if (IsEditing)
+                    {
+                        <div class="field">
+                            <span class="field-label">Estado de la cuenta</span>
+                            <label class="checkbox-line">
+                                <input type="checkbox" @bind="IsUserActive" />
+                                <span>Activo</span>
+                            </label>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            @if (IsDentistRole)
+            {
+                <section class="professional-summary">
+                    <div>
+                        <span class="section-kicker">03</span>
+                        <div><strong>Perfil profesional</strong><small>@(model.PerfilOdontologo is null ? "Completa los datos del odontólogo" : $"Licencia: {model.PerfilOdontologo.NumeroLicencia}")</small></div>
+                    </div>
+                    <button type="button" class="secondary-action" @onclick="OpenDentistModal">@(model.PerfilOdontologo is null ? "Completar perfil" : "Editar perfil")</button>
+                </section>
+            }
+
+            @if (showDentistModal && IsDentistRole)
+            {
+                <div class="modal-backdrop" role="presentation" @onclick="CloseDentistModal">
+                    <section class="professional-modal" role="dialog" aria-modal="true" aria-labelledby="professional-title" @onclick:stopPropagation="true">
+                        <div class="modal-header"><div><span class="page-eyebrow">Perfil profesional</span><h2 id="professional-title">Datos del odontólogo</h2><p>Estos datos se asociarán a la cuenta y a sus registros clínicos.</p></div><button type="button" class="modal-close" @onclick="CloseDentistModal" aria-label="Cerrar">×</button></div>
+                        <div class="modal-grid">
+                            <div class="field"><label for="dentist-first-name">Nombres</label><InputText id="dentist-first-name" @bind-Value="model.PerfilOdontologo!.Nombres" placeholder="Nombres profesionales" /></div>
+                            <div class="field"><label for="dentist-last-name">Apellidos</label><InputText id="dentist-last-name" @bind-Value="model.PerfilOdontologo!.Apellidos" placeholder="Apellidos profesionales" /></div>
+                            <div class="field"><label for="dentist-license">Número de licencia</label><InputText id="dentist-license" @bind-Value="model.PerfilOdontologo!.NumeroLicencia" placeholder="Licencia o colegiatura" /></div>
+                            <div class="field"><label for="dentist-specialty">Especialidad</label><InputText id="dentist-specialty" @bind-Value="model.PerfilOdontologo!.Especialidad" placeholder="Ej. Odontología general" /></div>
+                            <div class="field"><label for="dentist-phone">Teléfono</label><InputText id="dentist-phone" @bind-Value="model.PerfilOdontologo!.Telefono" /></div>
+                            <div class="field"><label for="dentist-email">Correo profesional</label><InputText id="dentist-email" type="email" @bind-Value="model.PerfilOdontologo!.Correo" /></div>
+                        </div>
+                        <div class="modal-actions"><button type="button" class="cancel-action" @onclick="CloseDentistModal">Cancelar</button><button type="button" class="primary-action" @onclick="CloseDentistModal">Listo</button></div>
+                    </section>
+                </div>
+            }
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <div><span class="section-kicker">02</span><h2>Roles y permisos base</h2></div>
+                    <span>Selecciona al menos uno</span>
+                </div>
+                <div class="roles-grid">
+                    @foreach (var role in availableRoles)
+                    {
+                        <label class="role-option">
+                            <input type="checkbox" checked="@model.Roles.Contains(role)" @onchange="eventArgs => ToggleRole(role, eventArgs.Value is true)" />
+                            <span class="role-copy"><strong>@role</strong><small>@GetRoleDescription(role)</small></span>
+                        </label>
+                    }
+                </div>
+
+                @if (model.Roles.Count > 0)
+                {
+                    <div class="permission-preview">
+                        <div class="preview-heading">
+                            <strong>Permisos que otorgan los roles seleccionados</strong>
+                            <span>@PermisosEfectivos.Count permiso(s)</span>
+                        </div>
+                        @if (PermisosEfectivos.Count == 0)
+                        {
+                            <p class="preview-empty">Los roles seleccionados todavía no tienen permisos configurados.</p>
+                        }
+                        else
+                        {
+                            <div class="preview-groups">
+                                @foreach (var grupo in PermisosPorModulo)
+                                {
+                                    <div class="preview-group">
+                                        <span class="preview-module">@grupo.Key</span>
+                                        <div class="preview-chips">
+                                            @foreach (var permiso in grupo)
+                                            {
+                                                <span class="preview-chip" title="@permiso.Descripcion">@permiso.Nombre</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            <p class="preview-note">
+                                Para habilitar o quitar permisos ve a <a href="/roles">Roles y permisos</a>. El usuario recibirá los cambios la próxima vez que cargue el sistema.
+                            </p>
+                        }
+                    </div>
+                }
+            </section>
+
+            <div class="form-actions">
+                <a class="cancel-action" href="/usuarios">Cancelar</a>
+                <button class="primary-action" type="submit" disabled="@saving">
+                    @(saving ? "Guardando..." : "Guardar usuario")
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Id { get; set; }
+
+    private UsuarioFormDto model = new();
+    private List<string> availableRoles = [];
+    private Dictionary<string, IReadOnlyList<string>> permisosPorRol = new(StringComparer.Ordinal);
+    private bool loading = true;
+    private bool saving;
+    private bool notFound;
+    private string? errorMessage;
+    private bool showDentistModal;
+
+    private bool IsEditing => !string.IsNullOrWhiteSpace(Id);
+
+    private bool IsUserActive
+    {
+        get => model.Estado == EstadoRegistro.Activo;
+        set => model.Estado = value ? EstadoRegistro.Activo : EstadoRegistro.Inactivo;
+    }
+
+    private bool IsDentistRole => model.Roles.Contains(RolesSonrisaDigital.Odontologo, StringComparer.Ordinal);
+
+    /// <summary>Permisos que el usuario tendrá realmente, según los roles marcados.</summary>
+    private IReadOnlyList<PermissionDefinition> PermisosEfectivos =>
+        model.Roles
+            .Where(permisosPorRol.ContainsKey)
+            .SelectMany(rol => permisosPorRol[rol])
+            .Distinct(StringComparer.Ordinal)
+            .Select(nombre => PermissionCatalog.All.FirstOrDefault(permiso => permiso.Nombre == nombre))
+            .Where(permiso => permiso is not null)
+            .Select(permiso => permiso!)
+            .OrderBy(permiso => permiso.Modulo, StringComparer.Ordinal)
+            .ThenBy(permiso => permiso.Nombre, StringComparer.Ordinal)
+            .ToList();
+
+    private IEnumerable<IGrouping<string, PermissionDefinition>> PermisosPorModulo =>
+        PermisosEfectivos.GroupBy(permiso => permiso.Modulo);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        availableRoles = (await UsuarioService.GetAvailableRolesAsync()).ToList();
+
+        var roles = await RolService.GetRolesAsync();
+        permisosPorRol = roles
+            .Where(rol => !string.IsNullOrWhiteSpace(rol.Nombre))
+            .ToDictionary(rol => rol.Nombre, rol => rol.Permisos, StringComparer.Ordinal);
+
+        if (IsEditing)
+        {
+            var loaded = await UsuarioService.GetFormAsync(Id!);
+            if (loaded is null)
+            {
+                notFound = true;
+            }
+            else
+            {
+                model = loaded;
+            }
+        }
+
+        loading = false;
+    }
+
+    private void ToggleRole(string role, bool selected)
+    {
+        if (selected && !model.Roles.Contains(role))
+        {
+            model.Roles.Add(role);
+            if (role == RolesSonrisaDigital.Odontologo)
+            {
+                model.PerfilOdontologo ??= new();
+                model.PerfilOdontologo.Nombres = model.Nombre;
+                showDentistModal = true;
+            }
+        }
+
+        if (!selected)
+        {
+            model.Roles.Remove(role);
+            if (role == RolesSonrisaDigital.Odontologo) showDentistModal = false;
+        }
+    }
+
+    private void OpenDentistModal()
+    {
+        model.PerfilOdontologo ??= new();
+        model.PerfilOdontologo.Nombres = string.IsNullOrWhiteSpace(model.PerfilOdontologo.Nombres) ? model.Nombre : model.PerfilOdontologo.Nombres;
+        showDentistModal = true;
+    }
+
+    private void CloseDentistModal() => showDentistModal = false;
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+
+        if (!IsEditing && string.IsNullOrWhiteSpace(model.Password))
+        {
+            errorMessage = "La contraseña inicial es obligatoria.";
+            saving = false;
+            return;
+        }
+
+        if (model.Roles.Count == 0)
+        {
+            errorMessage = "Selecciona al menos un rol.";
+            saving = false;
+            return;
+        }
+
+        if (IsDentistRole && (model.PerfilOdontologo is null || string.IsNullOrWhiteSpace(model.PerfilOdontologo.Nombres) || string.IsNullOrWhiteSpace(model.PerfilOdontologo.Apellidos) || string.IsNullOrWhiteSpace(model.PerfilOdontologo.NumeroLicencia)))
+        {
+            errorMessage = "Completa el perfil profesional del odontólogo antes de guardar.";
+            showDentistModal = true;
+            saving = false;
+            return;
+        }
+
+        try
+        {
+            if (IsEditing)
+            {
+                await UsuarioService.UpdateAsync(model);
+            }
+            else
+            {
+                await UsuarioService.CreateAsync(model);
+            }
+
+            Navigation.NavigateTo("/usuarios");
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string GetRoleDescription(string role) => role switch
+    {
+        RolesSonrisaDigital.Administrador => "Configuración y administración general",
+        RolesSonrisaDigital.Recepcionista => "Pacientes, citas y pagos",
+        RolesSonrisaDigital.Odontologo => "Atención y gestión clínica",
+        _ => "Permisos definidos para este rol"
+    };
+}

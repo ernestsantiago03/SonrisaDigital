@@ -1,0 +1,445 @@
+@page "/pagos"
+@attribute [Authorize(Policy = "Pagos.Ver")]
+@using System.Globalization
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Pagos
+@using SonrisaDigital.Services.Pagos.DTOs
+@inject IPagoService PagoService
+
+@* ============================================================================
+   PÁGINA: Pagos        Ruta: /pagos   (también /pagos?paciente=12)
+
+   ¿Qué hace esta pantalla?
+     Es el módulo de cobros: arriba 3 tarjetas con los totales, en el medio la lista de
+     tratamientos con su saldo y abajo el historial de los últimos pagos. Desde la fila de
+     un tratamiento se abre la ventana "+ Registrar pago".
+
+   ¿Cómo se lee este archivo?
+     - Markup: tarjetas de resumen, buscador + filtro por estado, tabla de tratamientos,
+       tabla de historial y la ventana (modal) para registrar el pago.
+     - @code (al final):
+         LoadAsync          -> cargar resumen + lista + historial
+         OpenPayModal       -> abrir la ventana de pago sobre la fila elegida
+         RegistrarPagoAsync -> guardar el pago y refrescar la pantalla
+   ============================================================================ *@
+
+<PageTitle>Pagos · Sonrisa Digital</PageTitle>
+
+<div class="payments-page">
+    <div class="page-header">
+        <div>
+            <h1>Pagos</h1>
+            <p>Registro y seguimiento de pagos de tratamientos.</p>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span>Total facturado</span>
+            <strong class="facturado">@Money(resumen.TotalFacturado)</strong>
+        </div>
+        <div class="stat-card">
+            <span>Total cobrado</span>
+            <strong class="cobrado">@Money(resumen.TotalCobrado)</strong>
+        </div>
+        <div class="stat-card">
+            <span>Saldo pendiente</span>
+            <strong class="pendiente">@Money(resumen.SaldoPendiente)</strong>
+            <small class="pendiente">@FormatTratamientos(resumen.TratamientosConSaldo)</small>
+        </div>
+    </div>
+
+    <section class="filter-panel" aria-label="Filtros de pagos">
+        <div class="search-field">
+            <input id="payment-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Buscar paciente o tratamiento..." />
+        </div>
+        <button class="secondary-action" @onclick="LoadAsync">Buscar</button>
+        <div class="status-field">
+            <select aria-label="Estado financiero" @bind="estadoSeleccionado" @bind:after="LoadAsync">
+                <option value="">Todos</option>
+                <option value="Pendiente">Pendiente</option>
+                <option value="PagoParcial">Pago parcial</option>
+                <option value="Pagado">Pagado</option>
+            </select>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="feedback success" role="status">@successMessage</div>
+    }
+
+    <section class="table-panel">
+        <div class="table-summary">@tratamientos.Count tratamiento(s) encontrado(s)</div>
+        @if (loading)
+        {
+            <div class="table-state">Cargando pagos...</div>
+        }
+        else if (tratamientos.Count == 0)
+        {
+            <div class="table-state empty-state">
+                <strong>No hay tratamientos para mostrar</strong>
+                <span>Prueba con otros filtros o registra tratamientos realizados.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="payments-table">
+                    <thead>
+                        <tr>
+                            <th>Paciente</th>
+                            <th>Tratamiento</th>
+                            <th>Total</th>
+                            <th>Pagado</th>
+                            <th>Saldo</th>
+                            <th>Pago</th>
+                            <th>Último pago</th>
+                            <th>Método</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in tratamientos)
+                        {
+                            <tr>
+                                <td class="patient-name">@row.PacienteNombre</td>
+                                <td>@row.TratamientoNombre</td>
+                                <td class="mono total">@Money(row.Total)</td>
+                                <td class="mono @(row.Pagado > 0 ? "paid" : "muted")">@Money(row.Pagado)</td>
+                                <td>
+                                    @if (row.Saldo > 0)
+                                    {
+                                        <span class="mono saldo-pendiente">@Money(row.Saldo)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="saldado">Saldado</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="status-badge @EstadoFinancieroUi.Clase(row.Estado)">
+                                        @EstadoFinancieroUi.Texto(row.Estado)
+                                    </span>
+                                </td>
+                                <td class="mono muted">@(row.UltimoPago?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td>
+                                    @if (row.UltimoMetodo.HasValue)
+                                    {
+                                        <span class="method-badge @MethodClass(row.UltimoMetodo.Value)">@row.UltimoMetodo.Value</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="action-cell">
+                                        @if (row.Saldo > 0 && row.EstadoClinico == EstadoTratamiento.EnProceso)
+                                        {
+                                            <AuthorizeView Policy="Pagos.Crear">
+                                                <Authorized>
+                                                    <button type="button" class="pay-action" @onclick="() => OpenPayModal(row)">+ Pago</button>
+                                                </Authorized>
+                                            </AuthorizeView>
+                                        }
+                                        <a class="view-action" href="/pagos/@row.TratamientoRealizadoId">Ver</a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="table-panel">
+        <div class="table-summary">Historial de pagos recientes</div>
+        @if (historial.Count == 0)
+        {
+            <div class="table-state">Aún no se han registrado pagos.</div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="payments-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Paciente</th>
+                            <th>Tratamiento</th>
+                            <th>Monto</th>
+                            <th>Método</th>
+                            <th>Registrado por</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pago in historial)
+                        {
+                            <tr>
+                                <td class="mono muted">@pago.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td class="patient-name">@pago.PacienteNombre</td>
+                                <td>@pago.TratamientoNombre</td>
+                                <td class="mono paid">@Money(pago.Monto)</td>
+                                <td><span class="method-badge @MethodClass(pago.MetodoPago)">@pago.MetodoPago</span></td>
+                                <td class="muted">@pago.RegistradoPor</td>
+                                <td>
+                                    <div class="action-cell">
+                                        <a class="view-action" href="/pagos/@pago.TratamientoRealizadoId">Ver</a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@if (pagoSeleccionado is not null)
+{
+    <div class="modal-backdrop">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title">
+            <div class="modal-header">
+                <h3 class="modal-title" id="pay-modal-title">Registrar pago</h3>
+                <button type="button" class="modal-close-btn" @onclick="ClosePayModal" aria-label="Cerrar">&times;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(errorModal))
+            {
+                <div class="alert-error" role="alert">@errorModal</div>
+            }
+
+            <div class="modal-body">
+                <div class="pay-summary">
+                    <div><span>Paciente:</span> <strong>@pagoSeleccionado.PacienteNombre</strong></div>
+                    <div><span>Tratamiento:</span> @pagoSeleccionado.TratamientoNombre</div>
+                    <div><span>Saldo pendiente:</span> <strong class="saldo-pendiente">@Money(pagoSeleccionado.Saldo)</strong></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-date">Fecha</label>
+                    <input id="pay-date" type="date" class="form-control" @bind="nuevoPago.Fecha" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-amount">Monto (RD$)</label>
+                    <input id="pay-amount" type="number" step="0.01" min="0.01" class="form-control" @bind="nuevoPago.Monto" placeholder="0.00" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-method">Método de pago</label>
+                    <select id="pay-method" class="form-control" @bind="nuevoPago.MetodoPago">
+                        @foreach (var metodo in Enum.GetValues<MetodoPago>())
+                        {
+                            <option value="@metodo">@metodo</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="pay-notes">Observaciones</label>
+                    <textarea id="pay-notes" rows="2" class="form-control" @bind="nuevoPago.Observaciones" placeholder="Notas opcionales..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" @onclick="ClosePayModal" disabled="@saving">Cancelar</button>
+                <button type="button" class="btn-primary" @onclick="RegistrarPagoAsync" disabled="@saving">
+                    @(saving ? "Registrando..." : "Registrar pago")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 12,500".
+    private static readonly CultureInfo Cultura = new("es-DO");
+
+    // =========================================================================================
+    // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
+    // =========================================================================================
+
+    private PagosResumenDto resumen = new(0, 0, 0, 0);              // los 4 números de las tarjetas
+    private List<TratamientoPagoListItemDto> tratamientos = [];     // filas de la tabla principal
+    private List<PagoHistorialDto> historial = [];                  // filas del historial de pagos
+    private RegistrarPagoDto nuevoPago = new();                     // el formulario de la ventana de pago
+    private TratamientoPagoListItemDto? pagoSeleccionado;           // la fila sobre la que se está pagando
+    private EstadoFinanciero? estadoSeleccionado;                   // filtro: Pagado / Pago parcial / Pendiente
+    private string searchTerm = string.Empty;                       // lo escrito en el buscador
+
+    /// <summary>
+    /// Permite abrir la lista ya filtrada por paciente, por ejemplo desde su ficha
+    /// clínica: <c>/pagos?paciente=12</c>.
+    /// </summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "paciente")]
+    public int? PacienteDesdeUrl { get; set; }
+
+    private string? errorMessage;
+    private string? successMessage;
+    private string? errorModal;
+    private bool loading;
+    private bool saving;
+
+    /// <summary>
+    /// Al entrar a la página se cargan de una vez el resumen, la lista y el historial de pagos.
+    /// </summary>
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    /// <summary>
+    /// Carga todo lo que muestra la página: las tarjetas de resumen, la lista de tratamientos
+    /// (aplicando el texto buscado y el filtro de estado) y el historial de los últimos pagos.
+    /// Si la página se abrió desde la ficha de un paciente (?paciente=12), deja únicamente
+    /// los tratamientos de ese paciente.
+    /// </summary>
+    private async Task LoadAsync()
+    {
+        // Paso 1: encender el "Cargando..." y limpiar errores anteriores.
+        loading = true;
+        errorMessage = null;
+        try
+        {
+            // Paso 2: pedir los 3 bloques de información al servicio.
+            resumen = await PagoService.GetResumenAsync();
+            var filas = await PagoService.SearchTratamientosAsync(searchTerm, estadoSeleccionado);
+
+            // Paso 3: si la página se abrió desde la ficha de un paciente (?paciente=12),
+            // quedarse solo con sus tratamientos; si no, mostrar todos.
+            tratamientos = (PacienteDesdeUrl.HasValue
+                    ? filas.Where(fila => fila.PacienteId == PacienteDesdeUrl.Value)
+                    : filas)
+                .ToList();
+
+            // Paso 4: los últimos 10 pagos para la tabla de historial.
+            historial = (await PagoService.GetHistorialAsync(10)).ToList();
+        }
+        catch (Exception)
+        {
+            errorMessage = "No fue posible cargar la información de pagos.";
+        }
+        finally
+        {
+            // Paso 5: se haya cargado bien o mal, apagar el "Cargando...".
+            loading = false;
+        }
+    }
+
+    /// <summary>
+    /// Permite ejecutar la búsqueda con la tecla Enter, además de con el botón "Buscar".
+    /// </summary>
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? LoadAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Abre la ventana para registrar un pago sobre el tratamiento de la fila elegida y deja
+    /// el formulario listo: fecha de hoy, método "Efectivo" y monto vacío.
+    /// </summary>
+    private void OpenPayModal(TratamientoPagoListItemDto row)
+    {
+        // Paso 1: recordar sobre qué tratamiento se está pagando (el modal lo usa para el título).
+        pagoSeleccionado = row;
+        errorModal = null;
+        successMessage = null;
+
+        // Paso 2: dejar el formulario listo para escribir: fecha de hoy, método "Efectivo",
+        // monto vacío y el id del tratamiento ya puesto.
+        nuevoPago = new RegistrarPagoDto
+        {
+            TratamientoRealizadoId = row.TratamientoRealizadoId,
+            Fecha = DateTime.Today,
+            MetodoPago = MetodoPago.Efectivo
+        };
+    }
+
+    /// <summary>
+    /// Cierra la ventana de registrar pago y limpia el mensaje de error que tuviera.
+    /// </summary>
+    private void ClosePayModal()
+    {
+        pagoSeleccionado = null;
+        errorModal = null;
+    }
+
+    /// <summary>
+    /// Guarda el pago que el usuario escribió en la ventana: lo envía al servicio, cierra el
+    /// formulario, muestra el mensaje de éxito y recarga la lista para ver el saldo actualizado.
+    /// Si el servicio rechaza el pago (por ejemplo, monto mayor al saldo) muestra su mensaje.
+    /// </summary>
+    private async Task RegistrarPagoAsync()
+    {
+        // Si el modal no está abierto sobre ninguna fila, no hay nada que guardar.
+        if (pagoSeleccionado is null)
+        {
+            return;
+        }
+
+        saving = true;
+        errorModal = null;
+        try
+        {
+            // Paso 1: asegurar el id del tratamiento y mandar el pago al servicio.
+            // El servicio es el que valida el monto y el saldo.
+            nuevoPago.TratamientoRealizadoId = pagoSeleccionado.TratamientoRealizadoId;
+            await PagoService.RegistrarAsync(nuevoPago);
+
+            // Paso 2: guardar el nombre del paciente para el mensaje y cerrar el modal.
+            var paciente = pagoSeleccionado.PacienteNombre;
+            pagoSeleccionado = null;
+            successMessage = $"Pago registrado correctamente para {paciente}.";
+
+            // Paso 3: recargar la pantalla para ver los saldos ya actualizados.
+            await LoadAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Errores "esperados" del servicio (monto inválido, saldo insuficiente...):
+            // se muestran dentro del modal, sin cerrarlo, para que el usuario corrija.
+            errorModal = ex.Message;
+        }
+        catch (Exception)
+        {
+            errorModal = "No fue posible registrar el pago.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    // =========================================================================================
+    // AYUDANTES DE PINTADO  →  textos, colores y formatos que usa el markup de arriba
+    // =========================================================================================
+
+    /// <summary>
+    /// Da formato de dinero en pesos dominicanos sin decimales: 12500 → "RD$12,500".
+    /// </summary>
+    private static string Money(decimal value) => $"RD${value.ToString("N0", Cultura)}";
+
+    /// <summary>
+    /// Devuelve la clase CSS que pinta la etiqueta según el método de pago
+    /// (efectivo, tarjeta, transferencia u otro).
+    /// </summary>
+    private static string MethodClass(MetodoPago metodo) => metodo switch
+    {
+        MetodoPago.Efectivo => "method-efectivo",
+        MetodoPago.Tarjeta => "method-tarjeta",
+        MetodoPago.Transferencia => "method-transferencia",
+        _ => "method-otro"
+    };
+
+    /// <summary>
+    /// Escribe la cantidad de tratamientos en singular o plural: "1 tratamiento" / "3 tratamientos".
+    /// </summary>
+    private static string FormatTratamientos(int cantidad) =>
+        cantidad == 1 ? "1 tratamiento" : $"{cantidad} tratamientos";
+}

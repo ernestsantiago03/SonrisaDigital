@@ -1,0 +1,222 @@
+/* =========================================================
+   Página
+   ========================================================= */
+.history-page { max-width: 1500px; margin: 0 auto; }
+
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.page-header h1 { margin: 0; color: #0f172a; font-size: 18px; font-weight: 700; }
+.page-header p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+
+.back-link { display: inline-block; margin-bottom: 4px; color: #2563eb; font-size: 12px; text-decoration: none; }
+.back-link:hover { text-decoration: underline; }
+
+.header-actions { display: flex; gap: 8px; }
+
+.primary-action, .secondary-action { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 13px; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; font-family: inherit; }
+.primary-action { border: 1px solid #1d4ed8; background: #2563eb; color: #ffffff; }
+.primary-action:hover:not(:disabled) { background: #1d4ed8; }
+.primary-action:disabled { opacity: .65; cursor: wait; }
+.secondary-action { border: 1px solid #cbd5e1; background: #ffffff; color: #334155; }
+.secondary-action:hover { background: #f8fafc; }
+
+/* =========================================================
+   Mensajes
+   ========================================================= */
+.feedback { margin-bottom: 12px; padding: 10px 12px; border-radius: 4px; font-size: 12px; }
+.feedback.error { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; }
+.feedback.success { border: 1px solid #bbf7d0; background: #f0fdf4; color: #15803d; }
+
+/* =========================================================
+   Barra del paciente
+   ========================================================= */
+.filter-panel { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 14px; padding: 13px; border: 1px solid #e2e8f0; border-radius: 4px; background: #ffffff; }
+.filter-panel label { display: block; margin-bottom: 5px; color: #475569; font-size: 11px; font-weight: 600; }
+.filter-panel select { width: 100%; height: 34px; padding: 0 9px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; color: #1e293b; font-size: 12px; }
+.filter-panel select:focus { outline: 2px solid #bfdbfe; border-color: #60a5fa; }
+
+.filter-panel input[type="search"] { width: 100%; height: 34px; padding: 0 9px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; color: #1e293b; font-family: inherit; font-size: 12px; }
+.filter-panel input[type="search"]:focus { outline: 2px solid #bfdbfe; border-color: #60a5fa; }
+
+.search-field { min-width: min(360px, 100%); flex: 1; }
+
+.meta-field { display: flex; flex-direction: column; min-width: 110px; }
+.meta-field strong { color: #1e293b; font-size: 12px; font-weight: 600; line-height: 34px; }
+
+.status-badge { display: inline-flex; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.status-badge.active { background: #dcfce7; color: #15803d; }
+.status-badge.inactive { background: #f1f5f9; color: #64748b; }
+.status-badge.cancelled { background: #fecaca; color: #991b1b; }
+
+.patient-bar .meta-field .status-badge { vertical-align: middle; }
+
+.meta-patient { flex: 1; min-width: 220px; }
+
+/* =========================================================
+   Búsqueda de pacientes
+   ========================================================= */
+.search-panel .primary-action { height: 34px; }
+
+.search-results { margin: -2px 0 14px; border: 1px solid #e2e8f0; border-radius: 4px; background: #ffffff; overflow: hidden; }
+
+.search-results-head { padding: 9px 15px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; color: #64748b; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+
+.search-results-list { max-height: 280px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.search-results-list li + li { border-top: 1px solid #f1f5f9; }
+
+.search-result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 15px; border: none; background: transparent; text-align: left; font-family: inherit; cursor: pointer; }
+.search-result:hover { background: #f8fafc; }
+.search-result:focus-visible { outline: 2px solid #bfdbfe; outline-offset: -2px; }
+
+.search-result-name { flex: 1; color: #1e293b; font-size: 12px; font-weight: 600; }
+.search-result-meta { color: #94a3b8; font-size: 11px; }
+
+.search-empty { padding: 26px 20px; color: #64748b; text-align: center; font-size: 12px; }
+
+/* =========================================================
+   Pestañas
+   ========================================================= */
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid #e2e8f0; }
+
+.tab { padding: 9px 14px; border: none; border-bottom: 2px solid transparent; background: transparent; color: #64748b; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.tab:hover { color: #334155; }
+.tab.is-active { color: #2563eb; border-bottom-color: #2563eb; }
+.tab:focus-visible { outline: 2px solid #bfdbfe; outline-offset: 2px; }
+
+/* =========================================================
+   Tarjetas de antecedentes
+   ========================================================= */
+.card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+
+.detail-panel { margin-bottom: 14px; border: 1px solid #e2e8f0; border-radius: 4px; background: #ffffff; }
+
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid #e2e8f0; }
+.section-heading h2 { margin: 0; color: #1e293b; font-size: 13px; }
+.section-meta { color: #64748b; font-size: 11px; }
+
+.section-body { padding: 0 15px 6px; }
+
+.field { display: flex; flex-direction: column; gap: 5px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+.field:last-child { border-bottom: none; }
+.field label { color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.field textarea { width: 100%; min-height: 54px; padding: 8px 9px; border: 1px solid #cbd5e1; border-radius: 4px; background: #ffffff; color: #1e293b; font: inherit; font-size: 12px; resize: vertical; }
+.field textarea:focus { outline: 2px solid #bfdbfe; border-color: #60a5fa; }
+.field textarea:disabled { background: #f8fafc; color: #94a3b8; }
+.field ::deep .validation-message { color: #dc2626; font-size: 10px; }
+
+/* =========================================================
+   Chips (vista previa)
+   ========================================================= */
+.chip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.chip-row-label { color: #94a3b8; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+.chip { display: inline-flex; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.chip-allergy { background: #fee2e2; color: #b91c1c; }
+.chip-disease { background: #fef3c7; color: #92400e; }
+.chip-habit { background: #e0e7ff; color: #3730a3; }
+.chip-none { background: #f1f5f9; color: #64748b; }
+
+/* =========================================================
+   Guardar / solo lectura
+   ========================================================= */
+.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.form-hint { margin-right: auto; color: #94a3b8; font-size: 11px; }
+
+.read-only-note { margin-bottom: 14px; padding: 10px 12px; border: 1px dashed #e2e8f0; border-radius: 4px; background: #f8fafc; color: #64748b; font-size: 12px; }
+
+/* =========================================================
+   Detalle / edición de la historia general
+   ========================================================= */
+/* Botón del lápiz ✏️ que abre la edición de una sección. */
+.icon-action { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid #e2e8f0; border-radius: 4px; background: #ffffff; font-size: 12px; line-height: 1; cursor: pointer; }
+.icon-action:hover:not(:disabled) { border-color: #cbd5e1; background: #f8fafc; }
+.icon-action:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Cuando un campo no tiene dato guardado se dice claramente (no es lo mismo que "no refiere"). */
+.detail-empty { color: #94a3b8; font-size: 12px; font-style: italic; }
+
+/* Textos largos (un antecedente, una observación...): se respetan los saltos de línea. */
+.detail-text { margin: 0; color: #1e293b; font-size: 12px; line-height: 1.55; white-space: pre-line; }
+
+/* Filas del detalle (por ejemplo los medicamentos): nombre a la izquierda y dosis a la derecha. */
+.detail-rows { margin: 0; padding: 0; list-style: none; }
+.detail-rows li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed #f1f5f9; }
+.detail-rows li:last-child { border-bottom: none; }
+.detail-row-name { color: #1e293b; font-size: 12px; }
+.detail-row-meta { color: #64748b; font-size: 11px; text-align: right; }
+
+.edit-hint { display: block; margin-bottom: 14px; color: #94a3b8; font-size: 11px; }
+
+/* =========================================================
+   Consultas (acordeón)
+   ========================================================= */
+.consultation { border-top: 1px solid #f1f5f9; }
+.consultation:first-of-type { border-top: none; }
+.consultation.is-open { background: #fbfdff; }
+
+.consultation-head { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 15px; border: none; background: transparent; text-align: left; font-family: inherit; font-size: 12px; color: #64748b; cursor: pointer; }
+.consultation-head:hover { background: #f8fafc; }
+.consultation-head:focus-visible { outline: 2px solid #bfdbfe; outline-offset: -2px; }
+
+.consultation-date { min-width: 88px; color: #475569; font-weight: 600; }
+.consultation-reason { flex: 1; color: #1e293b; font-weight: 600; }
+.consultation-doctor { color: #64748b; }
+.consultation-caret { color: #94a3b8; font-size: 10px; }
+
+.consultation-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 2px 15px 15px; }
+.consultation-body dt { color: #64748b; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.consultation-body dd { margin: 4px 0 0; color: #1e293b; font-size: 12px; }
+
+/* =========================================================
+   Estados vacíos
+   ========================================================= */
+.table-state { padding: 44px 20px; color: #64748b; text-align: center; font-size: 12px; }
+.empty-state strong, .empty-state span { display: block; }
+.empty-state strong { margin-bottom: 4px; color: #334155; }
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+@media (max-width: 1000px) {
+    .card-grid { grid-template-columns: minmax(0, 1fr); }
+    .consultation-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 700px) {
+    .page-header { align-items: stretch; flex-direction: column; }
+    .header-actions { width: 100%; }
+    .header-actions > * { flex: 1; }
+    .filter-panel { align-items: stretch; flex-direction: column; }
+    .meta-field { min-width: 0; }
+    .meta-field strong { line-height: 1.4; }
+    .patient-bar .meta-field .status-badge { margin-top: 0; }
+    .consultation-head { flex-wrap: wrap; gap: 6px 12px; }
+    .consultation-reason { flex-basis: 100%; }
+    .modal-card { max-width: calc(100% - 24px); }
+}
+
+/* =========================================================
+   Botón de la cabecera de consultas y acción de cerrar
+   ========================================================= */
+.heading-actions { display: flex; align-items: center; gap: 10px; }
+.consultation-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+
+/* =========================================================
+   Ventana "+ Nueva consulta" (mismo estilo que el modal de Pagos)
+   ========================================================= */
+.modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background-color: rgba(15, 23, 42, .45); }
+.modal-card { width: 100%; max-width: 480px; border-radius: 14px; background: #fff; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, .1); overflow: hidden; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #f1f5f9; }
+.modal-title { margin: 0; color: #1e293b; font-size: 17px; font-weight: 700; }
+.modal-close-btn { border: none; background: none; color: #94a3b8; font-size: 24px; line-height: 1; cursor: pointer; }
+.modal-body { display: flex; flex-direction: column; gap: 14px; padding: 20px 24px; max-height: 60vh; overflow-y: auto; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid #f1f5f9; background-color: #f8fafc; }
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { color: #475569; font-size: 12px; font-weight: 600; }
+.form-control { padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; color: #1e293b; font: inherit; font-size: 13px; outline: none; box-sizing: border-box; resize: vertical; }
+.form-control:focus { border-color: #2563eb; }
+
+.alert-error { margin: 12px 24px 0; padding: 10px 14px; border-radius: 6px; background-color: #fee2e2; color: #b91c1c; font-size: 12px; }
+
+/* Los mensajes de validación los dibuja un componente hijo, por eso se usa ::deep */
+.modal-body ::deep .validation-message { color: #dc2626; font-size: 11px; }

@@ -1,0 +1,171 @@
+@page "/odontologo/nuevo"
+@page "/odontologo/editar/{Id:int}"
+@attribute [Authorize(Policy = "Odontologos.Editar")]
+@attribute [Authorize]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Odontologos
+@using SonrisaDigital.Services.Odontologos.DTOs
+@inject IOdontologoService OdontologoService
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsEditing ? "Editar Odontólogo" : "Registrar odontólogo") · Sonrisa Digital</PageTitle>
+
+<div class="patient-form-page">
+    <div class="page-header">
+        <div>
+            <a class="back-link" href="/odontologo">← Odontólogos</a>
+            <h1>@(IsEditing ? "Editar odontólogo 🦷" : "Registrar odontólogo 🦷")</h1>
+            <p>@(IsEditing ? "Actualiza la información administrativa del odontólogo." : "Registra la información general del odontólogo.")</p>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="form-state">Cargando información...</div>
+    }
+    else if (notFound)
+    {
+        <div class="form-state">El Odontólogo no existe.</div>
+    }
+    else
+    {
+        <EditForm Model="model" OnValidSubmit="SaveAsync">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="feedback error">@errorMessage</div>
+            }
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Información personal</h2>
+                    <span>Campos obligatorios marcados en el formulario</span>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="first-name">Nombres</label>
+                        <InputText id="first-name" @bind-Value="model.Nombres" />
+                        <ValidationMessage For="@(() => model.Nombres)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="last-name">Apellidos</label>
+                        <InputText id="last-name" @bind-Value="model.Apellidos" />
+                        <ValidationMessage For="@(() => model.Apellidos)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="license-number">Número de Licencia</label>
+                        <InputText id="license-number" @bind-Value="model.NumeroLicencia" />
+                        <ValidationMessage For="@(() => model.NumeroLicencia)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="specialty">Especialidad</label>
+                        <InputSelect id="specialty" @bind-Value="model.Especialidad">
+                            <option value="" disabled selected hidden> Seleccione una especialidad </option>
+
+                            <option value="Anestesiología Dental">Anestesiología Dental</option>
+                            <option value="Cirugía Oral y Maxilofacial">Cirugía Oral y Maxilofacial</option>
+                            <option value="Endodoncia">Endodoncia</option>
+                            <option value="Estetica Dental">Estetica Dental</option>
+                            <option value="Implantología">Implantología</option>
+                            <option value="Odontología General">Odontología General</option>
+                            <option value="Odontología Forense">Odontología Forense</option>
+                            <option value="Ortodoncia">Ortodoncia</option>
+                            <option value="Odontopediatría">Odontopediatría</option>
+                            <option value="Patología y Medicina Oral">Patología y Medicina Oral</option>
+                            <option value="Radiología Oral y Maxilofacial">Radiología Oral y Maxilofacial</option>
+                            <option value="Periodoncia">Periodoncia</option>
+                            <option value="Prostodoncia">Prostodoncia</option>
+                            <ValidationMessage For="@(() => model.Especialidad)" />
+                        </InputSelect>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Información de contacto</h2>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="phone">Teléfono</label>
+                        <InputText id="phone" @bind-Value="model.Telefono" />
+                        <ValidationMessage For="@(() => model.Telefono)" />
+                    </div>
+
+                    <div class="field">
+                        <label for="email">Correo electrónico</label>
+                        <InputText id="email" type="email" @bind-Value="model.Correo" />
+                        <ValidationMessage For="@(() => model.Correo)" />
+                    </div>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <a class="cancel-action" href="/odontologo">Cancelar</a>
+                <button class="primary-action" type="submit" disabled="@saving">
+                    @(saving ? "Guardando..." : "Guardar odontólogo")
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private OdontologoFormDto model = new();
+    private bool loading;
+    private bool saving;
+    private bool notFound;
+    private string? errorMessage;
+
+    private bool IsEditing => Id.HasValue;
+
+    private bool IsOdontologoActive
+    {
+        get => model.Estado == EstadoRegistro.Activo;
+        set => model.Estado = value ? EstadoRegistro.Activo : EstadoRegistro.Inactivo;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Id.HasValue) return;
+        loading = true;
+        var loaded = await OdontologoService.GetFormAsync(Id.Value);
+        if (loaded is null) notFound = true;
+        else model = loaded;
+        loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        saving = true;
+        errorMessage = null;
+        try
+        {
+            if (IsEditing) 
+                await OdontologoService.UpdateAsync(model);
+            else 
+                model.Id = await OdontologoService.CreateAsync(model);
+
+            Navigation.NavigateTo($"/odontologo/{model.Id}");
+        }
+        catch (InvalidOperationException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            errorMessage = $"Error al guardar: {exception.Message}";
+        }
+        finally 
+        { 
+            saving = false; 
+        }
+    }
+}
