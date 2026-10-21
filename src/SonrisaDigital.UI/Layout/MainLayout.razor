@@ -185,8 +185,10 @@
             ?? "Sin rol";
         UserInitials = GetInitials(UserName);
 
-        // Deja al usuario actual disponible para los servicios (auditoría de movimientos).
-        CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName);
+        // Deja al usuario actual disponible para los servicios. Además del Id y el
+        // nombre (auditoría), se guarda el principal completo para que los servicios
+        // puedan evaluar las mismas políticas de autorización que la interfaz.
+        CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName, user);
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;

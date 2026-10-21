@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -80,6 +81,12 @@ public static class DependencyInjection
 
         services.AddAuthorization(options =>
         {
+            // Ninguna pagina ni endpoint queda accesible sin sesion salvo que marque
+            // explicitamente [AllowAnonymous] (login, 404, error y acceso denegado).
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+
             foreach (var permission in PermissionCatalog.All)
             {
                 options.AddPolicy(permission.Nombre, policy =>

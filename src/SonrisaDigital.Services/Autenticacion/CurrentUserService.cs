@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 namespace SonrisaDigital.Services.Autenticacion;
 
 /// <summary>
@@ -10,7 +12,17 @@ public interface ICurrentUserService
     string? UsuarioId { get; }
     string? Nombre { get; }
 
-    void Establecer(string? usuarioId, string? nombre);
+    /// <summary>
+    /// Identidad completa del usuario autenticado. Los servicios la usan para
+    /// evaluar políticas de autorización sin depender del HttpContext de SignalR.
+    /// </summary>
+    ClaimsPrincipal? Principal { get; }
+
+    /// <summary>
+    /// Guarda los datos de la sesión actual. El principal es opcional para no
+    /// romper llamadas que solo necesitan el identificador o el nombre.
+    /// </summary>
+    void Establecer(string? usuarioId, string? nombre, ClaimsPrincipal? principal = null);
 }
 
 public sealed class CurrentUserService : ICurrentUserService
@@ -18,9 +30,16 @@ public sealed class CurrentUserService : ICurrentUserService
     public string? UsuarioId { get; private set; }
     public string? Nombre { get; private set; }
 
-    public void Establecer(string? usuarioId, string? nombre)
+    /// <inheritdoc />
+    public ClaimsPrincipal? Principal { get; private set; }
+
+    public void Establecer(string? usuarioId, string? nombre, ClaimsPrincipal? principal = null)
     {
         UsuarioId = string.IsNullOrWhiteSpace(usuarioId) ? null : usuarioId;
         Nombre = string.IsNullOrWhiteSpace(nombre) ? null : nombre;
+
+        // Se conserva el principal completo para que IAuthorizationService pueda
+        // comprobar los mismos permisos que usa la interfaz.
+        Principal = principal;
     }
 }

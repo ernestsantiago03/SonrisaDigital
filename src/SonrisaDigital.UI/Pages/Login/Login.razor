@@ -1,5 +1,6 @@
 @page "/login"
 @layout LoginLayout
+@attribute [AllowAnonymous]
 
 <PageTitle>Iniciar sesión · Sonrisa Digital</PageTitle>
 
@@ -38,7 +39,7 @@
                         <label for="password">Contraseña</label>
                         <a href="/login" class="forgot-link">¿Olvidó su contraseña?</a>
                     </div>
-                    <input id="password" name="Password" type="password" placeholder="••••••••" required />
+                    <input id="password" name="Password" type="password" placeholder="•••••••••••" required />
                 </div>
 
                 <button class="login-submit" type="submit">Ingresar</button>
