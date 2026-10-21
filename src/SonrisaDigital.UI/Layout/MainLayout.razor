@@ -158,20 +158,32 @@
     [Inject]
     private NavigationManager Navigation { get; set; } = null!;
 
-    [Inject]
-    private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = null!;
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     [Inject]
     private ICurrentUserService CurrentUserService { get; set; } = null!;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (AuthenticationStateTask is null)
+        {
+            return;
+        }
+
+        // Se usa el estado en cascada (no una lectura única) para que el layout
+        // reaccione cuando el proveedor revalidante cambia o invalida la sesión.
+        var authenticationState = await AuthenticationStateTask;
         var user = authenticationState.User;
         CurrentUser = user;
 
         if (user.Identity?.IsAuthenticated != true)
         {
+            // Un circuito invalidado no debe conservar el principal anterior en los Services.
+            UserName = "Usuario";
+            UserRole = "Sin rol";
+            UserInitials = "US";
+            CurrentUserService.Establecer(null, null, null);
             return;
         }
 

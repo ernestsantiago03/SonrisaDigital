@@ -47,8 +47,8 @@ public static class DependencyInjection
                 // Sin parametros en la ruta: si se agrega un "?" aqui, el framework
                 // construye mal la URL de redireccion y el usuario termina en un 404.
                 cookieOptions.AccessDeniedPath = "/acceso-denegado";
-                // Revalida la cookie en cada peticion para que los permisos se vuelvan a
-                // calcular desde la base y los cambios lleguen a las sesiones abiertas.
+                // Revalida la cookie en cada petición HTTP. Los circuitos Blazor ya
+                // abiertos se cubren con RevalidatingIdentityAuthenticationStateProvider.
                 cookieOptions.Events.OnValidatePrincipal = SecurityStampValidator.ValidatePrincipalAsync;
             });
         });
@@ -71,7 +71,8 @@ public static class DependencyInjection
         services.AddScoped<IUserClaimsPrincipalFactory<Usuario>, UsuarioClaimsPrincipalFactory>();
 
         // Sin esto la cookie dura 30 minutos sin recargar los permisos; con el intervalo
-        // en cero se regeneran los claims en cada peticion y el cambio es inmediato.
+        // en cero se regeneran los claims en cada petición HTTP. Para los circuitos
+        // Blazor abiertos, el proveedor registrado en Program.cs hace la revalidación.
         services.AddScoped<ISecurityStampValidator, SecurityStampValidator<Usuario>>();
         services.Configure<SecurityStampValidatorOptions>(options =>
             options.ValidationInterval = TimeSpan.Zero);

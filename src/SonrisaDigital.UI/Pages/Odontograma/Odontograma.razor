@@ -299,7 +299,6 @@
     private bool loading = true;
     private bool saving;
     private bool canEdit;
-    private string? userId;
     private string? errorMessage;
     private string? successMessage;
 
@@ -342,12 +341,11 @@
         try
         {
             // Paso 1: ver quién está conectado y si puede editar el odontograma.
-            // También se guarda el id del usuario, porque al guardar una pieza queda
-            // registrado qué odontólogo hizo el cambio.
+            // El id del usuario ya no se guarda aquí: el Service lo obtiene de la
+            // sesión central para evitar que la UI envíe un usuario arbitrario.
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var user = authenticationState.User;
             canEdit = user.HasClaim(PermissionCatalog.ClaimType, "Odontograma.Editar");
-            userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             // Paso 2: si la URL trae un paciente, abrirlo directo.
             if (PacienteDesdeUrl.HasValue)
@@ -483,8 +481,9 @@
     /// </summary>
     private async Task SaveSelectedPieceAsync()
     {
-        // No se guarda si no hay pieza elegida o si no se sabe quién es el usuario.
-        if (selectedPiece is null || string.IsNullOrWhiteSpace(userId)) return;
+        // No se guarda si no hay pieza elegida. La identidad del usuario la resuelve
+        // el Service desde la sesión, no esta pantalla.
+        if (selectedPiece is null) return;
 
         // Paso 1: encender el "Guardando..." y limpiar mensajes.
         saving = true;
@@ -493,8 +492,8 @@
 
         try
         {
-            // Paso 2: mandar el cambio al servicio (paciente, pieza, estado, observaciones y quién lo hizo).
-            await OdontogramaService.SaveAsync(selectedPatientId, selectedPiece.Id, selectedPiece.Estado, selectedPiece.Observaciones, userId);
+            // Paso 2: mandar el cambio al servicio (paciente, pieza, estado y observaciones).
+            await OdontogramaService.SaveAsync(selectedPatientId, selectedPiece.Id, selectedPiece.Estado, selectedPiece.Observaciones);
 
             // Paso 3: recargar las piezas y avisar que se guardó.
             await LoadPiecesAsync();

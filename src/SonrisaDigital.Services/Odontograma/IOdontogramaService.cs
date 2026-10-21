@@ -14,5 +14,15 @@ public interface IOdontogramaService
         string? searchTerm = null,
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OdontogramaPiezaDto>> GetByPatientAsync(int pacienteId, CancellationToken cancellationToken = default);
-    Task SaveAsync(int pacienteId, int piezaDentalId, EstadoOdontograma estado, string? observaciones, string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Guarda una pieza dental. El usuario responsable se obtiene de la sesión
+    /// actual, no de un parámetro que el llamador pueda falsificar (ARQ-05).
+    /// </summary>
+    Task SaveAsync(
+        int pacienteId,
+        int piezaDentalId,
+        EstadoOdontograma estado,
+        string? observaciones,
+        CancellationToken cancellationToken = default);
 }

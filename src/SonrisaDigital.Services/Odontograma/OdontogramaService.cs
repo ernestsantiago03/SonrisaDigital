@@ -1,5 +1,6 @@
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Odontograma.DTOs;
 
 namespace SonrisaDigital.Services.Odontograma;
@@ -28,7 +29,8 @@ namespace SonrisaDigital.Services.Odontograma;
 /// </summary>
 public sealed class OdontogramaService(
     IOdontogramaRepository repository,
-    IPacienteRepository pacienteRepository) : IOdontogramaService
+    IPacienteRepository pacienteRepository,
+    ICurrentUserService currentUserService) : IOdontogramaService
 {
     // =========================================================================================
     // 1) BUSCAR PACIENTES  →  alimenta el panel de búsqueda de la pantalla del odontograma
@@ -95,17 +97,27 @@ public sealed class OdontogramaService(
     /// Si es la primera vez que se toca esa pieza, crea el registro; si ya existía, lo actualiza.
     /// Deja el movimiento anotado en la auditoría.
     /// </summary>
-    public async Task SaveAsync(int pacienteId, int piezaDentalId, EstadoOdontograma estado, string? observaciones, string userId, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(int pacienteId, int piezaDentalId, EstadoOdontograma estado, string? observaciones, CancellationToken cancellationToken = default)
     {
-        // Paso 1: saber QUÉ odontólogo es el usuario que está en sesión (queda guardado como
+        // Paso 1: obtener de la sesión el usuario responsable. El Service ya no
+        // acepta un userId arbitrario desde la UI (ARQ-05). Si no hay sesión,
+        // la operación se detiene antes de escribir.
+        var userId = currentUserService.UsuarioId;
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new InvalidOperationException(
+                "No hay un usuario autenticado para guardar el odontograma.");
+        }
+
+        // Paso 2: saber QUÉ odontólogo es el usuario que está en sesión (queda guardado como
         // el responsable del cambio). Si su usuario no está ligado a un odontólogo, se corta.
         var odontologoId = await repository.GetOdontologoIdByUserAsync(userId, cancellationToken)
             ?? throw new InvalidOperationException("El usuario actual no está asociado a un odontólogo.");
 
-        // Paso 2: buscar si ya existe un registro de esa pieza para ese paciente.
+        // Paso 3: buscar si ya existe un registro de esa pieza para ese paciente.
         var record = await repository.GetRecordAsync(pacienteId, piezaDentalId, cancellationToken);
 
-        // Paso 3: si no existe, se crea la fila nueva (primera vez que se toca la pieza).
+        // Paso 4: si no existe, se crea la fila nueva (primera vez que se toca la pieza).
         if (record is null)
         {
             record = new RegistroOdontograma
@@ -117,14 +129,14 @@ public sealed class OdontogramaService(
             await repository.AddAsync(record, cancellationToken);
         }
 
-        // Paso 4: escribir los datos nuevos en la fila (sirve igual para la nueva y para la
+        // Paso 5: escribir los datos nuevos en la fila (sirve igual para la nueva y para la
         // que ya existía). Las observaciones vacías se guardan como null.
         record.Estado = estado;
         record.Observaciones = string.IsNullOrWhiteSpace(observaciones) ? null : observaciones.Trim();
         record.OdontologoId = odontologoId;
         record.FechaModificacion = DateTime.UtcNow;
 
-        // Paso 5: conseguir los nombres para el texto de la auditoría (paciente y pieza).
+        // Paso 6: conseguir los nombres para el texto de la auditoría (paciente y pieza).
         var paciente = await pacienteRepository.GetByIdAsync(pacienteId, cancellationToken);
         var pieza = (await repository.GetPiecesAsync(cancellationToken)).FirstOrDefault(item => item.Id == piezaDentalId);
 
@@ -135,15 +147,15 @@ public sealed class OdontogramaService(
             : $"{paciente.Nombres} {paciente.Apellidos}".Trim();
         var numeroPieza = string.IsNullOrWhiteSpace(pieza?.NumeroFDI) ? piezaDentalId.ToString() : pieza!.NumeroFDI;
 
-        // Paso 6: guardar el registro y la auditoría JUNTOS en una sola operación.
-        // Así queda la garantía de que, si algo falla, no se guarda el cambio sin su rastro.
-        await repository.SaveChangesWithAuditAsync(new RegistroAuditoria
+        // Paso 7: guardar el registro y la auditoría JUNTOS en una sola operación.
+        // El repositorio completa el EntidadId después de guardar la pieza, para que
+        // una fila nueva no quede auditada con Id 0 (ODO-03).
+        await repository.SaveChangesWithAuditAsync(record, new RegistroAuditoria
         {
             UsuarioId = userId,
             Accion = "Modificó",
             Modulo = "Odontograma",
             Entidad = nameof(RegistroOdontograma),
-            EntidadId = record.Id,
             Descripcion = $"Actualizó la pieza dental {numeroPieza} del paciente {nombrePaciente}."
         }, cancellationToken);
     }

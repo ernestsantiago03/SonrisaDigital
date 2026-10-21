@@ -112,6 +112,8 @@ public sealed class UsuarioService(
         ValidateOdontologoProfile(model);
         await EnsureNotLastActiveAdminAsync(user, model.Estado, model.Roles, cancellationToken);
 
+        var estadoAnterior = user.Estado;
+        var emailAnterior = user.Email;
         var email = model.Email.Trim();
         user.Nombre = model.Nombre.Trim();
         user.Estado = model.Estado;
@@ -123,7 +125,7 @@ public sealed class UsuarioService(
         {
             var result = await userManager.UpdateAsync(user);
             EnsureSucceeded(result);
-            await ReplaceRolesAsync(user, model.Roles, cancellationToken);
+            var rolesChanged = await ReplaceRolesAsync(user, model.Roles, cancellationToken);
             await SaveOdontologoProfileAsync(user.Id, model, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -131,6 +133,18 @@ public sealed class UsuarioService(
             {
                 var token = await userManager.GeneratePasswordResetTokenAsync(user);
                 EnsureSucceeded(await userManager.ResetPasswordAsync(user, token, model.Password));
+            }
+
+            // El SecurityStamp invalida las sesiones ya abiertas cuando cambió algo
+            // relevante para la autorización: estado, correo, roles o contraseña.
+            var debeActualizarStamp = estadoAnterior != user.Estado
+                || !string.Equals(emailAnterior, email, StringComparison.OrdinalIgnoreCase)
+                || rolesChanged
+                || !string.IsNullOrWhiteSpace(model.Password);
+
+            if (debeActualizarStamp)
+            {
+                EnsureSucceeded(await userManager.UpdateSecurityStampAsync(user));
             }
 
             await transaction.CommitAsync(cancellationToken);
@@ -150,8 +164,23 @@ public sealed class UsuarioService(
     {
         var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
         await EnsureNotLastActiveAdminAsync(user, estado, await userManager.GetRolesAsync(user), cancellationToken);
-        user.Estado = estado;
-        EnsureSucceeded(await userManager.UpdateAsync(user));
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            user.Estado = estado;
+            EnsureSucceeded(await userManager.UpdateAsync(user));
+
+            // Al desactivar o reactivar se fuerza la invalidación de las sesiones
+            // abiertas; el proveedor revalidante de Blazor lo detecta en su próximo ciclo.
+            EnsureSucceeded(await userManager.UpdateSecurityStampAsync(user));
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
 
         var verbo = estado == EstadoRegistro.Activo ? "Activó" : "Desactivó";
         await auditoriaService.RegistrarAsync(
@@ -162,15 +191,29 @@ public sealed class UsuarioService(
     public async Task ResetPasswordAsync(string id, string password, CancellationToken cancellationToken = default)
     {
         var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
-        EnsureSucceeded(await userManager.ResetPasswordAsync(user, token, password));
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var token = await userManager.GeneratePasswordResetTokenAsync(user);
+            EnsureSucceeded(await userManager.ResetPasswordAsync(user, token, password));
+
+            // Una contraseña nueva debe invalidar cualquier sesión que siguiera abierta.
+            EnsureSucceeded(await userManager.UpdateSecurityStampAsync(user));
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
 
         await auditoriaService.RegistrarAsync(
             "Restableció", "Usuarios", nameof(Usuario), null,
             $"Restableció la contraseña del usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
     }
 
-    private async Task ReplaceRolesAsync(Usuario user, IEnumerable<string> roleNames, CancellationToken cancellationToken)
+    private async Task<bool> ReplaceRolesAsync(Usuario user, IEnumerable<string> roleNames, CancellationToken cancellationToken)
     {
         var requestedRoles = roleNames.Where(role => !string.IsNullOrWhiteSpace(role)).Distinct().ToArray();
         foreach (var role in requestedRoles)
@@ -179,8 +222,14 @@ public sealed class UsuarioService(
         }
 
         var currentRoles = await userManager.GetRolesAsync(user);
+        if (currentRoles.ToHashSet(StringComparer.Ordinal).SetEquals(requestedRoles))
+        {
+            return false;
+        }
+
         EnsureSucceeded(await userManager.RemoveFromRolesAsync(user, currentRoles));
         if (requestedRoles.Length > 0) EnsureSucceeded(await userManager.AddToRolesAsync(user, requestedRoles));
+        return true;
     }
 
     private async Task<OdontologoFormDto?> GetOdontologoFormAsync(string userId, CancellationToken cancellationToken)

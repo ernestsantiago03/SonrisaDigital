@@ -18,6 +18,7 @@ public sealed record RolePermissionDto(string Id, string Nombre, string? Descrip
 public sealed class RolService(
     ApplicationDbContext dbContext,
     RoleManager<Rol> roleManager,
+    UserManager<Usuario> userManager,
     IAuditoriaService auditoriaService) : IRolService
 {
     /// <summary>
@@ -66,14 +67,51 @@ public sealed class RolService(
         var current = await dbContext.RolesPermisos
             .Where(rolePermission => rolePermission.RolId == role.Id)
             .ToListAsync(cancellationToken);
-        dbContext.RolesPermisos.RemoveRange(current);
-        await dbContext.RolesPermisos.AddRangeAsync(
-            permissions.Select(permission => new RolPermiso { RolId = role.Id, PermisoId = permission.Id }),
-            cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var currentNames = await dbContext.RolesPermisos
+            .Where(rolePermission => rolePermission.RolId == role.Id)
+            .Select(rolePermission => rolePermission.Permiso.Nombre)
+            .ToListAsync(cancellationToken);
+        var permissionsChanged = !currentNames.ToHashSet(StringComparer.Ordinal).SetEquals(names);
 
-        await auditoriaService.RegistrarAsync(
-            "Modificó", "Roles y Permisos", nameof(Rol), null,
-            $"Actualizó los permisos del rol {role.Name} ({permissions.Count} permiso(s))", cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            dbContext.RolesPermisos.RemoveRange(current);
+            await dbContext.RolesPermisos.AddRangeAsync(
+                permissions.Select(permission => new RolPermiso { RolId = role.Id, PermisoId = permission.Id }),
+                cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            // Los permisos efectivos viven en los claims de la sesión. Al cambiar el rol,
+            // se actualiza el SecurityStamp de sus usuarios para que las sesiones abiertas
+            // se invaliden y vuelvan a calcular los permisos.
+            if (permissionsChanged)
+            {
+                var usuariosDelRol = await userManager.GetUsersInRoleAsync(role.Name ?? string.Empty);
+                foreach (var usuario in usuariosDelRol)
+                {
+                    EnsureSucceeded(await userManager.UpdateSecurityStampAsync(usuario));
+                }
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+
+            await auditoriaService.RegistrarAsync(
+                "Modificó", "Roles y Permisos", nameof(Rol), null,
+                $"Actualizó los permisos del rol {role.Name} ({permissions.Count} permiso(s))", cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private static void EnsureSucceeded(IdentityResult result)
+    {
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join(" ", result.Errors.Select(error => error.Description)));
+        }
     }
 }

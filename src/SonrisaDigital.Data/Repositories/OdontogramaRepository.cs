@@ -123,19 +123,27 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
     /// auditoría) que deben ocurrir juntas: si una falla, la otra se deshace. Así nunca queda
     /// un cambio clínico sin su rastro en la auditoría.
     /// </summary>
-    public async Task SaveChangesWithAuditAsync(RegistroAuditoria audit, CancellationToken cancellationToken = default)
+    public async Task SaveChangesWithAuditAsync(
+        RegistroOdontograma record,
+        RegistroAuditoria audit,
+        CancellationToken cancellationToken = default)
     {
         // Paso 1: abrir la transacción (el "todo o nada").
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        // Paso 2: guardar el cambio de la pieza dental.
+        // Paso 2: guardar el cambio de la pieza dental. Después de este punto, una
+        // fila nueva ya tiene su Id autogenerado.
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Paso 3: agregar el registro de auditoría y guardarlo también.
+        // Paso 3: completar el Id real antes de insertar la auditoría. Antes se
+        // tomaba record.Id antes de guardar y una pieza nueva quedaba con Id 0.
+        audit.EntidadId = record.Id;
+
+        // Paso 4: agregar el registro de auditoría y guardarlo también.
         dbContext.RegistrosAuditoria.Add(audit);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Paso 4: confirmar la transacción. Si algo hubiera fallado antes de este punto,
+        // Paso 5: confirmar la transacción. Si algo hubiera fallado antes de este punto,
         // la transacción se deshace sola y la base de datos queda como estaba.
         await transaction.CommitAsync(cancellationToken);
     }

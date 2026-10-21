@@ -9,6 +9,7 @@
 @using SonrisaDigital.Services.Odontologos.DTOs
 @using SonrisaDigital.Services.Auditoria
 @using SonrisaDigital.Services.Auditoria.DTOs
+@using SonrisaDigital.Services.Autorizacion
 @using SonrisaDigital.Services.Pagos
 @using SonrisaDigital.Services.Pagos.DTOs
 @using System.Globalization
@@ -17,6 +18,7 @@
 @inject IOdontologoService OdontologoService
 @inject IAuditoriaService AuditoriaService
 @inject IPagoService PagoService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* ============================================================================
    PÁGINA: Inicio (Dashboard)        Ruta: /
@@ -177,37 +179,42 @@
     </div>
 
     @* --- PANEL DE ACTIVIDAD RECIENTE --- *@
-    <section class="dashboard-panel activity-panel">
-        <div class="panel-heading">
-            <h2>Actividad reciente</h2>
-        </div>
-
-        <div class="activity-scroll" style="max-height: 270px; overflow-y: auto;">
-        @if (loading)
-        {
-            <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
-                Cargando actividad reciente...
-            </div>
-        }
-        else if (!actividadesRecientes.Any())
-        {
-            <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
-                No hay actividad reciente registrada.
-            </div>
-        }
-        else
-        {
-            @foreach (var act in actividadesRecientes)
-            {
-                <div class="activity-row">
-                    <span class="activity-icon @GetActividadClase(act)">@GetActividadSimbolo(act)</span>
-                    <span>@act.Descripcion</span>
-                    <small>@act.Usuario · @ObtenerTiempoRelativo(act.FechaHora)</small>
+    @* La auditoría solo se muestra a quien tenga Auditoria.Ver. *@
+    <AuthorizeView Policy="Auditoria.Ver">
+        <Authorized>
+            <section class="dashboard-panel activity-panel">
+                <div class="panel-heading">
+                    <h2>Actividad reciente</h2>
                 </div>
-            }
-        }
-        </div>
-    </section>
+
+                <div class="activity-scroll" style="max-height: 270px; overflow-y: auto;">
+                    @if (loading)
+                    {
+                        <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
+                            Cargando actividad reciente...
+                        </div>
+                    }
+                    else if (!actividadesRecientes.Any())
+                    {
+                        <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
+                            No hay actividad reciente registrada.
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var act in actividadesRecientes)
+                        {
+                            <div class="activity-row">
+                                <span class="activity-icon @GetActividadClase(act)">@GetActividadSimbolo(act)</span>
+                                <span>@act.Descripcion</span>
+                                <small>@act.Usuario · @ObtenerTiempoRelativo(act.FechaHora)</small>
+                            </div>
+                        }
+                    }
+                </div>
+            </section>
+        </Authorized>
+    </AuthorizeView>
 </div>
 
 @code {
@@ -219,6 +226,7 @@
     private List<ActividadRecienteDto> actividadesRecientes = [];   // últimos movimientos (auditoría)
     private PagosResumenDto resumen = new(0, 0, 0, 0);              // números de la tarjeta "Pagos pendientes"
     private bool loading = true;                                    // ¿la página sigue cargando?
+    private bool puedeVerAuditoria;                                 // evita consultar la auditoría sin permiso
 
     // ===== Contadores (métricas) que se calculan al cargar =====
     private int totalCitasHoy = 0;
@@ -247,6 +255,14 @@
         loading = true;
         try
         {
+            // Antes de consultar la auditoría se comprueba el permiso real del usuario.
+            // El panel también está dentro de AuthorizeView, pero así evitamos ejecutar
+            // la consulta y cargar datos sensibles cuando no corresponde (DASH-01).
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            puedeVerAuditoria = authenticationState.User.HasClaim(
+                PermissionCatalog.ClaimType,
+                "Auditoria.Ver");
+
             DateOnly hoy = DateOnly.FromDateTime(DateTime.Now);
 
             // 1. CARGAR CITAS DE HOY
@@ -270,8 +286,11 @@
             var haceSieteDias = DateTime.Now.AddDays(-7);
             pacientesNuevosSemana = pacientes.Count(p => p.FechaRegistro >= haceSieteDias);
 
-            // 3. ACTIVIDAD RECIENTE (registros reales de auditoría)
-            actividadesRecientes = (await AuditoriaService.GetRecientesAsync(100)).ToList();
+            // 3. ACTIVIDAD RECIENTE (solo con permiso de auditoría)
+            if (puedeVerAuditoria)
+            {
+                actividadesRecientes = (await AuditoriaService.GetRecientesAsync(100)).ToList();
+            }
 
             // 4. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
             resumen = await PagoService.GetResumenAsync();

@@ -1,0 +1,313 @@
+@page "/auditoria"
+@attribute [Authorize(Policy = "Auditoria.Ver")]
+@using SonrisaDigital.Services.Auditoria
+@using SonrisaDigital.Services.Auditoria.DTOs
+@inject IAuditoriaService AuditoriaService
+
+@* ============================================================================
+   PÁGINA: Auditoría                Ruta: /auditoria
+
+   ¿Qué hace?
+     Muestra los movimientos registrados por el sistema y permite filtrarlos por
+     texto, módulo, acción y rango de fechas. La página exige Auditoria.Ver y el
+     Service vuelve a comprobar el permiso antes de devolver datos.
+
+   ¿Cómo se lee?
+     - Markup: encabezado, filtros, tabla y paginación.
+     - @code:
+         OnInitializedAsync -> carga opciones de filtros y primera página
+         CargarAsync        -> consulta la página solicitada
+         LimpiarFiltros     -> restablece filtros y vuelve a la página 1
+   ============================================================================ *@
+
+<PageTitle>Auditoría · Sonrisa Digital</PageTitle>
+
+<div class="audit-page">
+    <header class="audit-header">
+        <div>
+            <span class="page-eyebrow">Administración</span>
+            <h1>Auditoría</h1>
+            <p>Consulta los movimientos del sistema y rastrea quién realizó cada cambio.</p>
+        </div>
+    </header>
+
+    <section class="audit-toolbar" aria-label="Filtros de auditoría">
+        <div class="audit-search">
+            <label for="audit-search">Buscar</label>
+            <div class="audit-search-control">
+                <span aria-hidden="true">⌕</span>
+                <input id="audit-search"
+                       @bind="texto"
+                       @bind:event="oninput"
+                       @onkeydown="HandleSearchKeyDown"
+                       placeholder="Usuario, acción, entidad o descripción" />
+            </div>
+        </div>
+
+        <div class="audit-filter">
+            <label for="audit-module">Módulo</label>
+            <select id="audit-module" @bind="modulo">
+                <option value="">Todos los módulos</option>
+                @foreach (var item in opciones.Modulos)
+                {
+                    <option value="@item">@item</option>
+                }
+            </select>
+        </div>
+
+        <div class="audit-filter">
+            <label for="audit-action">Acción</label>
+            <select id="audit-action" @bind="accion">
+                <option value="">Todas las acciones</option>
+                @foreach (var item in opciones.Acciones)
+                {
+                    <option value="@item">@item</option>
+                }
+            </select>
+        </div>
+
+        <div class="audit-filter audit-date-filter">
+            <label for="audit-from">Desde</label>
+            <input id="audit-from" type="date" @bind="desde" />
+        </div>
+
+        <div class="audit-filter audit-date-filter">
+            <label for="audit-to">Hasta</label>
+            <input id="audit-to" type="date" @bind="hasta" />
+        </div>
+
+        <div class="audit-filter audit-page-size">
+            <label for="audit-page-size">Filas</label>
+            <select id="audit-page-size" @bind="tamanoPagina">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+
+        <div class="audit-actions">
+            <button class="primary-action" @onclick="AplicarFiltrosAsync">Aplicar filtros</button>
+            <button class="secondary-action" @onclick="LimpiarFiltrosAsync">Limpiar</button>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    <section class="audit-table-panel">
+        <div class="audit-table-heading">
+            <div>
+                <h2>Movimientos registrados</h2>
+                <span>@(pagina?.Total ?? 0) movimiento(s) encontrados</span>
+            </div>
+        </div>
+
+        @if (loading)
+        {
+            <div class="table-state">Cargando auditoría...</div>
+        }
+        else if (pagina is null || pagina.Registros.Count == 0)
+        {
+            <div class="table-state empty-state">
+                <strong>No hay movimientos para mostrar</strong>
+                <span>Prueba con otros filtros o amplía el rango de fechas.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha y hora</th>
+                            <th>Usuario</th>
+                            <th>Acción</th>
+                            <th>Módulo</th>
+                            <th>Entidad</th>
+                            <th>Descripción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var registro in pagina!.Registros)
+                        {
+                            <tr>
+                                <td class="audit-date">
+                                    @registro.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                </td>
+                                <td>
+                                    <strong class="audit-user">@registro.Usuario</strong>
+                                </td>
+                                <td>
+                                    <span class="audit-action @GetAccionClass(registro.Accion)">
+                                        @registro.Accion
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="audit-module">@registro.Modulo</span>
+                                </td>
+                                <td class="audit-entity">
+                                    @registro.Entidad
+                                    @if (registro.EntidadId.HasValue)
+                                    {
+                                        <span> #@registro.EntidadId</span>
+                                    }
+                                </td>
+                                <td class="audit-description">@registro.Descripcion</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="audit-pagination">
+                <span>
+                    Página @pagina.Pagina de @pagina.TotalPaginas
+                    · @pagina.Total movimiento(s)
+                </span>
+                <div class="audit-pagination-actions">
+                    <button class="secondary-action"
+                            disabled="@(!pagina.TienePaginaAnterior)"
+                            @onclick="() => IrPaginaAsync(pagina.Pagina - 1)">
+                        Anterior
+                    </button>
+                    <button class="secondary-action"
+                            disabled="@(!pagina.TienePaginaSiguiente)"
+                            @onclick="() => IrPaginaAsync(pagina.Pagina + 1)">
+                        Siguiente
+                    </button>
+                </div>
+            </footer>
+        }
+    </section>
+</div>
+
+@code {
+    // Datos que se muestran y estado de la consulta.
+    private AuditoriaPaginaDto? pagina;
+    private AuditoriaOpcionesDto opciones = new([], []);
+    private bool loading;
+
+    // Valores de los filtros. Las fechas son locales para el usuario; al consultar
+    // se convierten a UTC, que es como se guarda FechaHora en la base.
+    private string texto = string.Empty;
+    private string modulo = string.Empty;
+    private string accion = string.Empty;
+    private DateTime? desde;
+    private DateTime? hasta;
+    private int tamanoPagina = 25;
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Primero se cargan las opciones reales de módulo/acción y después la
+        // primera página de resultados.
+        await CargarOpcionesAsync();
+        await CargarAsync(1);
+    }
+
+    /// <summary>
+    /// Carga los valores distintos que ya existen en la auditoría para los selects.
+    /// Si falla, la tabla sigue funcionando con los filtros de texto y fecha.
+    /// </summary>
+    private async Task CargarOpcionesAsync()
+    {
+        try
+        {
+            opciones = await AuditoriaService.GetOpcionesAsync();
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch
+        {
+            errorMessage = "No fue posible cargar las opciones de filtros.";
+        }
+    }
+
+    /// <summary>
+    /// Consulta una página concreta aplicando los filtros actuales.
+    /// </summary>
+    private async Task CargarAsync(int paginaSolicitada)
+    {
+        // Validación de rango antes de consultar: evita enviar fechas invertidas.
+        if (desde.HasValue && hasta.HasValue && desde.Value.Date > hasta.Value.Date)
+        {
+            errorMessage = "La fecha inicial no puede ser posterior a la fecha final.";
+            return;
+        }
+
+        loading = true;
+        errorMessage = null;
+
+        try
+        {
+            var filtro = new AuditoriaFiltroDto(
+                Texto: string.IsNullOrWhiteSpace(texto) ? null : texto.Trim(),
+                Modulo: string.IsNullOrWhiteSpace(modulo) ? null : modulo,
+                Accion: string.IsNullOrWhiteSpace(accion) ? null : accion,
+                DesdeUtc: desde.HasValue ? ConvertirFechaLocalAUtc(desde.Value.Date) : null,
+                // El límite superior es exclusivo: incluye todo el día seleccionado.
+                HastaUtcExclusivo: hasta.HasValue ? ConvertirFechaLocalAUtc(hasta.Value.Date.AddDays(1)) : null,
+                Pagina: paginaSolicitada,
+                TamanoPagina: tamanoPagina);
+
+            pagina = await AuditoriaService.SearchAsync(filtro);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch
+        {
+            errorMessage = "No fue posible cargar la auditoría.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task AplicarFiltrosAsync() => CargarAsync(1);
+
+    private async Task LimpiarFiltrosAsync()
+    {
+        texto = string.Empty;
+        modulo = string.Empty;
+        accion = string.Empty;
+        desde = null;
+        hasta = null;
+        tamanoPagina = 25;
+        await CargarAsync(1);
+    }
+
+    private Task IrPaginaAsync(int paginaDestino)
+    {
+        if (pagina is null) return Task.CompletedTask;
+        return CargarAsync(Math.Clamp(paginaDestino, 1, pagina.TotalPaginas));
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? AplicarFiltrosAsync() : Task.CompletedTask;
+
+    /// <summary>
+    /// Convierte una fecha local (la que escribe el usuario) al inicio de ese día
+    /// en UTC. La base guarda FechaHora en UTC.
+    /// </summary>
+    private static DateTime ConvertirFechaLocalAUtc(DateTime fecha) =>
+        DateTime.SpecifyKind(fecha, DateTimeKind.Local).ToUniversalTime();
+
+    /// <summary>Color del distintivo según la acción auditada.</summary>
+    private static string GetAccionClass(string accion) => accion switch
+    {
+        "Activó" or "Creó" or "Agregó" or "Agendó" => "success",
+        "Desactivó" or "Canceló" => "danger",
+        "Modificó" or "Cambió" => "warning",
+        "Restableció" => "info",
+        _ => "neutral"
+    };
+}

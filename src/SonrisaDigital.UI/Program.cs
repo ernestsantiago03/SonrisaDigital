@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.Data.Entities;
@@ -13,6 +14,10 @@ builder.Services.AddSonrisaDigitalServices(builder.Configuration);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Los circuitos Blazor no pasan por OnValidatePrincipal en cada interacción.
+// Este proveedor revalida estado y SecurityStamp mientras el circuito sigue abierto.
+builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider>();
 
 var app = builder.Build();
 

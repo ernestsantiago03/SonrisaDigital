@@ -138,7 +138,7 @@
             await RolService.UpdatePermissionsAsync(selectedRole.Id, selectedPermissions);
             roles = (await RolService.GetRolesAsync()).ToList();
             selectedRole = roles.First(role => role.Id == selectedRole.Id);
-            successMessage = "Los permisos del rol fueron actualizados y se aplican de inmediato.";
+            successMessage = "Los permisos del rol fueron actualizados. Las sesiones abiertas se revalidan automáticamente en un máximo de 30 segundos.";
         }
         catch (InvalidOperationException exception)
         {
