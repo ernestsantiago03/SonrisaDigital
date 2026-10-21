@@ -294,10 +294,10 @@ Este código se distribuye únicamente bajo autorización expresa del titular. Q
 
 ## Contacto y soporte
 
-- **Titular:** [Nombre del titular]
-- **Correo:** [correo@tudominio.com]
-- **Soporte:** [canal de soporte]
-- **Sitio web:** [https://tudominio.com]
+- **Titular:** Ernest José Santiago Cambero
+- **Correo:** ernestsantiago03@gmail.com
+- **Soporte:** Pendiente de definir
+- **Sitio web:** Pendiente de definir
 
 ---
 
