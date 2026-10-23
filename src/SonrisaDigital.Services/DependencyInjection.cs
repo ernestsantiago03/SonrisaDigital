@@ -17,6 +17,7 @@ using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.HistoriasClinicas;
 using SonrisaDigital.Services.Usuarios;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Tratamientos;
 
 namespace SonrisaDigital.Services;
@@ -107,6 +108,13 @@ public static class DependencyInjection
         services.AddScoped<ICitaService, CitaService>();
         services.AddScoped<IAuditoriaRepository, AuditoriaRepository>();
         services.AddScoped<IAuditoriaService, AuditoriaService>();
+        // Reportes usa consultas de solo lectura sobre las entidades existentes;
+        // no se registra ninguna tabla ni entidad nueva.
+        services.AddScoped<IReporteRepository, ReporteRepository>();
+        services.AddScoped<IReporteService, ReporteService>();
+        // El generador PDF reutiliza IReporteService para aplicar los mismos
+        // filtros, permisos y restricciones por odontólogo.
+        services.AddScoped<IReportePdfService, ReportePdfService>();
         services.AddScoped<ITratamientoRepository, TratamientoRepository>();
         services.AddScoped<ITratamientoService, TratamientoService>();
         services.AddScoped<IPagoRepository, PagoRepository>();

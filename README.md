@@ -68,7 +68,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 | **Roles y permisos** | Asignación granular de permisos por rol (32 permisos en 11 módulos). | ✅ |
 | **Auditoría** | Registro automático de operaciones y actividad reciente en el dashboard. | ✅ |
 | **Centro de ayuda** | Guías, preguntas frecuentes, solución de problemas y contacto de soporte. | ✅ |
-| **Reportes** | Reportes administrativos y clínicos básicos. | 🚧 En hoja de ruta |
+| **Reportes** | Panel de reportes de citas, pacientes atendidos, tratamientos y pagos con filtros, exportación PDF y alcance por odontólogo. | ✅ |
 
 ### Capacidades transversales
 
@@ -100,7 +100,7 @@ Sonrisa Digital incluye tres roles predefinidos. Los permisos son configurables 
 | Reportes | Total | Consulta | Consulta |
 
 > Los roles son acumulativos: un usuario puede tener más de un rol y recibe la unión de sus permisos.
-> Los permisos de **Reportes** ya existen en el catálogo; su interfaz está en la hoja de ruta.
+> En **Reportes**, el usuario con rol Odontólogo ve únicamente su propia actividad clínica.
 
 ---
 
@@ -267,8 +267,9 @@ Antes de desplegar con clientes reales:
 
 ## Hoja de ruta
 
-- [ ] Módulo de **Reportes** con filtros y exportación a PDF/Excel.
-- [ ] Pantalla dedicada de **Auditoría** con búsqueda y filtros.
+- [x] Módulo de **Reportes** con filtros, períodos predefinidos, alcance por odontólogo y exportación a PDF.
+- [x] Pantalla dedicada de **Auditoría** con búsqueda y filtros.
+- [x] Exportación de reportes a **PDF** con resumen ejecutivo y anexo de detalle.
 - [ ] Recordatorios de citas por correo o WhatsApp.
 - [ ] Portal de pacientes (consulta de citas e historial).
 - [ ] Soporte multi-clínica / multi-sucursal.

@@ -1,0 +1,877 @@
+@page "/reportes"
+@attribute [Authorize(Policy = "Reportes.Ver")]
+@using System.Globalization
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Reportes
+@using SonrisaDigital.Services.Reportes.DTOs
+@inject IReporteService ReporteService
+@inject IReportePdfService ReportePdfService
+@inject IJSRuntime JS
+
+@* ============================================================================
+   PÁGINA: Reportes                 Ruta: /reportes
+
+   ¿Qué hace?
+     Presenta un panel de consulta con cuatro reportes de solo lectura:
+     Citas, Pacientes atendidos, Tratamientos y Pagos. El período se puede ver
+     por día, semana, mes o rango personalizado.
+
+   ¿Cómo se lee?
+     - Markup: selector de período, tarjetas de resumen, pestañas y tablas.
+     - @code:
+         OnInitializedAsync -> calcula el período inicial y carga opciones
+         AplicarPeriodo      -> recalcula el rango y recarga el panel
+         AplicarFiltros      -> recarga el resumen y la pestaña activa
+         CargarPestana       -> consulta el reporte seleccionado
+         DescargarPdf        -> genera el PDF de la pestaña activa
+   ============================================================================ *@
+
+<PageTitle>Reportes · Sonrisa Digital</PageTitle>
+
+<div class="reports-page">
+    <header class="reports-header">
+        <div>
+            <span class="page-eyebrow">Análisis</span>
+            <h1>Reportes</h1>
+            <p>Consulta la actividad diaria, semanal y mensual de la clínica.</p>
+        </div>
+        @if (!opciones.PuedeFiltrarOdontologos)
+        {
+            <span class="report-scope-note">Mostrando únicamente tu actividad clínica.</span>
+        }
+    </header>
+
+    <section class="report-period" aria-label="Período del reporte">
+        <div class="period-field">
+            <label for="report-period">Período</label>
+            <select id="report-period" @bind="periodo">
+                <option value="hoy">Hoy</option>
+                <option value="semana">Semana actual</option>
+                <option value="mes">Mes actual</option>
+                <option value="personalizado">Rango personalizado</option>
+            </select>
+        </div>
+
+        @if (periodo == "personalizado")
+        {
+            <div class="period-field">
+                <label for="report-from">Desde</label>
+                <input id="report-from" type="date" @bind="desde" />
+            </div>
+            <div class="period-field">
+                <label for="report-to">Hasta</label>
+                <input id="report-to" type="date" @bind="hasta" />
+            </div>
+        }
+
+        <button class="primary-action" @onclick="AplicarPeriodoAsync" disabled="@cargandoResumen">
+            Aplicar
+        </button>
+
+        <span class="report-range">
+            @desde.ToString("dd/MM/yyyy") — @hasta.ToString("dd/MM/yyyy")
+        </span>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    @if (cargandoResumen && resumen is null)
+    {
+        <div class="report-loading">Cargando resumen del período...</div>
+    }
+    else if (resumen is not null)
+    {
+        <section class="report-summary-grid" aria-label="Resumen del período">
+            <article class="report-card">
+                <span>Citas</span>
+                <strong>@resumen.CitasTotal</strong>
+                <small>@resumen.CitasAtendidas atendidas · @resumen.CitasCanceladas canceladas</small>
+            </article>
+
+            <article class="report-card">
+                <span>Pacientes atendidos</span>
+                <strong>@resumen.PacientesAtendidos</strong>
+                <small>@resumen.PacientesNuevos nuevo(s) en el período</small>
+            </article>
+
+            <article class="report-card">
+                <span>Tratamientos</span>
+                <strong>@resumen.TratamientosTotal</strong>
+                <small>@resumen.TratamientosCompletados completados · @resumen.TratamientosEnProceso en proceso</small>
+            </article>
+
+            <article class="report-card">
+                <span>Facturado</span>
+                <strong>@Money(resumen.TratamientosFacturado)</strong>
+                <small>Valor de los tratamientos del período</small>
+            </article>
+
+            @if (resumen.Pagos is not null)
+            {
+                <article class="report-card report-card-payment">
+                    <span>Cobrado</span>
+                    <strong>@Money(resumen.Pagos.TotalCobrado)</strong>
+                    <small>@resumen.Pagos.CantidadPagos pago(s) registrado(s)</small>
+                </article>
+
+                <article class="report-card report-card-pending">
+                    <span>Saldo pendiente actual</span>
+                    <strong>@Money(resumen.Pagos.SaldoPendiente)</strong>
+                    <small>@resumen.Pagos.TratamientosConSaldo tratamiento(s) con saldo</small>
+                </article>
+            }
+        </section>
+    }
+
+    <nav class="report-tabs" aria-label="Reportes disponibles">
+        <button type="button"
+                class="report-tab @(pestanaActiva == "citas" ? "active" : "")"
+                @onclick='() => SeleccionarPestanaAsync("citas")'>
+            Citas
+        </button>
+        <button type="button"
+                class="report-tab @(pestanaActiva == "pacientes" ? "active" : "")"
+                @onclick='() => SeleccionarPestanaAsync("pacientes")'>
+            Pacientes
+        </button>
+        <button type="button"
+                class="report-tab @(pestanaActiva == "tratamientos" ? "active" : "")"
+                @onclick='() => SeleccionarPestanaAsync("tratamientos")'>
+            Tratamientos
+        </button>
+        @if (opciones.PuedeVerPagos)
+        {
+            <button type="button"
+                    class="report-tab @(pestanaActiva == "pagos" ? "active" : "")"
+                    @onclick='() => SeleccionarPestanaAsync("pagos")'>
+                Pagos
+            </button>
+        }
+    </nav>
+
+    @if (pestanaActiva == "citas")
+    {
+        <section class="report-panel">
+            <header class="report-panel-heading">
+                <div>
+                    <h2>Reporte de citas</h2>
+                    <span>@citas.Count cita(s) en el período</span>
+                </div>
+                <div class="report-filters">
+                    <div class="report-filter">
+                        <label for="citas-estado">Estado</label>
+                        <select id="citas-estado" @bind="estadoCitaSeleccionado">
+                            <option value="">Todos</option>
+                            <option value="Programada">Programada</option>
+                            <option value="Confirmada">Confirmada</option>
+                            <option value="Atendida">Atendida</option>
+                            <option value="Cancelada">Cancelada</option>
+                            <option value="NoAsistio">No asistió</option>
+                        </select>
+                    </div>
+
+                    @if (opciones.PuedeFiltrarOdontologos)
+                    {
+                        <div class="report-filter">
+                            <label for="citas-odontologo">Odontólogo</label>
+                            <select id="citas-odontologo" @bind="odontologoSeleccionado">
+                                <option value="">Todos</option>
+                                @foreach (var odontologo in opciones.Odontologos)
+                                {
+                                    <option value="@odontologo.Id">@odontologo.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <button class="primary-action" @onclick="AplicarFiltrosAsync" disabled="@cargandoPestana">
+                        Aplicar
+                    </button>
+                    @* El PDF se permite aunque no haya registros, para dejar
+                       constancia del período y los filtros consultados. *@
+                    <button class="secondary-action"
+                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Citas)'
+                            disabled="@(cargandoPestana || cargandoPdf)">
+                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
+                    </button>
+                </div>
+            </header>
+
+            @if (resumen is not null)
+            {
+                <div class="report-facts">
+                    <span><strong>@resumen.CitasTotal</strong> total</span>
+                    <span><strong>@resumen.CitasProgramadas</strong> programadas</span>
+                    <span><strong>@resumen.CitasConfirmadas</strong> confirmadas</span>
+                    <span><strong>@resumen.CitasAtendidas</strong> atendidas</span>
+                    <span><strong>@resumen.CitasCanceladas</strong> canceladas</span>
+                    <span><strong>@resumen.CitasNoAsistio</strong> no asistió</span>
+                </div>
+            }
+
+            @if (cargandoPestana)
+            {
+                <div class="table-state">Cargando citas...</div>
+            }
+            else if (citas.Count == 0)
+            {
+                <div class="table-state empty-state">
+                    <strong>No hay citas para mostrar</strong>
+                    <span>Prueba con otro período, estado u odontólogo.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Hora</th>
+                                <th>Paciente</th>
+                                <th>Odontólogo</th>
+                                <th>Estado</th>
+                                <th>Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cita in citas)
+                            {
+                                <tr>
+                                    <td class="mono">@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                    <td class="mono">@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
+                                    <td><strong>@cita.Paciente</strong></td>
+                                    <td>@cita.Odontologo</td>
+                                    <td>
+                                        <span class="report-status @EstadoCitaClass(cita.Estado)">@NombreEstado(cita.Estado)</span>
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(cita.Motivo) ? "—" : cita.Motivo)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+    else if (pestanaActiva == "pacientes")
+    {
+        <section class="report-panel">
+            <header class="report-panel-heading">
+                <div>
+                    <h2>Reporte de pacientes</h2>
+                    <span>@pacientes.Count paciente(s) atendido(s) en el período</span>
+                </div>
+                <div class="report-filters">
+                    <button class="secondary-action"
+                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Pacientes)'
+                            disabled="@(cargandoPestana || cargandoPdf)">
+                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
+                    </button>
+                </div>
+            </header>
+
+            @if (resumen is not null)
+            {
+                <div class="report-facts">
+                    <span><strong>@resumen.PacientesTotal</strong> total</span>
+                    <span><strong>@resumen.PacientesActivos</strong> activos</span>
+                    <span><strong>@resumen.PacientesInactivos</strong> inactivos</span>
+                    <span><strong>@resumen.PacientesNuevos</strong> nuevos en el período</span>
+                    <span><strong>@resumen.PacientesAtendidos</strong> atendidos</span>
+                </div>
+            }
+
+            @if (cargandoPestana)
+            {
+                <div class="table-state">Cargando pacientes...</div>
+            }
+            else if (pacientes.Count == 0)
+            {
+                <div class="table-state empty-state">
+                    <strong>No hay pacientes atendidos en el período</strong>
+                    <span>La tabla se alimenta de las citas con estado Atendida.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Paciente</th>
+                                <th>Identificación</th>
+                                <th>Teléfono</th>
+                                <th>Registro</th>
+                                <th>Citas atendidas</th>
+                                <th>Última cita</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var paciente in pacientes)
+                            {
+                                <tr>
+                                    <td><strong>@paciente.Nombre</strong></td>
+                                    <td>@(string.IsNullOrWhiteSpace(paciente.Identificacion) ? "—" : paciente.Identificacion)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(paciente.Telefono) ? "—" : paciente.Telefono)</td>
+                                    <td class="mono">@paciente.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                    <td>@paciente.CitasAtendidas</td>
+                                    <td class="mono">@paciente.UltimaCita.ToString("dd/MM/yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+    else if (pestanaActiva == "tratamientos")
+    {
+        <section class="report-panel">
+            <header class="report-panel-heading">
+                <div>
+                    <h2>Reporte de tratamientos</h2>
+                    <span>@tratamientos.Count tratamiento(s) en el período</span>
+                </div>
+                <div class="report-filters">
+                    <div class="report-filter">
+                        <label for="tratamientos-estado">Estado</label>
+                        <select id="tratamientos-estado" @bind="estadoTratamientoSeleccionado">
+                            <option value="">Todos</option>
+                            <option value="EnProceso">En proceso</option>
+                            <option value="Completado">Completado</option>
+                            <option value="Cancelado">Cancelado</option>
+                        </select>
+                    </div>
+
+                    @if (opciones.PuedeFiltrarOdontologos)
+                    {
+                        <div class="report-filter">
+                            <label for="tratamientos-odontologo">Odontólogo</label>
+                            <select id="tratamientos-odontologo" @bind="odontologoSeleccionado">
+                                <option value="">Todos</option>
+                                @foreach (var odontologo in opciones.Odontologos)
+                                {
+                                    <option value="@odontologo.Id">@odontologo.Nombre</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <button class="primary-action" @onclick="AplicarFiltrosAsync" disabled="@cargandoPestana">
+                        Aplicar
+                    </button>
+                    <button class="secondary-action"
+                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Tratamientos)'
+                            disabled="@(cargandoPestana || cargandoPdf)">
+                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
+                    </button>
+                </div>
+            </header>
+
+            @if (resumen is not null)
+            {
+                <div class="report-facts">
+                    <span><strong>@resumen.TratamientosTotal</strong> total</span>
+                    <span><strong>@resumen.TratamientosCompletados</strong> completados</span>
+                    <span><strong>@resumen.TratamientosEnProceso</strong> en proceso</span>
+                    <span><strong>@resumen.TratamientosCancelados</strong> cancelados</span>
+                    <span><strong>@Money(resumen.TratamientosFacturado)</strong> facturado</span>
+                </div>
+            }
+
+            @if (cargandoPestana)
+            {
+                <div class="table-state">Cargando tratamientos...</div>
+            }
+            else if (tratamientos.Count == 0)
+            {
+                <div class="table-state empty-state">
+                    <strong>No hay tratamientos para mostrar</strong>
+                    <span>Prueba con otro período, estado u odontólogo.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Paciente</th>
+                                <th>Tratamiento</th>
+                                <th>Odontólogo</th>
+                                <th>Precio</th>
+                                <th>Pagado</th>
+                                <th>Saldo</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tratamiento in tratamientos)
+                            {
+                                <tr>
+                                    <td class="mono">@tratamiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                    <td><strong>@tratamiento.Paciente</strong></td>
+                                    <td>@tratamiento.Tratamiento</td>
+                                    <td>@tratamiento.Odontologo</td>
+                                    <td class="money">@Money(tratamiento.Precio)</td>
+                                    <td class="money">@Money(tratamiento.Pagado)</td>
+                                    <td class="money @(tratamiento.Saldo > 0 ? "pending" : "")">@Money(tratamiento.Saldo)</td>
+                                    <td>
+                                        <span class="report-status @EstadoTratamientoClass(tratamiento.Estado)">@EstadoTexto(tratamiento.Estado)</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+    else if (opciones.PuedeVerPagos)
+    {
+        <section class="report-panel">
+            <header class="report-panel-heading">
+                <div>
+                    <h2>Reporte de pagos</h2>
+                    <span>@pagos.Count pago(s) en el período</span>
+                </div>
+                <div class="report-filters">
+                    <div class="report-filter">
+                        <label for="pagos-metodo">Método</label>
+                        <select id="pagos-metodo" @bind="metodoPagoSeleccionado">
+                            <option value="">Todos</option>
+                            <option value="Efectivo">Efectivo</option>
+                            <option value="Tarjeta">Tarjeta</option>
+                            <option value="Transferencia">Transferencia</option>
+                        </select>
+                    </div>
+
+                    <button class="primary-action" @onclick="AplicarFiltrosAsync" disabled="@cargandoPestana">
+                        Aplicar
+                    </button>
+                    <button class="secondary-action"
+                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Pagos)'
+                            disabled="@(cargandoPestana || cargandoPdf)">
+                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
+                    </button>
+                </div>
+            </header>
+
+            @if (resumen?.Pagos is not null)
+            {
+                <div class="report-facts">
+                    <span><strong>@Money(resumen.Pagos.TotalCobrado)</strong> cobrado</span>
+                    <span><strong>@resumen.Pagos.CantidadPagos</strong> pago(s)</span>
+                    <span><strong>@Money(resumen.Pagos.SaldoPendiente)</strong> saldo pendiente actual</span>
+                    @foreach (var metodo in resumen.Pagos.PorMetodo)
+                    {
+                        <span>
+                            <strong>@metodo.Metodo:</strong> @metodo.Cantidad · @Money(metodo.Total)
+                        </span>
+                    }
+                </div>
+            }
+
+            @if (cargandoPestana)
+            {
+                <div class="table-state">Cargando pagos...</div>
+            }
+            else if (pagos.Count == 0)
+            {
+                <div class="table-state empty-state">
+                    <strong>No hay pagos para mostrar</strong>
+                    <span>Prueba con otro período o método de pago.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Paciente</th>
+                                <th>Tratamiento</th>
+                                <th>Método</th>
+                                <th>Monto</th>
+                                <th>Registrado por</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pago in pagos)
+                            {
+                                <tr>
+                                    <td class="mono">@pago.Fecha.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td><strong>@pago.Paciente</strong></td>
+                                    <td>@pago.Tratamiento</td>
+                                    <td>
+                                        <span class="payment-method @MetodoPagoClass(pago.Metodo)">@pago.Metodo</span>
+                                    </td>
+                                    <td class="money">@Money(pago.Monto)</td>
+                                    <td>@pago.RegistradoPor</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    // Cultura usada para mostrar los montos en pesos dominicanos.
+    private static readonly CultureInfo Cultura = new("es-DO");
+
+    // Estado de la página y de cada consulta.
+    private ReporteOpcionesDto opciones = new([], PuedeFiltrarOdontologos: false, PuedeVerPagos: false);
+    private ReporteResumenDto? resumen;
+    private List<ReporteCitaItemDto> citas = [];
+    private List<ReportePacienteItemDto> pacientes = [];
+    private List<ReporteTratamientoItemDto> tratamientos = [];
+    private List<ReportePagoItemDto> pagos = [];
+
+    // Período y filtros. Las fechas son locales; el Service las convierte a UTC.
+    private string periodo = "mes";
+    private DateOnly desde = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly hasta = DateOnly.FromDateTime(DateTime.Now);
+    private string pestanaActiva = "citas";
+    private string estadoCitaSeleccionado = string.Empty;
+    private string estadoTratamientoSeleccionado = string.Empty;
+    private string metodoPagoSeleccionado = string.Empty;
+    private string odontologoSeleccionado = string.Empty;
+
+    private bool cargandoResumen;
+    private bool cargandoPestana;
+    // Evita solicitar dos PDF simultáneos mientras QuestPDF arma el documento.
+    private bool cargandoPdf;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // El período inicial es el mes actual; luego se cargan las opciones y
+        // el primer bloque de datos.
+        var rango = ObtenerRango(periodo, DateOnly.FromDateTime(DateTime.Now));
+        desde = rango.Desde;
+        hasta = rango.Hasta;
+
+        await CargarOpcionesAsync();
+        await CargarResumenAsync();
+        await CargarPestanaAsync();
+    }
+
+    /// <summary>Carga los odontólogos y las capacidades visibles según permisos.</summary>
+    private async Task CargarOpcionesAsync()
+    {
+        try
+        {
+            opciones = await ReporteService.GetOpcionesAsync();
+            if (!opciones.PuedeVerPagos && pestanaActiva == "pagos")
+            {
+                pestanaActiva = "citas";
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch
+        {
+            errorMessage = "No fue posible cargar las opciones de los reportes.";
+        }
+    }
+
+    /// <summary>Recalcula el período y vuelve a consultar el resumen y la pestaña activa.</summary>
+    private async Task AplicarPeriodoAsync()
+    {
+        if (periodo != "personalizado")
+        {
+            var rango = ObtenerRango(periodo, DateOnly.FromDateTime(DateTime.Now));
+            desde = rango.Desde;
+            hasta = rango.Hasta;
+        }
+
+        if (hasta < desde)
+        {
+            errorMessage = "La fecha final no puede ser anterior a la fecha inicial.";
+            return;
+        }
+
+        await CargarResumenAsync();
+        await CargarPestanaAsync();
+    }
+
+    /// <summary>
+    /// Aplica los filtros de la pestaña activa. El resumen también se recarga
+    /// porque el filtro de odontólogo afecta sus totales.
+    /// </summary>
+    private async Task AplicarFiltrosAsync()
+    {
+        await CargarResumenAsync();
+        await CargarPestanaAsync();
+    }
+
+    /// <summary>Carga el resumen superior del período.</summary>
+    private async Task CargarResumenAsync()
+    {
+        cargandoResumen = true;
+        errorMessage = null;
+
+        try
+        {
+            resumen = await ReporteService.GetResumenAsync(CrearFiltro());
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            errorMessage = ex.Message;
+            resumen = null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+            resumen = null;
+        }
+        catch
+        {
+            errorMessage = "No fue posible cargar el resumen de los reportes.";
+            resumen = null;
+        }
+        finally
+        {
+            cargandoResumen = false;
+        }
+    }
+
+    /// <summary>Selecciona una pestaña y consulta su reporte si hace falta.</summary>
+    private async Task SeleccionarPestanaAsync(string pestana)
+    {
+        if (pestana == "pagos" && !opciones.PuedeVerPagos)
+        {
+            return;
+        }
+
+        if (pestanaActiva == pestana)
+        {
+            return;
+        }
+
+        pestanaActiva = pestana;
+        await CargarPestanaAsync();
+    }
+
+    /// <summary>Carga únicamente la tabla de la pestaña activa.</summary>
+    private async Task CargarPestanaAsync()
+    {
+        cargandoPestana = true;
+        errorMessage = null;
+
+        try
+        {
+            switch (pestanaActiva)
+            {
+                case "citas":
+                    citas = (await ReporteService.GetCitasAsync(CrearFiltro())).ToList();
+                    break;
+                case "pacientes":
+                    pacientes = (await ReporteService.GetPacientesAsync(CrearFiltro())).ToList();
+                    break;
+                case "tratamientos":
+                    tratamientos = (await ReporteService.GetTratamientosAsync(CrearFiltro())).ToList();
+                    break;
+                case "pagos":
+                    if (opciones.PuedeVerPagos)
+                    {
+                        pagos = (await ReporteService.GetPagosAsync(CrearFiltro())).ToList();
+                    }
+                    break;
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+        }
+        catch
+        {
+            errorMessage = "No fue posible cargar el reporte seleccionado.";
+        }
+        finally
+        {
+            cargandoPestana = false;
+        }
+    }
+
+    /// <summary>Construye el filtro común a partir de los controles de la página.</summary>
+    private ReporteFiltroDto CrearFiltro()
+    {
+        var estadoCita = Enum.TryParse<EstadoCita>(
+            estadoCitaSeleccionado,
+            ignoreCase: true,
+            out var cita)
+            ? cita
+            : (EstadoCita?)null;
+
+        var estadoTratamiento = Enum.TryParse<EstadoTratamiento>(
+            estadoTratamientoSeleccionado,
+            ignoreCase: true,
+            out var tratamiento)
+            ? tratamiento
+            : (EstadoTratamiento?)null;
+
+        var metodoPago = Enum.TryParse<MetodoPago>(
+            metodoPagoSeleccionado,
+            ignoreCase: true,
+            out var metodo)
+            ? metodo
+            : (MetodoPago?)null;
+
+        var odontologoId = int.TryParse(odontologoSeleccionado, out var id)
+            ? id
+            : (int?)null;
+
+        return new ReporteFiltroDto(
+            desde,
+            hasta,
+            odontologoId,
+            estadoCita,
+            estadoTratamiento,
+            metodoPago);
+    }
+
+    /// <summary>Calcula el rango de fechas locales para los períodos predefinidos.</summary>
+    private static (DateOnly Desde, DateOnly Hasta) ObtenerRango(string tipo, DateOnly hoy)
+    {
+        return tipo switch
+        {
+            "hoy" => (hoy, hoy),
+            "semana" => ObtenerSemanaActual(hoy),
+            "mes" => ObtenerMesActual(hoy),
+            _ => (hoy, hoy)
+        };
+    }
+
+    /// <summary>La semana se muestra de lunes a domingo.</summary>
+    private static (DateOnly Desde, DateOnly Hasta) ObtenerSemanaActual(DateOnly hoy)
+    {
+        // DayOfWeek devuelve domingo = 0; se desplaza para que lunes = 0.
+        var desplazamiento = ((int)hoy.DayOfWeek + 6) % 7;
+        var inicio = hoy.AddDays(-desplazamiento);
+        return (inicio, inicio.AddDays(6));
+    }
+
+    /// <summary>Primer y último día del mes calendario actual.</summary>
+    private static (DateOnly Desde, DateOnly Hasta) ObtenerMesActual(DateOnly hoy)
+    {
+        var inicio = new DateOnly(hoy.Year, hoy.Month, 1);
+        return (inicio, inicio.AddMonths(1).AddDays(-1));
+    }
+
+    /// <summary>
+    /// Genera el PDF del reporte de la pestaña activa. Se reutiliza el filtro
+    /// actual para que el archivo incluya el mismo período, estado y odontólogo
+    /// que se están viendo en pantalla.
+    /// </summary>
+    private async Task DescargarPdfAsync(TipoReportePdf tipo)
+    {
+        if (cargandoPdf)
+        {
+            return;
+        }
+
+        cargandoPdf = true;
+        errorMessage = null;
+
+        try
+        {
+            var pdf = await ReportePdfService.GenerarAsync(tipo, CrearFiltro());
+            var archivo = $"reporte-{tipo.ToString().ToLowerInvariant()}-{desde:yyyyMMdd}-{hasta:yyyyMMdd}.pdf";
+
+            // El PDF se envía como base64 porque QuestPDF lo construye en el
+            // servidor y el navegador solo necesita recibir el archivo final.
+            await JS.InvokeVoidAsync(
+                "sonrisaDescargarPdf",
+                archivo,
+                Convert.ToBase64String(pdf));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+        }
+        catch
+        {
+            errorMessage = "No fue posible generar el PDF del reporte.";
+        }
+        finally
+        {
+            cargandoPdf = false;
+        }
+    }
+
+    /// <summary>Formato de dinero usado en las tarjetas y las tablas: sin decimales cuando el monto es entero.</summary>
+    private static string Money(decimal valor)
+    {
+        var texto = valor == decimal.Truncate(valor)
+            ? valor.ToString("N0", Cultura)
+            : valor.ToString("N2", Cultura);
+
+        return $"RD${texto}";
+    }
+
+    private static string EstadoCitaClass(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "programada",
+        EstadoCita.Confirmada => "confirmada",
+        EstadoCita.Atendida => "atendida",
+        EstadoCita.Cancelada => "cancelada",
+        EstadoCita.NoAsistio => "no-asistio",
+        _ => "neutral"
+    };
+
+    /// <summary>Texto visible del estado de la cita, igual que en Citas.</summary>
+    private static string NombreEstado(EstadoCita estado) => estado switch
+    {
+        EstadoCita.Programada => "Programada",
+        EstadoCita.Confirmada => "Confirmada",
+        EstadoCita.Atendida => "Atendida",
+        EstadoCita.Cancelada => "Cancelada",
+        EstadoCita.NoAsistio => "No asistió",
+        _ => estado.ToString()
+    };
+
+    /// <summary>Texto visible del estado del tratamiento, igual que en Tratamientos.</summary>
+    private static string EstadoTexto(EstadoTratamiento estado) => estado switch
+    {
+        EstadoTratamiento.EnProceso => "En proceso",
+        EstadoTratamiento.Completado => "Completado",
+        EstadoTratamiento.Cancelado => "Cancelado",
+        _ => estado.ToString()
+    };
+
+    private static string EstadoTratamientoClass(EstadoTratamiento estado) => estado switch
+    {
+        EstadoTratamiento.EnProceso => "en-proceso",
+        EstadoTratamiento.Completado => "completado",
+        EstadoTratamiento.Cancelado => "cancelado",
+        _ => "neutral"
+    };
+
+    private static string MetodoPagoClass(MetodoPago metodo) => metodo switch
+    {
+        MetodoPago.Efectivo => "efectivo",
+        MetodoPago.Tarjeta => "tarjeta",
+        MetodoPago.Transferencia => "transferencia",
+        _ => "otro"
+    };
+}
