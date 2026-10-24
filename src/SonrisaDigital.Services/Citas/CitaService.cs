@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
@@ -11,7 +12,8 @@ public sealed class CitaService(
     IPacienteRepository pacienteRepository,
     IOdontologoRepository odontologoRepository,
     IHistoriaClinicaService historiaClinicaService,
-    IAuditoriaService auditoriaService) : ICitaService
+    IAuditoriaService auditoriaService,
+    ILogger<CitaService> logger) : ICitaService
 {
     public async Task<IReadOnlyList<CitaListItemDto>> SearchAsync(
         DateOnly? fecha = null,
@@ -102,7 +104,10 @@ public sealed class CitaService(
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException("Error al guardar la cita en la base de datos: " + ex.Message, ex);
+            // No se expone el detalle técnico al usuario (Fase 1 - Parte F).
+            // El error real se registra para diagnóstico del soporte.
+            logger.LogError(ex, "Error al guardar la cita en la base de datos.");
+            throw new InvalidOperationException("No se pudo guardar la cita. Intenta de nuevo o contacta soporte.");
         }
     }
 

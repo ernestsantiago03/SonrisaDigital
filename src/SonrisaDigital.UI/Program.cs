@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
@@ -10,10 +12,23 @@ using SonrisaDigital.Services.Odontograma;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddSonrisaDigitalServices(builder.Configuration);
+builder.Services.AddSonrisaDigitalServices(builder.Configuration, builder.Environment);
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Rate limiting (Fase 1 - Parte D): limita intentos de login por IP.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // Los circuitos Blazor no pasan por OnValidatePrincipal en cada interacción.
 // Este proveedor revalida estado y SecurityStamp mientras el circuito sigue abierto.
@@ -43,6 +58,30 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+// Cabeceras HTTP de seguridad (Fase 1 - Parte B).
+// Se aplican a todas las respuestas para endurecer el navegador frente a
+// clickjacking, MIME-sniffing, fuga de referrer y carga de recursos no confiables.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+    // CSP compatible con Blazor Server (SignalR/WebSocket) y los assets del framework.
+    headers["Content-Security-Policy"] =
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self' wss: ws:; " +
+        "frame-ancestors 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self';";
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();
@@ -61,6 +100,7 @@ app.UseStatusCodePagesWithReExecute("/404");
 // de entornos la pagina quedaba sin estilos y sin Blazor.
 app.MapStaticAssets().AllowAnonymous();
 app.UseAntiforgery();
+app.UseRateLimiter();
 
 app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforgery, SignInManager<Usuario> signInManager, UserManager<Usuario> userManager) =>
 {
@@ -83,13 +123,15 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
     }
 
     return Results.Redirect(result.IsLockedOut ? "/login?error=locked" : "/login?error=invalid");
-}).AllowAnonymous();
+}).AllowAnonymous().RequireRateLimiting("login");
 
-app.MapGet("/account/logout", async (SignInManager<Usuario> signInManager) =>
+// Logout por POST: evita CSRF por GET (p. ej. <img src="/account/logout">).
+app.MapPost("/account/logout", async (HttpContext context, IAntiforgery antiforgery, SignInManager<Usuario> signInManager) =>
 {
+    await antiforgery.ValidateRequestAsync(context);
     await signInManager.SignOutAsync();
     return Results.Redirect("/login");
-});
+}).AllowAnonymous();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

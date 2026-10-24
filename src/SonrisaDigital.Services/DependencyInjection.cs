@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -26,7 +28,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddSonrisaDigitalServices(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IWebHostEnvironment? environment = null)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("No se configuro DefaultConnection.");
@@ -51,6 +54,25 @@ public static class DependencyInjection
                 // Revalida la cookie en cada petición HTTP. Los circuitos Blazor ya
                 // abiertos se cubren con RevalidatingIdentityAuthenticationStateProvider.
                 cookieOptions.Events.OnValidatePrincipal = SecurityStampValidator.ValidatePrincipalAsync;
+
+                // Endurecimiento de la cookie de sesión (Fase 1 - Parte A).
+                // HttpOnly evita que JavaScript (XSS) lea la cookie.
+                cookieOptions.Cookie.HttpOnly = true;
+                // SameSite=Lax protege contra CSRF sin romper la navegación top-level.
+                cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
+                // Secure solo en producción: en Development (http://localhost) una cookie
+                // Secure no se enviaría y el login dejaría de funcionar.
+                var isDevelopment = string.Equals(environment?.EnvironmentName, "Development", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], "Development", StringComparison.OrdinalIgnoreCase);
+                cookieOptions.Cookie.SecurePolicy = isDevelopment
+                    ? CookieSecurePolicy.SameAsRequest
+                    : CookieSecurePolicy.Always;
+                // Sesión con duración fija (8 h) sin renovación deslizante: reduce la
+                // ventana de uso de una cookie robada.
+                cookieOptions.ExpireTimeSpan = TimeSpan.FromHours(8);
+                cookieOptions.SlidingExpiration = false;
+                // Nombre explícito para evitar colisiones con otras apps en el mismo dominio.
+                cookieOptions.Cookie.Name = "SonrisaDigital.Auth";
             });
         });
 
