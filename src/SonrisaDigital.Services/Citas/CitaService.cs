@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Citas.DTOs;
 using SonrisaDigital.Services.HistoriasClinicas;
 
@@ -13,6 +16,8 @@ public sealed class CitaService(
     IOdontologoRepository odontologoRepository,
     IHistoriaClinicaService historiaClinicaService,
     IAuditoriaService auditoriaService,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService,
     ILogger<CitaService> logger) : ICitaService
 {
     public async Task<IReadOnlyList<CitaListItemDto>> SearchAsync(
@@ -22,6 +27,8 @@ public sealed class CitaService(
         EstadoCita? estado = null,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Ver", "No tienes permiso para consultar citas.");
+
         var citas = await repository.SearchAsync(fecha, pacienteId, odontologoId, estado, cancellationToken);
 
         return citas
@@ -39,18 +46,24 @@ public sealed class CitaService(
 
     public async Task<CitaDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Ver", "No tienes permiso para consultar citas.");
+
         var cita = await repository.GetByIdAsync(id, cancellationToken);
         return cita is null ? null : ToDetail(cita);
     }
 
     public async Task<CitaFormDto?> GetFormAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Ver", "No tienes permiso para consultar citas.");
+
         var cita = await repository.GetByIdAsync(id, cancellationToken);
         return cita is null ? null : ToForm(cita);
     }
 
     public async Task<int> CreateAsync(CitaFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Crear", "No tienes permiso para crear citas.");
+
         if (model.PacienteId <= 0)
             throw new InvalidOperationException("El ID del paciente no es válido.");
 
@@ -113,6 +126,8 @@ public sealed class CitaService(
 
     public async Task UpdateAsync(CitaFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Editar", "No tienes permiso para editar citas.");
+
         var cita = await repository.GetByIdAsync(model.Id, cancellationToken);
         if (cita is null)
             throw new InvalidOperationException("La cita no existe.");
@@ -150,6 +165,15 @@ public sealed class CitaService(
 
     public async Task SetEstadoAsync(int id, EstadoCita estado, CancellationToken cancellationToken = default)
     {
+        // Permiso según la acción que representa el nuevo estado (Fase 1 - Parte E).
+        var permiso = estado switch
+        {
+            EstadoCita.Cancelada => "Citas.Cancelar",
+            EstadoCita.Atendida => "Citas.Atender",
+            _ => "Citas.Editar"
+        };
+        await authorizationService.AsegurarPermisoAsync(currentUserService, permiso, "No tienes permiso para cambiar el estado de la cita.");
+
         var cita = await repository.GetByIdAsync(id, cancellationToken);
         if (cita is null)
             throw new InvalidOperationException("La cita no existe.");

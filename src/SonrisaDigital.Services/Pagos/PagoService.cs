@@ -1,8 +1,10 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Pagos.DTOs;
 
 namespace SonrisaDigital.Services.Pagos;
@@ -33,6 +35,7 @@ namespace SonrisaDigital.Services.Pagos;
 public sealed class PagoService(
     IPagoRepository repository,
     ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService,
     IAuditoriaService auditoriaService) : IPagoService
 {
     // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 1,500.00".
@@ -48,6 +51,8 @@ public sealed class PagoService(
     /// </summary>
     public async Task<PagosResumenDto> GetResumenAsync(CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
+
         // Paso 1: traer TODOS los tratamientos (con sus pagos incluidos) desde el repositorio.
         // El "null" significa "sin filtro de búsqueda".
         var tratamientos = await repository.GetTratamientosAsync(null, cancellationToken);
@@ -75,6 +80,8 @@ public sealed class PagoService(
         int tratamientoRealizadoId,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
+
         // Paso 1: buscar el tratamiento con sus pagos, su paciente, su odontólogo y su pieza.
         var tratamiento = await repository.GetDetalleAsync(tratamientoRealizadoId, cancellationToken);
 
@@ -91,6 +98,8 @@ public sealed class PagoService(
         int pacienteId,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
+
         // Paso 1: pedirle al repositorio solo los tratamientos de ese paciente.
         var tratamientos = await repository.GetByPacienteAsync(pacienteId, cancellationToken);
 
@@ -167,6 +176,8 @@ public sealed class PagoService(
         EstadoFinanciero? estado,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
+
         // Paso 1: traer los tratamientos que coinciden con el texto buscado (el filtro de
         // texto lo hace el repositorio, en SQL).
         var tratamientos = await repository.GetTratamientosAsync(searchTerm, cancellationToken);
@@ -199,6 +210,8 @@ public sealed class PagoService(
         int cantidad = 10,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
+
         // Paso 1: pedir los últimos pagos (el repositorio ya los trae ordenados por fecha
         // descendente y corta la lista en "cantidad" filas).
         var pagos = await repository.GetHistorialAsync(cantidad, cancellationToken);
@@ -228,6 +241,8 @@ public sealed class PagoService(
     /// </summary>
     public async Task<int> RegistrarAsync(RegistrarPagoDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Crear", "No tienes permiso para registrar pagos.");
+
         // ---- Validaciones: se revisan TODAS antes de tocar la base de datos ----
         // Así, si algo está mal, no se guarda nada a medias.
 

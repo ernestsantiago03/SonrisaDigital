@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Odontograma.DTOs;
 
 namespace SonrisaDigital.Services.Odontograma;
@@ -30,7 +32,8 @@ namespace SonrisaDigital.Services.Odontograma;
 public sealed class OdontogramaService(
     IOdontogramaRepository repository,
     IPacienteRepository pacienteRepository,
-    ICurrentUserService currentUserService) : IOdontogramaService
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService) : IOdontogramaService
 {
     // =========================================================================================
     // 1) BUSCAR PACIENTES  →  alimenta el panel de búsqueda de la pantalla del odontograma
@@ -44,6 +47,8 @@ public sealed class OdontogramaService(
         string? searchTerm = null,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Ver", "No tienes permiso para consultar odontogramas.");
+
         // Paso 1: pedirle al repositorio los pacientes ACTIVOS que coincidan con el texto.
         // (Solo activos: a un paciente desactivado no se le sigue trabajando el odontograma.)
         var patients = await repository.GetActivePatientsAsync(searchTerm, cancellationToken);
@@ -62,6 +67,8 @@ public sealed class OdontogramaService(
     /// </summary>
     public async Task<IReadOnlyList<OdontogramaPiezaDto>> GetByPatientAsync(int pacienteId, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Ver", "No tienes permiso para consultar odontogramas.");
+
         // Paso 1: traer las dos listas por separado.
         //   pieces  = el catálogo de las 32 piezas dentales (siempre las mismas).
         //   records = los registros que ESTE paciente tiene (solo las piezas que se han tocado).
@@ -99,6 +106,8 @@ public sealed class OdontogramaService(
     /// </summary>
     public async Task SaveAsync(int pacienteId, int piezaDentalId, EstadoOdontograma estado, string? observaciones, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Editar", "No tienes permiso para editar odontogramas.");
+
         // Paso 1: obtener de la sesión el usuario responsable. El Service ya no
         // acepta un userId arbitrario desde la UI (ARQ-05). Si no hay sesión,
         // la operación se detiene antes de escribir.

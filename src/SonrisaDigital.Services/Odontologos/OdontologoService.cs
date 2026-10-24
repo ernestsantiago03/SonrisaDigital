@@ -3,6 +3,7 @@ using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Odontologos.DTOs;
 
 namespace SonrisaDigital.Services.Odontologos;
@@ -22,6 +23,8 @@ public sealed class OdontologoService(
         EstadoRegistro? estado,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontologos.Ver", "No tienes permiso para consultar odontólogos.");
+
         var odontologos = await repository.SearchAsync(searchTerm, estado, cancellationToken);
 
         return odontologos
@@ -38,18 +41,24 @@ public sealed class OdontologoService(
 
     public async Task<OdontologoDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontologos.Ver", "No tienes permiso para consultar odontólogos.");
+
         var odontologo = await repository.GetByIdAsync(id, cancellationToken);
         return odontologo is null ? null : ToDetail(odontologo);
     }
 
     public async Task<OdontologoFormDto?> GetFormAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontologos.Ver", "No tienes permiso para consultar odontólogos.");
+
         var odontologo = await repository.GetByIdAsync(id, cancellationToken);
         return odontologo is null ? null : ToForm(odontologo);
     }
 
     public async Task<int> CreateAsync(OdontologoFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontologos.Crear", "No tienes permiso para registrar odontólogos.");
+
         var odontologo = new Odontologo();
         ApplyForm(odontologo, model);
         odontologo.Estado = EstadoRegistro.Activo;

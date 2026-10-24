@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.HistoriasClinicas.DTOs;
 
 namespace SonrisaDigital.Services.HistoriasClinicas;
@@ -37,7 +40,9 @@ namespace SonrisaDigital.Services.HistoriasClinicas;
 /// </summary>
 public sealed class HistoriaClinicaService(
     IHistoriaClinicaRepository repository,
-    IAuditoriaService auditoriaService) : IHistoriaClinicaService
+    IAuditoriaService auditoriaService,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService) : IHistoriaClinicaService
 {
     // =========================================================================================
     // 1) BUSCAR / LISTAR PACIENTES  →  alimenta el panel de búsqueda de la izquierda
@@ -52,6 +57,8 @@ public sealed class HistoriaClinicaService(
         string? searchTerm = null,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
+
         // Paso 1: pedirle los pacientes al repositorio. Él es el único que habla con SQL y ya
         // devuelve la lista ordenada alfabéticamente por nombre y apellido.
         var patients = await repository.GetPatientsAsync(searchTerm, cancellationToken);
@@ -78,6 +85,8 @@ public sealed class HistoriaClinicaService(
     /// </summary>
     public async Task<HistoriaClinicaDto?> GetByPatientAsync(int pacienteId, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
+
         // Paso 1: confirmar que el paciente existe. Si no existe se devuelve null y la pantalla
         // muestra el mensaje de "paciente no encontrado".
         var patient = await repository.GetPatientAsync(pacienteId, cancellationToken);
@@ -145,6 +154,8 @@ public sealed class HistoriaClinicaService(
     /// </summary>
     public async Task SaveAsync(HistoriaClinicaDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar historias clínicas.");
+
         // Paso 1: verificar que el paciente existe. Si no, se corta aquí con un mensaje claro.
         var patient = await repository.GetPatientAsync(model.PacienteId, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
@@ -212,6 +223,8 @@ public sealed class HistoriaClinicaService(
     /// </summary>
     public async Task<IReadOnlyList<OdontologoOptionDto>> GetOdontologosAsync(CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
+
         // Paso 1: traer los odontólogos activos desde el repositorio.
         var odontologos = await repository.GetOdontologosAsync(cancellationToken);
 
@@ -229,6 +242,8 @@ public sealed class HistoriaClinicaService(
     /// </summary>
     public async Task<int?> GetOdontologoVinculadoAsync(string userId, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
+
         // Sin usuario identificado no hay nada que preseleccionar.
         if (string.IsNullOrWhiteSpace(userId))
         {
@@ -251,6 +266,8 @@ public sealed class HistoriaClinicaService(
         ConsultaClinicaFormDto model,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Crear", "No tienes permiso para crear información clínica.");
+
         // Paso 1: comprobar que el paciente existe. Si no, se corta con un mensaje claro.
         var paciente = await repository.GetPatientAsync(model.PacienteId, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
@@ -313,6 +330,8 @@ public sealed class HistoriaClinicaService(
         ConsultaClinicaFormDto model,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
+
         // Paso 1: buscar la consulta que se quiere modificar. Si no existe, se avisa.
         var consulta = await repository.GetConsultaAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("La consulta no existe.");
@@ -377,6 +396,8 @@ public sealed class HistoriaClinicaService(
         Cita cita,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Crear", "No tienes permiso para crear información clínica.");
+
         // Paso 1: si esa cita ya tiene su consulta, se devuelve y no se crea otra (así, si el
         // usuario vuelve a marcar la misma cita como atendida, no se duplica nada).
         var existente = await repository.GetConsultaPorCitaAsync(cita.Id, cancellationToken);
@@ -427,6 +448,8 @@ public sealed class HistoriaClinicaService(
     /// </summary>
     public async Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
+
         // Paso 1: buscar la consulta. Si no existe, se avisa.
         var consulta = await repository.GetConsultaAsync(consultaId, cancellationToken)
             ?? throw new InvalidOperationException("La consulta no existe.");

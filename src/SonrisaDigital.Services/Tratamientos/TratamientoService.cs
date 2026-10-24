@@ -1,11 +1,14 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.Tratamientos.DTOs;
 
@@ -28,6 +31,8 @@ public sealed class TratamientoService(
     ITratamientoRepository repository,
     IAuditoriaService auditoriaService,
     ApplicationDbContext dbContext,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService,
     ILogger<TratamientoService> logger) : ITratamientoService
 {
     private const int MaxPageSize = 50;
@@ -46,6 +51,8 @@ public sealed class TratamientoService(
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var (pagina, tamano) = NormalizarPagina(page, pageSize);
         var result = await repository.SearchCatalogoAsync(searchTerm, estado, pagina, tamano, cancellationToken);
 
@@ -58,6 +65,7 @@ public sealed class TratamientoService(
 
     public async Task<TratamientoFormDto?> GetCatalogoFormAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
         if (id <= 0)
         {
             return null;
@@ -81,6 +89,7 @@ public sealed class TratamientoService(
 
     public async Task<int> CreateCatalogoAsync(TratamientoFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Crear", "No tienes permiso para registrar tratamientos.");
         ArgumentNullException.ThrowIfNull(model);
         ValidateCatalogo(model);
 
@@ -126,6 +135,7 @@ public sealed class TratamientoService(
 
     public async Task UpdateCatalogoAsync(TratamientoFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para editar tratamientos.");
         ArgumentNullException.ThrowIfNull(model);
         if (model.Id <= 0)
         {
@@ -192,6 +202,8 @@ public sealed class TratamientoService(
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var (pagina, tamano) = NormalizarPagina(page, pageSize);
         var result = await repository.SearchRealizadosAsync(searchTerm, estado, pagina, tamano, cancellationToken);
 
@@ -210,6 +222,8 @@ public sealed class TratamientoService(
         {
             return null;
         }
+
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
 
         var realizado = await repository.GetRealizadoAsync(id, cancellationToken);
         if (realizado is null)
@@ -248,6 +262,8 @@ public sealed class TratamientoService(
             return null;
         }
 
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var realizado = await repository.GetRealizadoAsync(id, cancellationToken);
         if (realizado is null)
         {
@@ -272,6 +288,8 @@ public sealed class TratamientoService(
         TratamientoRealizadoFormDto model,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Crear", "No tienes permiso para registrar tratamientos.");
+
         ArgumentNullException.ThrowIfNull(model);
         ValidateRealizado(model);
 
@@ -346,6 +364,8 @@ public sealed class TratamientoService(
         TratamientoRealizadoFormDto model,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para editar tratamientos.");
+
         ArgumentNullException.ThrowIfNull(model);
         if (model.Id <= 0)
         {
@@ -455,6 +475,8 @@ public sealed class TratamientoService(
 
     public async Task CancelarRealizadoAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para cancelar tratamientos.");
+
         if (id <= 0)
         {
             throw new InvalidOperationException("El tratamiento realizado no existe.");
@@ -512,6 +534,8 @@ public sealed class TratamientoService(
         bool soloActivos,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var tratamientos = soloActivos
             ? await repository.GetActivosAsync(cancellationToken)
             : await repository.GetAllAsync(cancellationToken);
@@ -528,6 +552,8 @@ public sealed class TratamientoService(
     public async Task<IReadOnlyList<PacienteOptionDto>> GetPacientesAsync(
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var pacientes = await repository.GetPacientesAsync(cancellationToken);
 
         return pacientes
@@ -541,6 +567,8 @@ public sealed class TratamientoService(
     public async Task<IReadOnlyList<OdontologoOptionDto>> GetOdontologosAsync(
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var odontologos = await repository.GetOdontologosAsync(cancellationToken);
 
         return odontologos
@@ -554,6 +582,8 @@ public sealed class TratamientoService(
     public async Task<IReadOnlyList<PiezaDentalOptionDto>> GetPiezasAsync(
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
         var piezas = await repository.GetPiezasAsync(cancellationToken);
 
         return piezas

@@ -1,19 +1,26 @@
+using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Pacientes.DTOs;
 
 namespace SonrisaDigital.Services.Pacientes;
 
 public sealed class PacienteService(
     IPacienteRepository repository,
-    IAuditoriaService auditoriaService) : IPacienteService
+    IAuditoriaService auditoriaService,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService) : IPacienteService
 {
     public async Task<IReadOnlyList<PacienteListItemDto>> SearchAsync(
         string? searchTerm,
         EstadoRegistro? estado,
         CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Ver", "No tienes permiso para consultar pacientes.");
+
         var pacientes = await repository.SearchAsync(searchTerm, estado, cancellationToken);
 
         return pacientes
@@ -31,18 +38,24 @@ public sealed class PacienteService(
 
     public async Task<PacienteDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Ver", "No tienes permiso para consultar pacientes.");
+
         var patient = await repository.GetByIdAsync(id, cancellationToken);
         return patient is null ? null : ToDetail(patient);
     }
 
     public async Task<PacienteFormDto?> GetFormAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Ver", "No tienes permiso para consultar pacientes.");
+
         var patient = await repository.GetByIdAsync(id, cancellationToken);
         return patient is null ? null : ToForm(patient);
     }
 
     public async Task<int> CreateAsync(PacienteFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Crear", "No tienes permiso para registrar pacientes.");
+
         var normalizedIdentification = Normalize(model.Identificacion);
         await EnsureIdentificationIsAvailableAsync(normalizedIdentification, null, cancellationToken);
 
@@ -64,6 +77,8 @@ public sealed class PacienteService(
 
     public async Task UpdateAsync(PacienteFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Editar", "No tienes permiso para editar pacientes.");
+
         var patient = await repository.GetByIdAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
 
@@ -82,6 +97,8 @@ public sealed class PacienteService(
 
     public async Task SetStatusAsync(int id, EstadoRegistro estado, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Desactivar", "No tienes permiso para activar o desactivar pacientes.");
+
         var patient = await repository.GetByIdAsync(id, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
 

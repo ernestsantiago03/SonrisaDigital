@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Odontologos.DTOs;
 using SonrisaDigital.Services.Usuarios.DTOs;
@@ -13,13 +15,18 @@ public sealed class UsuarioService(
     UserManager<Usuario> userManager,
     RoleManager<Rol> roleManager,
     ApplicationDbContext dbContext,
-    IAuditoriaService auditoriaService) : IUsuarioService
+    IAuditoriaService auditoriaService,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService) : IUsuarioService
 {
     public async Task<IReadOnlyList<UsuarioListItemDto>> SearchAsync(
         string? searchTerm,
         EstadoRegistro? estado,
         CancellationToken cancellationToken = default)
     {
+        // Autorización en servicio (Fase 1 - Parte E).
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
+
         var query = userManager.Users.AsNoTracking();
 
         if (estado.HasValue)
@@ -47,6 +54,8 @@ public sealed class UsuarioService(
 
     public async Task<UsuarioFormDto?> GetFormAsync(string id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
+
         var user = await userManager.FindByIdAsync(id);
         if (user is null) return null;
 
@@ -61,15 +70,21 @@ public sealed class UsuarioService(
         };
     }
 
-    public async Task<IReadOnlyList<string>> GetAvailableRolesAsync(CancellationToken cancellationToken = default) =>
-        await roleManager.Roles
+    public async Task<IReadOnlyList<string>> GetAvailableRolesAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
+
+        return await roleManager.Roles
             .Where(role => role.Estado == EstadoRegistro.Activo)
             .OrderBy(role => role.Name)
             .Select(role => role.Name!)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task CreateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Crear", "No tienes permiso para crear usuarios.");
+
         ValidateOdontologoProfile(model);
         var email = model.Email.Trim();
         var user = new Usuario
@@ -105,6 +120,8 @@ public sealed class UsuarioService(
 
     public async Task UpdateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Editar", "No tienes permiso para editar usuarios.");
+
         if (string.IsNullOrWhiteSpace(model.Id)) throw new InvalidOperationException("El usuario no existe.");
 
         var user = await userManager.FindByIdAsync(model.Id);
@@ -162,6 +179,8 @@ public sealed class UsuarioService(
 
     public async Task SetStatusAsync(string id, EstadoRegistro estado, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Desactivar", "No tienes permiso para activar o desactivar usuarios.");
+
         var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
         await EnsureNotLastActiveAdminAsync(user, estado, await userManager.GetRolesAsync(user), cancellationToken);
 
@@ -190,6 +209,8 @@ public sealed class UsuarioService(
 
     public async Task ResetPasswordAsync(string id, string password, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Editar", "No tienes permiso para restablecer contraseñas.");
+
         var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);

@@ -1,15 +1,23 @@
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Dashboard.DTOs;
 
 namespace SonrisaDigital.Services.Dashboard;
 
 public sealed class DashboardService(
     IPacienteRepository pacienteRepository,
-    IOdontologoRepository odontologoRepository) : IDashboardService
+    IOdontologoRepository odontologoRepository,
+    ICurrentUserService currentUserService) : IDashboardService
 {
     public async Task<DashboardStatsDto> GetStatsAsync(CancellationToken cancellationToken = default)
     {
+        // Defensa en servicio: el dashboard requiere sesión autenticada (Fase 1 - Parte E).
+        if (currentUserService.Principal?.Identity?.IsAuthenticated != true)
+        {
+            throw new UnauthorizedAccessException("No hay una sesión autenticada.");
+        }
+
         var pacientesActivos = await pacienteRepository.SearchAsync(null, EstadoRegistro.Activo, cancellationToken);
         var odontologosActivos = await odontologoRepository.SearchAsync(null, EstadoRegistro.Activo, cancellationToken);
 

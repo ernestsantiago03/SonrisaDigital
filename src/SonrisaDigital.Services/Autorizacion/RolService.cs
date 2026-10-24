@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autenticacion;
 
 namespace SonrisaDigital.Services.Autorizacion;
 
@@ -19,7 +21,9 @@ public sealed class RolService(
     ApplicationDbContext dbContext,
     RoleManager<Rol> roleManager,
     UserManager<Usuario> userManager,
-    IAuditoriaService auditoriaService) : IRolService
+    IAuditoriaService auditoriaService,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService) : IRolService
 {
     /// <summary>
     /// El rol Administrador nunca pierde estos permisos: si se quitaran, nadie podria
@@ -29,6 +33,8 @@ public sealed class RolService(
 
     public async Task<IReadOnlyList<RolePermissionDto>> GetRolesAsync(CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Roles.Ver", "No tienes permiso para consultar roles y permisos.");
+
         var roles = await roleManager.Roles.OrderBy(role => role.Name).ToListAsync(cancellationToken);
         return roles.Select(role => new RolePermissionDto(
             role.Id,
@@ -41,11 +47,17 @@ public sealed class RolService(
             .ToList();
     }
 
-    public Task<IReadOnlyList<PermissionDefinition>> GetPermissionsAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(PermissionCatalog.All);
+    public async Task<IReadOnlyList<PermissionDefinition>> GetPermissionsAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Roles.Ver", "No tienes permiso para consultar roles y permisos.");
+
+        return PermissionCatalog.All;
+    }
 
     public async Task UpdatePermissionsAsync(string roleId, IEnumerable<string> permissionNames, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Roles.Editar", "No tienes permiso para asignar permisos a roles.");
+
         var role = await roleManager.FindByIdAsync(roleId)
             ?? throw new InvalidOperationException("El rol no existe.");
         var names = permissionNames.ToHashSet(StringComparer.Ordinal);
