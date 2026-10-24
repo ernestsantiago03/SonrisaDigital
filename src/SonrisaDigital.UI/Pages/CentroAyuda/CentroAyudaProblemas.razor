@@ -20,9 +20,9 @@
         <h3>No puedo guardar el paciente</h3>
 
         <p>
-            Verifica que todos los campos obligatorios estén
-            completos y que la identificación no esté registrada
-            anteriormente.
+            Verifica que todos los campos obligatorios estén completos y que la
+            identificación no esté registrada anteriormente. Revisa también el
+            formato del correo electrónico y del teléfono.
         </p>
     </div>
 
@@ -30,9 +30,9 @@
         <h3>No encuentro un paciente</h3>
 
         <p>
-            Comprueba que el nombre o identificación estén
-            escritos correctamente. También verifica si estás
-            aplicando algún filtro.
+            Comprueba que el nombre o la identificación estén escritos correctamente.
+            Si el paciente está inactivo, cambia el filtro de estado para incluirlo
+            en los resultados.
         </p>
     </div>
 
@@ -49,8 +49,10 @@
         <h3>No puedo crear una cita</h3>
 
         <p>
-            Verifica que hayas seleccionado un paciente,
-            odontólogo, fecha y hora válidos.
+            Verifica que hayas seleccionado un paciente activo, un odontólogo activo,
+            una fecha de lunes a viernes y horas válidas. La hora de fin debe ser
+            posterior a la hora de inicio y no puede cruzar el bloque de almuerzo
+            de 12:00 a 2:00 PM.
         </p>
     </div>
 
@@ -58,9 +60,20 @@
         <h3>El odontólogo no está disponible</h3>
 
         <p>
-            Comprueba si el odontólogo ya tiene una cita
-            registrada para ese horario. Si existe un conflicto,
-            selecciona otro horario disponible.
+            Comprueba si el odontólogo ya tiene una cita registrada para ese horario.
+            El sistema también impide que un mismo paciente tenga dos citas que se
+            solapen. Si existe un conflicto, selecciona otro horario.
+        </p>
+    </div>
+
+    <div class="help-question">
+        <h3>No puedo editar una cita</h3>
+
+        <p>
+            Las citas en estado <strong>Atendida</strong>,
+            <strong>Cancelada</strong> o <strong>No asistió</strong> son finales y no
+            se editan. Además, el recepcionista solo puede editar mientras la cita
+            está <strong>Programada</strong>.
         </p>
     </div>
 
@@ -77,10 +90,20 @@
         <h3>No puedo acceder a un módulo</h3>
 
         <p>
-            Es posible que tu usuario no tenga los permisos
-            necesarios para acceder a ese módulo. Comunícate
-            con el administrador del sistema para verificar
-            tu rol y permisos.
+            Es posible que tu usuario no tenga los permisos necesarios para acceder
+            a ese módulo. Comunícate con el administrador del sistema para verificar
+            tu rol y permisos en <strong>Roles y permisos</strong>.
+        </p>
+    </div>
+
+    <div class="help-question">
+        <h3>No veo un botón de crear, editar o eliminar</h3>
+
+        <p>
+            Los botones se muestran según los permisos del rol. Por ejemplo, para
+            editar la historia clínica se requiere
+            <strong>HistoriaClinica.Editar</strong>, y para editar el odontograma,
+            <strong>Odontograma.Editar</strong>.
         </p>
     </div>
 
@@ -97,10 +120,84 @@
         <h3>No puedo iniciar sesión</h3>
 
         <p>
-            Verifica que tu usuario y contraseña sean correctos.
-            Recuerda comprobar las mayúsculas y minúsculas.
-            Si el problema continúa, solicita asistencia al
-            administrador.
+            Verifica que tu correo y contraseña sean correctos. Recuerda comprobar
+            las mayúsculas y minúsculas. Si el problema continúa, solicita asistencia
+            al administrador.
+        </p>
+    </div>
+
+    <div class="help-question">
+        <h3>Mi cuenta está bloqueada</h3>
+
+        <p>
+            Después de varios intentos fallidos, la cuenta puede bloquearse
+            temporalmente. Espera unos minutos o comunícate con el administrador
+            para que revise el estado de tu usuario.
+        </p>
+    </div>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Problemas con tratamientos y pagos</h2>
+    </div>
+
+    <div class="help-question">
+        <h3>No puedo registrar un pago</h3>
+
+        <p>
+            Verifica que el tratamiento esté en estado <strong>En proceso</strong> y
+            que tenga saldo pendiente. El monto del pago no puede ser mayor al saldo.
+        </p>
+    </div>
+
+    <div class="help-question">
+        <h3>No puedo cancelar un tratamiento</h3>
+
+        <p>
+            Solo se puede cancelar un tratamiento en estado <strong>En proceso</strong>
+            y sin pagos registrados. Si ya tiene pagos, debe conservarse para mantener
+            la trazabilidad.
+        </p>
+    </div>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Problemas con historia clínica y odontograma</h2>
+    </div>
+
+    <div class="help-question">
+        <h3>No puedo editar la historia clínica</h3>
+
+        <p>
+            Tu rol debe tener el permiso <strong>HistoriaClinica.Editar</strong>.
+            Si solo tiene <strong>HistoriaClinica.Ver</strong>, la información se
+            muestra en modo lectura.
+        </p>
+    </div>
+
+    <div class="help-question">
+        <h3>No puedo modificar una consulta</h3>
+
+        <p>
+            Una consulta <strong>Cerrada</strong> es de solo lectura. Solo las
+            consultas en estado <strong>Abierta</strong> se pueden completar.
+        </p>
+    </div>
+
+    <div class="help-question">
+        <h3>No puedo editar el odontograma</h3>
+
+        <p>
+            La edición requiere el permiso <strong>Odontograma.Editar</strong>.
+            Si no lo tienes, puedes consultar el odontograma pero no guardar cambios.
         </p>
     </div>
 

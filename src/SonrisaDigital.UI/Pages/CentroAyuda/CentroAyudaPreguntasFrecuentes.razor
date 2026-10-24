@@ -9,7 +9,7 @@
             <h1>Preguntas frecuentes</h1>
             <p>
                 Respuestas a las preguntas más comunes sobre
-                el funcionamiento del Sistemaa Dental.
+                el funcionamiento de Sonrisa Digital.
             </p>
         </div>
     </div>
@@ -35,19 +35,33 @@
                 <p>
                     Dirígete al módulo <strong>Pacientes</strong>,
                     selecciona <strong>Nuevo paciente</strong>,
-                    completa los datos requeridos y presiona
-                    <strong>Guardar paciente</strong>.
+                    completa los datos personales, de contacto y de emergencia,
+                    y presiona <strong>Guardar paciente</strong>.
                 </p>
             </div>
 
 
             <div class="faq-item">
-                <h3>¿Cómo edito los datos de un paciente?</h3>
+                <h3>¿Qué datos debo completar?</h3>
 
                 <p>
-                    Entra al módulo <strong>Pacientes</strong>,
-                    busca al paciente y selecciona la opción
-                    <strong>Editar</strong>.
+                    En <strong>Información personal</strong>: nombres, apellidos,
+                    identificación, fecha de nacimiento, sexo y tipo de sangre.
+                    En <strong>Información de contacto</strong>: teléfono, correo y
+                    dirección. En <strong>Contacto de emergencia</strong>: nombre,
+                    teléfono y relación.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Cómo registro las alergias del paciente?</h3>
+
+                <p>
+                    El formulario de paciente incluye la sección <strong>Alergias</strong>
+                    para los roles con permiso <strong>HistoriaClinica.Crear</strong>.
+                    Puedes marcar <strong>“El paciente no refiere alergias”</strong> o
+                    escribir el detalle y usar los botones de alergias frecuentes.
                 </p>
             </div>
 
@@ -56,9 +70,10 @@
                 <h3>¿Puedo desactivar un paciente?</h3>
 
                 <p>
-                    Sí. Al editar el paciente puedes cambiar su
-                    estado a <strong>Inactivo</strong>. La información
-                    se conserva en el sistema.
+                    Sí. Al editar el paciente puedes cambiar su estado a
+                    <strong>Inactivo</strong>. La información se conserva en el
+                    sistema y el paciente deja de aparecer en las listas de selección
+                    para nuevas citas.
                 </p>
             </div>
 
@@ -71,19 +86,16 @@
     <section class="help-section">
 
         <div class="help-section-header">
-
             <div>
                 <h2>Odontólogos🦷</h2>
                 <p>Administración de los profesionales.</p>
             </div>
-
         </div>
 
 
         <div class="faq-list">
 
             <div class="faq-item">
-
                 <h3>¿Cómo registro un odontólogo?</h3>
 
                 <p>
@@ -91,19 +103,17 @@
                     completa sus datos, selecciona su especialidad
                     y presiona <strong>Guardar odontólogo</strong>.
                 </p>
-
             </div>
 
 
             <div class="faq-item">
-
                 <h3>¿Puedo desactivar un odontólogo?</h3>
 
                 <p>
-                    Sí. Al editar el odontólogo puedes cambiar su
-                    estado a <strong>Inactivo</strong>.
+                    Sí. Al editar el odontólogo puedes cambiar su estado a
+                    <strong>Inactivo</strong>. Un odontólogo inactivo no aparece
+                    en las listas para nuevas citas.
                 </p>
-
             </div>
 
         </div>
@@ -115,40 +125,153 @@
     <section class="help-section">
 
         <div class="help-section-header">
-
             <div>
                 <h2>Citas📅</h2>
                 <p>Gestión de las citas odontológicas.</p>
             </div>
-
         </div>
 
 
         <div class="faq-list">
 
             <div class="faq-item">
-
                 <h3>¿Cómo creo una cita?</h3>
 
                 <p>
-                    Ve a <strong>Citas → Nueva cita</strong>,
-                    selecciona el paciente, odontólogo, fecha
-                    y hora, completa la información requerida
-                    y guarda la cita.
+                    Ve a <strong>Citas → Nueva cita</strong>, selecciona el paciente,
+                    el odontólogo, la fecha, la hora de inicio y la hora de fin,
+                    elige el motivo y guarda la cita.
                 </p>
-
             </div>
 
 
             <div class="faq-item">
+                <h3>¿Qué estados puede tener una cita?</h3>
 
+                <p>
+                    <strong>Programada</strong>, <strong>Confirmada</strong>,
+                    <strong>Atendida</strong>, <strong>Cancelada</strong> y
+                    <strong>No asistió</strong>. Atendida, Cancelada y No asistió
+                    son estados finales y ya no se editan.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
                 <h3>¿Puedo modificar una cita?</h3>
 
                 <p>
-                    Sí. Busca la cita que deseas modificar y
-                    selecciona la opción <strong>Editar</strong>.
+                    Sí, mientras esté <strong>Programada</strong> o
+                    <strong>Confirmada</strong>. Al editar solo se pueden cambiar
+                    el odontólogo, la hora y el estado; el paciente, la fecha y el
+                    motivo quedan bloqueados.
                 </p>
+            </div>
 
+
+            <div class="faq-item">
+                <h3>¿Qué ocurre al marcar una cita como atendida?</h3>
+
+                <p>
+                    El sistema crea automáticamente una consulta clínica vinculada
+                    a esa cita, con el paciente, el odontólogo, la fecha y el motivo.
+                    La consulta queda <strong>Abierta</strong> para que el odontólogo
+                    complete el diagnóstico y el plan de tratamiento.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- HISTORIA CLÍNICA -->
+    <section class="help-section">
+
+        <div class="help-section-header">
+            <div>
+                <h2>Historia clínica📋</h2>
+                <p>Antecedentes y consultas clínicas del paciente.</p>
+            </div>
+        </div>
+
+
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <h3>¿Cómo edito los antecedentes de un paciente?</h3>
+
+                <p>
+                    Busca al paciente en <strong>Historia clínica</strong>, entra a la
+                    pestaña <strong>Historia general</strong> y pulsa el lápiz ✏️ de
+                    <strong>Antecedentes médicos</strong> o
+                    <strong>Antecedentes odontológicos</strong>. Después presiona
+                    <strong>Guardar cambios</strong> o <strong>Cancelar</strong>.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Quién puede modificar la historia clínica?</h3>
+
+                <p>
+                    Solo los roles con el permiso <strong>HistoriaClinica.Editar</strong>.
+                    Los roles con <strong>HistoriaClinica.Ver</strong> ven la información
+                    en modo lectura.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Cómo registro una consulta clínica?</h3>
+
+                <p>
+                    En la pestaña <strong>Consultas</strong>, presiona
+                    <strong>+ Nueva consulta</strong> (permiso
+                    <strong>HistoriaClinica.Crear</strong>), completa el odontólogo
+                    tratante, la fecha, el motivo, el diagnóstico, el plan de
+                    tratamiento y las observaciones, y guarda.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ODONTOGRAMA -->
+    <section class="help-section">
+
+        <div class="help-section-header">
+            <div>
+                <h2>Odontograma🦷</h2>
+                <p>Estado de las piezas dentales del paciente.</p>
+            </div>
+        </div>
+
+
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <h3>¿Cómo actualizo una pieza dental?</h3>
+
+                <p>
+                    Entra a <strong>Odontograma</strong>, busca al paciente, selecciona
+                    la pieza, cambia su estado, agrega observaciones y presiona
+                    <strong>Guardar cambios</strong>.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Qué estados puede tener una pieza?</h3>
+
+                <p>
+                    <strong>Sano</strong>, <strong>Caries</strong>,
+                    <strong>Restauración</strong>, <strong>Ausente</strong>,
+                    <strong>Fracturado</strong> y
+                    <strong>Tratamiento realizado</strong>.
+                </p>
             </div>
 
         </div>
@@ -160,27 +283,48 @@
     <section class="help-section">
 
         <div class="help-section-header">
-
             <div>
                 <h2>Tratamientos💊</h2>
-                <p>Información relacionada con los tratamientos.</p>
+                <p>Catálogo de servicios y tratamientos realizados.</p>
             </div>
-
         </div>
 
 
         <div class="faq-list">
 
             <div class="faq-item">
-
-                <h3>¿Cómo registro un tratamiento?</h3>
+                <h3>¿Cuál es la diferencia entre Catálogo y Realizados?</h3>
 
                 <p>
-                    Accede al módulo <strong>Tratamientos</strong>,
-                    selecciona la opción para crear un nuevo tratamiento,
-                    completa la información y guarda el registro.
+                    El <strong>Catálogo</strong> contiene los servicios que ofrece la
+                    clínica (nombre, descripción, precio base y estado). La pestaña
+                    <strong>Realizados</strong> contiene los tratamientos aplicados a
+                    los pacientes, con odontólogo, fecha, pieza dental, precio y estado.
                 </p>
+            </div>
 
+
+            <div class="faq-item">
+                <h3>¿Cómo registro un tratamiento realizado?</h3>
+
+                <p>
+                    En <strong>Tratamientos → Realizados</strong>, presiona
+                    <strong>+ Registrar tratamiento</strong>, selecciona paciente,
+                    odontólogo y tratamiento del catálogo, indica fecha, pieza dental
+                    y precio, y guarda.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Cuándo se completa un tratamiento?</h3>
+
+                <p>
+                    El tratamiento se registra en estado <strong>En proceso</strong> y
+                    pasa a <strong>Completado</strong> cuando se cubre su precio total
+                    con pagos. Solo se puede cancelar si está En proceso y no tiene
+                    pagos registrados.
+                </p>
             </div>
 
         </div>
@@ -192,28 +336,200 @@
     <section class="help-section">
 
         <div class="help-section-header">
-
             <div>
                 <h2>Pagos💰</h2>
                 <p>Registro y consulta de pagos.</p>
             </div>
-
         </div>
 
 
         <div class="faq-list">
 
             <div class="faq-item">
-
                 <h3>¿Cómo registro un pago?</h3>
 
                 <p>
-                    Entra al módulo <strong>Pagos</strong>,
-                    selecciona el paciente o la cita correspondiente,
-                    introduce el monto, selecciona el método de pago
-                    y registra la operación.
+                    Entra al módulo <strong>Pagos</strong>, busca el tratamiento con
+                    saldo pendiente y presiona <strong>+ Pago</strong>. Indica fecha,
+                    monto, método de pago y observaciones, y confirma el registro.
                 </p>
+            </div>
 
+
+            <div class="faq-item">
+                <h3>¿Puedo pagar más que el saldo pendiente?</h3>
+
+                <p>
+                    No. El sistema rechaza un pago mayor al saldo pendiente del
+                    tratamiento. Cuando el total pagado cubre el precio, el saldo
+                    queda en cero.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Qué métodos de pago están disponibles?</h3>
+
+                <p>
+                    <strong>Efectivo</strong>, <strong>Tarjeta</strong> y
+                    <strong>Transferencia</strong>.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- USUARIOS, ROLES Y PERMISOS -->
+    <section class="help-section">
+
+        <div class="help-section-header">
+            <div>
+                <h2>Usuarios, roles y permisos🔐</h2>
+                <p>Control de acceso al sistema.</p>
+            </div>
+        </div>
+
+
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <h3>¿Quién puede crear usuarios?</h3>
+
+                <p>
+                    Solo el Administrador, desde el módulo <strong>Usuarios</strong>.
+                    Allí se indica nombre, correo, contraseña inicial, estado y rol
+                    o roles.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Cómo se asignan los permisos?</h3>
+
+                <p>
+                    Desde <strong>Roles y permisos</strong>, el Administrador asigna
+                    los permisos a cada rol. El sistema tiene 32 permisos agrupados
+                    en 11 módulos.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Qué pasa si un usuario tiene varios roles?</h3>
+
+                <p>
+                    Los roles son acumulativos: el usuario recibe la unión de los
+                    permisos de todos sus roles.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- AUDITORÍA -->
+    <section class="help-section">
+
+        <div class="help-section-header">
+            <div>
+                <h2>Auditoría📝</h2>
+                <p>Registro de las operaciones del sistema.</p>
+            </div>
+        </div>
+
+
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <h3>¿Qué puedo consultar en la auditoría?</h3>
+
+                <p>
+                    Las operaciones relevantes realizadas en el sistema: inicio de
+                    sesión, creación o modificación de registros, cambios clínicos,
+                    pagos y cambios de roles o permisos. Los registros no se pueden
+                    modificar desde la interfaz.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- REPORTES -->
+    <section class="help-section">
+
+        <div class="help-section-header">
+            <div>
+                <h2>Reportes📊</h2>
+                <p>Consulta y exportación de información.</p>
+            </div>
+        </div>
+
+
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <h3>¿Qué reportes incluye el sistema?</h3>
+
+                <p>
+                    Reportes de <strong>Citas</strong>,
+                    <strong>Pacientes atendidos</strong>,
+                    <strong>Tratamientos</strong> y <strong>Pagos</strong>.
+                    Se pueden consultar por día, semana, mes o rango personalizado.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿El odontólogo ve toda la información?</h3>
+
+                <p>
+                    No. El usuario con rol Odontólogo ve únicamente su propia actividad
+                    clínica en los reportes.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ACCESO -->
+    <section class="help-section">
+
+        <div class="help-section-header">
+            <div>
+                <h2>Acceso al sistema🔑</h2>
+                <p>Inicio de sesión y permisos.</p>
+            </div>
+        </div>
+
+
+        <div class="faq-list">
+
+            <div class="faq-item">
+                <h3>¿No puedo iniciar sesión?</h3>
+
+                <p>
+                    Verifica que el correo y la contraseña sean correctos y revisa las
+                    mayúsculas y minúsculas. Si el problema continúa, comunícate con el
+                    administrador del sistema.
+                </p>
+            </div>
+
+
+            <div class="faq-item">
+                <h3>¿Por qué no veo un módulo en el menú?</h3>
+
+                <p>
+                    El menú solo muestra los módulos para los que tu rol tiene permiso.
+                    Si necesitas acceso, solicita al administrador que revise tus
+                    permisos en <strong>Roles y permisos</strong>.
+                </p>
             </div>
 
         </div>

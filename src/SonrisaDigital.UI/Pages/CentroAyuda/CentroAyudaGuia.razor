@@ -11,6 +11,18 @@
 
 
 <section class="form-panel">
+    <div class="section-heading">
+        <h2>Antes de comenzar</h2>
+    </div>
+    <p>
+        Las opciones que ves en el menú y los botones disponibles dependen de los
+        permisos de tu rol. Si una acción no aparece, solicita al administrador que
+        revise tus permisos en <strong>Roles y permisos</strong>.
+    </p>
+</section>
+
+
+<section class="form-panel">
 
     <div class="section-heading">
         <h2>Registrar un paciente</h2>
@@ -19,11 +31,11 @@
     <ol>
         <li>Entrar al módulo <strong>Pacientes</strong>.</li>
         <li>Seleccionar <strong>Nuevo paciente</strong>.</li>
-        <li>Completar los datos personales.</li>
-        <li>Completar la información de contacto.</li>
-        <li>Registrar el contacto de emergencia.</li>
-        <li>Revisar los datos.</li>
-        <li>Presionar <strong>Guardar paciente</strong>.</li>
+        <li>Completar <strong>Información personal</strong>: nombres, apellidos, identificación, fecha de nacimiento, sexo y tipo de sangre.</li>
+        <li>Completar <strong>Información de contacto</strong>: teléfono, correo electrónico y dirección.</li>
+        <li>Completar <strong>Contacto de emergencia</strong>: nombre, teléfono y relación.</li>
+        <li>Si tu rol tiene el permiso <strong>HistoriaClinica.Crear</strong>, registrar las alergias o marcar <strong>“El paciente no refiere alergias”</strong>.</li>
+        <li>Presionar <strong>Guardar paciente</strong>. El sistema abre la ficha del paciente.</li>
     </ol>
 
 </section>
@@ -41,7 +53,7 @@
         <li>Introducir nombres y apellidos.</li>
         <li>Introducir el número de licencia.</li>
         <li>Seleccionar la especialidad.</li>
-        <li>Introducir teléfono y correo.</li>
+        <li>Introducir teléfono y correo electrónico.</li>
         <li>Presionar <strong>Guardar odontólogo</strong>.</li>
     </ol>
 
@@ -56,13 +68,38 @@
 
     <ol>
         <li>Entrar al módulo <strong>Citas</strong>.</li>
-        <li>Seleccionar <strong>Nueva cita</strong>.</li>
-        <li>Seleccionar el paciente.</li>
-        <li>Seleccionar el odontólogo.</li>
-        <li>Seleccionar la fecha.</li>
-        <li>Seleccionar la hora.</li>
-        <li>Completar la información requerida.</li>
-        <li>Guardar la cita.</li>
+        <li>Seleccionar <strong>Nueva cita</strong> o <strong>Agendar cita</strong>.</li>
+        <li>Seleccionar el paciente (solo aparecen pacientes activos).</li>
+        <li>Seleccionar el odontólogo (solo aparecen odontólogos activos).</li>
+        <li>Seleccionar la fecha. Las citas solo se programan de lunes a viernes.</li>
+        <li>Seleccionar la hora de inicio y la hora de fin. El horario es de 8:00 AM a 6:00 PM y no se cruza con el almuerzo de 12:00 a 2:00 PM.</li>
+        <li>Seleccionar el <strong>Motivo de la cita</strong> en la lista categorizada.</li>
+        <li>Presionar <strong>Guardar cita</strong>.</li>
+    </ol>
+
+    <p>
+        El sistema impide que un odontólogo o un paciente tenga dos citas que se
+        solapen en el mismo horario. Al editar una cita solo se pueden cambiar el
+        odontólogo, la hora y el estado; el paciente, la fecha y el motivo quedan
+        bloqueados.
+    </p>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Registrar un tratamiento del catálogo</h2>
+    </div>
+
+    <ol>
+        <li>Entrar al módulo <strong>Tratamientos</strong>.</li>
+        <li>Seleccionar la pestaña <strong>Catálogo</strong>.</li>
+        <li>Presionar <strong>+ Nuevo tratamiento</strong>.</li>
+        <li>Introducir el nombre, la descripción y el precio base en RD$.</li>
+        <li>Seleccionar el estado <strong>Activo</strong> o <strong>Inactivo</strong>.</li>
+        <li>Presionar <strong>Guardar</strong>.</li>
     </ol>
 
 </section>
@@ -71,19 +108,24 @@
 <section class="form-panel">
 
     <div class="section-heading">
-        <h2>Registrar un tratamiento</h2>
+        <h2>Registrar un tratamiento realizado</h2>
     </div>
 
     <ol>
-        <li>Buscar al paciente.</li>
-        <li>Acceder a su información clínica.</li>
-        <li>Seleccionar <strong>Tratamientos</strong>.</li>
-        <li>Crear el tratamiento.</li>
-        <li>Introducir el diagnóstico.</li>
-        <li>Introducir el procedimiento.</li>
-        <li>Registrar las observaciones.</li>
-        <li>Guardar.</li>
+        <li>En <strong>Tratamientos</strong>, seleccionar la pestaña <strong>Realizados</strong>.</li>
+        <li>Presionar <strong>+ Registrar tratamiento</strong>.</li>
+        <li>Seleccionar el paciente y el odontólogo.</li>
+        <li>Seleccionar el tratamiento del catálogo. El precio se carga automáticamente.</li>
+        <li>Indicar la fecha, la pieza dental (opcional) y el precio.</li>
+        <li>Agregar observaciones si es necesario.</li>
+        <li>Presionar <strong>Guardar</strong>.</li>
     </ol>
+
+    <p>
+        El tratamiento se registra en estado <strong>En proceso</strong>. Se completa
+        automáticamente cuando se cubre su precio total con pagos. Un tratamiento
+        con pagos registrados no se puede cancelar.
+    </p>
 
 </section>
 
@@ -96,11 +138,108 @@
 
     <ol>
         <li>Entrar al módulo <strong>Pagos</strong>.</li>
-        <li>Seleccionar el paciente.</li>
-        <li>Seleccionar la cita o tratamiento relacionado.</li>
-        <li>Introducir el monto.</li>
-        <li>Seleccionar el método de pago.</li>
-        <li>Confirmar el registro.</li>
+        <li>Buscar el tratamiento que tenga saldo pendiente y usar el filtro de estado si es necesario.</li>
+        <li>En la fila del tratamiento, presionar <strong>+ Pago</strong>.</li>
+        <li>Introducir la fecha, el monto, el método de pago y las observaciones.</li>
+        <li>Presionar <strong>Registrar pago</strong>.</li>
+    </ol>
+
+    <p>
+        El pago siempre se asocia a un tratamiento realizado, no directamente a una
+        cita. El monto no puede superar el saldo pendiente y, al cubrir el total, el
+        saldo queda en cero.
+    </p>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Registrar o actualizar la historia clínica</h2>
+    </div>
+
+    <ol>
+        <li>Entrar al módulo <strong>Historia clínica</strong>.</li>
+        <li>Buscar al paciente por nombre o apellido y seleccionarlo.</li>
+        <li>En la pestaña <strong>Historia general</strong>, pulsar el lápiz ✏️ de <strong>Antecedentes médicos</strong> o <strong>Antecedentes odontológicos</strong>.</li>
+        <li>Editar los campos correspondientes: alergias, enfermedades, medicamentos, antecedentes, hábitos u observaciones.</li>
+        <li>Presionar <strong>Guardar cambios</strong> o <strong>Cancelar</strong> para descartar.</li>
+    </ol>
+
+    <p>
+        Solo se edita una sección a la vez y se requiere el permiso
+        <strong>HistoriaClinica.Editar</strong>. Los cambios importantes quedan
+        registrados en la auditoría.
+    </p>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Registrar una consulta clínica</h2>
+    </div>
+
+    <ol>
+        <li>En <strong>Historia clínica</strong>, abrir la pestaña <strong>Consultas</strong>.</li>
+        <li>Presionar <strong>+ Nueva consulta</strong>.</li>
+        <li>Seleccionar el odontólogo tratante y la fecha (no puede ser futura).</li>
+        <li>Completar el motivo, el diagnóstico, el plan de tratamiento y las observaciones.</li>
+        <li>Presionar <strong>Guardar consulta</strong>.</li>
+    </ol>
+
+    <p>
+        El odontólogo, el motivo y el diagnóstico son obligatorios. La consulta nace
+        en estado <strong>Abierta</strong>. Mientras siga abierta se puede usar
+        <strong>Completar consulta</strong>; después se cierra con
+        <strong>Cerrar consulta</strong> y queda de solo lectura.
+    </p>
+
+    <p>
+        Cuando una cita se marca como <strong>Atendida</strong>, el sistema crea
+        automáticamente la consulta clínica vinculada a esa cita.
+    </p>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Actualizar el odontograma</h2>
+    </div>
+
+    <ol>
+        <li>Entrar al módulo <strong>Odontograma</strong>.</li>
+        <li>Buscar y seleccionar un paciente activo.</li>
+        <li>Seleccionar una pieza dental del mapa (numeración FDI).</li>
+        <li>Cambiar el estado y agregar las observaciones necesarias.</li>
+        <li>Presionar <strong>Guardar cambios</strong>.</li>
+    </ol>
+
+    <p>
+        Los estados disponibles son: Sano, Caries, Restauración, Ausente, Fracturado
+        y Tratamiento realizado. La edición requiere el permiso
+        <strong>Odontograma.Editar</strong>.
+    </p>
+
+</section>
+
+
+<section class="form-panel">
+
+    <div class="section-heading">
+        <h2>Crear un usuario</h2>
+    </div>
+
+    <ol>
+        <li>Entrar al módulo <strong>Usuarios</strong> (solo Administrador).</li>
+        <li>Seleccionar la opción para crear un usuario.</li>
+        <li>Introducir nombre, correo electrónico, contraseña inicial, estado y rol o roles.</li>
+        <li>Guardar el usuario.</li>
+        <li>Si el usuario será odontólogo, vincularlo con su registro en <strong>Odontólogos</strong>.</li>
     </ol>
 
 </section>
@@ -111,6 +250,7 @@
         Volver al Centro de Ayuda
     </a>
 </div>
+
 @code {
 
 }
