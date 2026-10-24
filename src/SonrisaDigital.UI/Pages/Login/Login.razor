@@ -31,7 +31,7 @@
 
                 <div class="form-field">
                     <label for="email">Correo electrónico</label>
-                    <input id="email" name="Email" type="email" value="@loginModel.Email" placeholder="correo@clinica.com" required />
+                    <input id="email" name="Email" type="email"  placeholder="correo@clinica.com" required />
                 </div>
 
                 <div class="form-field">
@@ -54,7 +54,6 @@
                 <div class="login-error">La cuenta está bloqueada temporalmente.</div>
             }
 
-            <div class="login-demo"><strong>Demo:</strong> admin@sonrisadigital.com / SonrisaDigitalAdmin123</div>
         </div>
 
         <!-- Columna Derecha: Panel Lateral Corporativo -->
@@ -81,8 +80,6 @@
 
     [SupplyParameterFromQuery(Name = "error")]
     private string? Error { get; set; }
-
-    private LoginModel loginModel = new() { Email = "admin@sonrisadigital.com" };
 
     private sealed class LoginModel
     {
