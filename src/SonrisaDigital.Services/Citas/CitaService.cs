@@ -117,7 +117,7 @@ public sealed class CitaService(
         }
         catch (Exception ex)
         {
-            // No se expone el detalle técnico al usuario (Fase 1 - Parte F).
+            // No se expone el detalle técnico al usuario.
             // El error real se registra para diagnóstico del soporte.
             logger.LogError(ex, "Error al guardar la cita en la base de datos.");
             throw new InvalidOperationException("No se pudo guardar la cita. Intenta de nuevo o contacta soporte.");
@@ -165,7 +165,7 @@ public sealed class CitaService(
 
     public async Task SetEstadoAsync(int id, EstadoCita estado, CancellationToken cancellationToken = default)
     {
-        // Permiso según la acción que representa el nuevo estado (Fase 1 - Parte E).
+        // Permiso según la acción que representa el nuevo estado.
         var permiso = estado switch
         {
             EstadoCita.Cancelada => "Citas.Cancelar",

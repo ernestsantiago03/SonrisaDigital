@@ -24,7 +24,7 @@ public sealed class UsuarioService(
         EstadoRegistro? estado,
         CancellationToken cancellationToken = default)
     {
-        // Autorización en servicio (Fase 1 - Parte E).
+        // Autorización en servicio.
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
 
         var query = userManager.Users.AsNoTracking();
@@ -87,35 +87,34 @@ public sealed class UsuarioService(
 
         ValidateOdontologoProfile(model);
         var email = model.Email.Trim();
-        var user = new Usuario
-        {
-            UserName = email,
-            Email = email,
-            Nombre = model.Nombre.Trim(),
-            Estado = EstadoRegistro.Activo,
-            FechaCreacion = DateTime.UtcNow,
-            EmailConfirmed = true
-        };
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        await dbContext.ExecuteInTransactionAsync(async () =>
         {
+            // El usuario se crea dentro de la transacción para que, si la
+            // estrategia de reintentos vuelve a ejecutar el bloque, parta de
+            // una entidad nueva y no reutilice una que ya quedó marcada.
+            var user = new Usuario
+            {
+                UserName = email,
+                Email = email,
+                Nombre = model.Nombre.Trim(),
+                Estado = EstadoRegistro.Activo,
+                FechaCreacion = DateTime.UtcNow,
+                EmailConfirmed = true
+            };
+
             var result = await userManager.CreateAsync(user, model.Password ?? string.Empty);
             EnsureSucceeded(result);
             await ReplaceRolesAsync(user, model.Roles, cancellationToken);
             await SaveOdontologoProfileAsync(user.Id, model, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
 
+            // La auditoría se guarda dentro de la misma transacción: si falla,
+            // el alta completa se deshace y no queda un usuario sin trazabilidad.
             await auditoriaService.RegistrarAsync(
                 "Creó", "Usuarios", nameof(Usuario), null,
                 $"Creó el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
     }
 
     public async Task UpdateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default)
@@ -123,23 +122,22 @@ public sealed class UsuarioService(
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Editar", "No tienes permiso para editar usuarios.");
 
         if (string.IsNullOrWhiteSpace(model.Id)) throw new InvalidOperationException("El usuario no existe.");
-
-        var user = await userManager.FindByIdAsync(model.Id);
-        if (user is null) throw new InvalidOperationException("El usuario no existe.");
         ValidateOdontologoProfile(model);
-        await EnsureNotLastActiveAdminAsync(user, model.Estado, model.Roles, cancellationToken);
 
-        var estadoAnterior = user.Estado;
-        var emailAnterior = user.Email;
-        var email = model.Email.Trim();
-        user.Nombre = model.Nombre.Trim();
-        user.Estado = model.Estado;
-        user.Email = email;
-        user.UserName = email;
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        await dbContext.ExecuteInTransactionAsync(async () =>
         {
+            var user = await userManager.FindByIdAsync(model.Id);
+            if (user is null) throw new InvalidOperationException("El usuario no existe.");
+            await EnsureNotLastActiveAdminAsync(user, model.Estado, model.Roles, cancellationToken);
+
+            var estadoAnterior = user.Estado;
+            var emailAnterior = user.Email;
+            var email = model.Email.Trim();
+            user.Nombre = model.Nombre.Trim();
+            user.Estado = model.Estado;
+            user.Email = email;
+            user.UserName = email;
+
             var result = await userManager.UpdateAsync(user);
             EnsureSucceeded(result);
             var rolesChanged = await ReplaceRolesAsync(user, model.Roles, cancellationToken);
@@ -164,74 +162,52 @@ public sealed class UsuarioService(
                 EnsureSucceeded(await userManager.UpdateSecurityStampAsync(user));
             }
 
-            await transaction.CommitAsync(cancellationToken);
-
             await auditoriaService.RegistrarAsync(
                 "Modificó", "Usuarios", nameof(Usuario), null,
                 $"Modificó el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
     }
 
     public async Task SetStatusAsync(string id, EstadoRegistro estado, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Desactivar", "No tienes permiso para activar o desactivar usuarios.");
 
-        var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
-        await EnsureNotLastActiveAdminAsync(user, estado, await userManager.GetRolesAsync(user), cancellationToken);
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        await dbContext.ExecuteInTransactionAsync(async () =>
         {
+            var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
+            await EnsureNotLastActiveAdminAsync(user, estado, await userManager.GetRolesAsync(user), cancellationToken);
+
             user.Estado = estado;
             EnsureSucceeded(await userManager.UpdateAsync(user));
 
             // Al desactivar o reactivar se fuerza la invalidación de las sesiones
             // abiertas; el proveedor revalidante de Blazor lo detecta en su próximo ciclo.
             EnsureSucceeded(await userManager.UpdateSecurityStampAsync(user));
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
 
-        var verbo = estado == EstadoRegistro.Activo ? "Activó" : "Desactivó";
-        await auditoriaService.RegistrarAsync(
-            verbo, "Usuarios", nameof(Usuario), null,
-            $"{verbo} el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
+            var verbo = estado == EstadoRegistro.Activo ? "Activó" : "Desactivó";
+            await auditoriaService.RegistrarAsync(
+                verbo, "Usuarios", nameof(Usuario), null,
+                $"{verbo} el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
+        }, cancellationToken);
     }
 
     public async Task ResetPasswordAsync(string id, string password, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Editar", "No tienes permiso para restablecer contraseñas.");
 
-        var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        await dbContext.ExecuteInTransactionAsync(async () =>
         {
+            var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
             var token = await userManager.GeneratePasswordResetTokenAsync(user);
             EnsureSucceeded(await userManager.ResetPasswordAsync(user, token, password));
 
             // Una contraseña nueva debe invalidar cualquier sesión que siguiera abierta.
             EnsureSucceeded(await userManager.UpdateSecurityStampAsync(user));
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
 
-        await auditoriaService.RegistrarAsync(
-            "Restableció", "Usuarios", nameof(Usuario), null,
-            $"Restableció la contraseña del usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
+            await auditoriaService.RegistrarAsync(
+                "Restableció", "Usuarios", nameof(Usuario), null,
+                $"Restableció la contraseña del usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
+        }, cancellationToken);
     }
 
     private async Task<bool> ReplaceRolesAsync(Usuario user, IEnumerable<string> roleNames, CancellationToken cancellationToken)

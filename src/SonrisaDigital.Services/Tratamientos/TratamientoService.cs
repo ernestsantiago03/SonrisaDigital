@@ -99,27 +99,33 @@ public sealed class TratamientoService(
             throw new InvalidOperationException("Ya existe un tratamiento con ese nombre.");
         }
 
-        var tratamiento = new Tratamiento
-        {
-            Nombre = nombre,
-            Descripcion = Normalize(model.Descripcion),
-            PrecioBase = model.PrecioBase,
-            Estado = model.Estado
-        };
+        Tratamiento? creado = null;
 
         try
         {
             await EjecutarEnTransaccionAsync(async () =>
             {
-                await repository.AddAsync(tratamiento, cancellationToken);
+                // La entidad se crea dentro del bloque para que un reintento
+                // empiece con una instancia nueva y no reutilice una que ya
+                // quedó marcada por el intento anterior.
+                var nuevo = new Tratamiento
+                {
+                    Nombre = nombre,
+                    Descripcion = Normalize(model.Descripcion),
+                    PrecioBase = model.PrecioBase,
+                    Estado = model.Estado
+                };
+                creado = nuevo;
+
+                await repository.AddAsync(nuevo, cancellationToken);
                 await repository.SaveChangesAsync(cancellationToken);
 
                 await auditoriaService.RegistrarAsync(
                     "Creó",
                     "Tratamientos",
                     nameof(Tratamiento),
-                    tratamiento.Id,
-                    $"Creó el tratamiento '{tratamiento.Nombre}' con precio base {Money(tratamiento.PrecioBase)}.",
+                    nuevo.Id,
+                    $"Creó el tratamiento '{nuevo.Nombre}' con precio base {Money(nuevo.PrecioBase)}.",
                     cancellationToken);
             }, cancellationToken);
         }
@@ -130,7 +136,7 @@ public sealed class TratamientoService(
                 "No se pudo guardar el tratamiento. Verifique que el nombre no esté repetido.", ex);
         }
 
-        return tratamiento.Id;
+        return creado!.Id;
     }
 
     public async Task UpdateCatalogoAsync(TratamientoFormDto model, CancellationToken cancellationToken = default)
@@ -322,31 +328,37 @@ public sealed class TratamientoService(
             await EnsurePiezaExisteAsync(model.PiezaDentalId.Value, cancellationToken);
         }
 
-        var realizado = new TratamientoRealizado
-        {
-            PacienteId = model.PacienteId,
-            TratamientoId = model.TratamientoId,
-            OdontologoId = model.OdontologoId,
-            PiezaDentalId = model.PiezaDentalId,
-            Fecha = model.Fecha.Date,
-            Precio = model.Precio,
-            Estado = EstadoTratamiento.EnProceso,
-            Observaciones = Normalize(model.Observaciones)
-        };
+        TratamientoRealizado? creado = null;
 
         try
         {
             await EjecutarEnTransaccionAsync(async () =>
             {
-                await repository.AddRealizadoAsync(realizado, cancellationToken);
+                // La entidad se crea dentro del bloque para que un reintento
+                // empiece con una instancia nueva y no reutilice una que ya
+                // quedó marcada por el intento anterior.
+                var nuevo = new TratamientoRealizado
+                {
+                    PacienteId = model.PacienteId,
+                    TratamientoId = model.TratamientoId,
+                    OdontologoId = model.OdontologoId,
+                    PiezaDentalId = model.PiezaDentalId,
+                    Fecha = model.Fecha.Date,
+                    Precio = model.Precio,
+                    Estado = EstadoTratamiento.EnProceso,
+                    Observaciones = Normalize(model.Observaciones)
+                };
+                creado = nuevo;
+
+                await repository.AddRealizadoAsync(nuevo, cancellationToken);
                 await repository.SaveChangesAsync(cancellationToken);
 
                 await auditoriaService.RegistrarAsync(
                     "Registró",
                     "Tratamientos",
                     nameof(TratamientoRealizado),
-                    realizado.Id,
-                    $"Registró el tratamiento '{tratamiento.Nombre}' para {NombreCompleto(paciente)} por {Money(realizado.Precio)}.",
+                    nuevo.Id,
+                    $"Registró el tratamiento '{tratamiento.Nombre}' para {NombreCompleto(paciente)} por {Money(nuevo.Precio)}.",
                     cancellationToken);
             }, cancellationToken);
         }
@@ -357,7 +369,7 @@ public sealed class TratamientoService(
                 "No se pudo guardar el tratamiento realizado. Verifique los datos seleccionados.", ex);
         }
 
-        return realizado.Id;
+        return creado!.Id;
     }
 
     public async Task UpdateRealizadoAsync(
@@ -677,17 +689,8 @@ public sealed class TratamientoService(
 
     private async Task EjecutarEnTransaccionAsync(Func<Task> operacion, CancellationToken cancellationToken)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
-            await operacion();
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        // La transacción se ejecuta con la estrategia de reintentos de EF Core.
+        await dbContext.Database.ExecuteInTransactionAsync(operacion, cancellationToken);
     }
 
     private static (int Page, int PageSize) NormalizarPagina(int page, int pageSize) =>

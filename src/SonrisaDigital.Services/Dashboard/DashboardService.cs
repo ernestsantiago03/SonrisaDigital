@@ -12,7 +12,7 @@ public sealed class DashboardService(
 {
     public async Task<DashboardStatsDto> GetStatsAsync(CancellationToken cancellationToken = default)
     {
-        // Defensa en servicio: el dashboard requiere sesión autenticada (Fase 1 - Parte E).
+        // Defensa en servicio: el dashboard requiere sesión autenticada.
         if (currentUserService.Principal?.Identity?.IsAuthenticated != true)
         {
             throw new UnauthorizedAccessException("No hay una sesión autenticada.");

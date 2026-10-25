@@ -128,23 +128,60 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
         RegistroAuditoria audit,
         CancellationToken cancellationToken = default)
     {
-        // Paso 1: abrir la transacción (el "todo o nada").
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // La transacción se ejecuta con la estrategia de reintentos de EF Core.
+        // Si hay un error transitorio, el bloque completo se repite.
+        await dbContext.Database.ExecuteInTransactionAsync(async () =>
+        {
+            // Cada intento comienza con el rastreador limpio: si el intento anterior
+            // alcanzó a guardar y luego se deshizo, no quedan entidades marcadas
+            // como "ya guardadas" que impidan repetir la operación.
+            dbContext.ChangeTracker.Clear();
 
-        // Paso 2: guardar el cambio de la pieza dental. Después de este punto, una
-        // fila nueva ya tiene su Id autogenerado.
-        await dbContext.SaveChangesAsync(cancellationToken);
+            // Se trabaja con una instancia nueva o recargada. El objeto que llega
+            // desde el Service solo aporta los valores que el usuario eligió.
+            RegistroOdontograma trabajo;
+            if (record.Id > 0)
+            {
+                trabajo = await dbContext.RegistrosOdontograma
+                    .FirstAsync(item => item.Id == record.Id, cancellationToken);
+                trabajo.Estado = record.Estado;
+                trabajo.Observaciones = record.Observaciones;
+                trabajo.OdontologoId = record.OdontologoId;
+                trabajo.FechaModificacion = record.FechaModificacion;
+            }
+            else
+            {
+                trabajo = new RegistroOdontograma
+                {
+                    PacienteId = record.PacienteId,
+                    PiezaDentalId = record.PiezaDentalId,
+                    OdontologoId = record.OdontologoId,
+                    Estado = record.Estado,
+                    Observaciones = record.Observaciones,
+                    FechaModificacion = record.FechaModificacion
+                };
+                dbContext.RegistrosOdontograma.Add(trabajo);
+            }
 
-        // Paso 3: completar el Id real antes de insertar la auditoría. Antes se
-        // tomaba record.Id antes de guardar y una pieza nueva quedaba con Id 0.
-        audit.EntidadId = record.Id;
+            // Paso 1: guardar el cambio de la pieza dental. Después de este punto,
+            // una fila nueva ya tiene su Id autogenerado.
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Paso 4: agregar el registro de auditoría y guardarlo también.
-        dbContext.RegistrosAuditoria.Add(audit);
-        await dbContext.SaveChangesAsync(cancellationToken);
+            // Paso 2: agregar la auditoría con el Id real de la pieza.
+            dbContext.RegistrosAuditoria.Add(new RegistroAuditoria
+            {
+                UsuarioId = audit.UsuarioId,
+                FechaHora = audit.FechaHora,
+                Accion = audit.Accion,
+                Modulo = audit.Modulo,
+                Entidad = audit.Entidad,
+                EntidadId = trabajo.Id,
+                Descripcion = audit.Descripcion
+            });
+            await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Paso 5: confirmar la transacción. Si algo hubiera fallado antes de este punto,
-        // la transacción se deshace sola y la base de datos queda como estaba.
-        await transaction.CommitAsync(cancellationToken);
+            // El llamador recibe el Id generado, igual que antes.
+            record.Id = trabajo.Id;
+        }, cancellationToken);
     }
 }

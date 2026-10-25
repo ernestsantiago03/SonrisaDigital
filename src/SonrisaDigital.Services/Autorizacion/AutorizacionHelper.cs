@@ -4,7 +4,7 @@ using SonrisaDigital.Services.Autenticacion;
 namespace SonrisaDigital.Services.Autorizacion;
 
 /// <summary>
-/// Helper compartido para validar permisos en la capa de servicios (Fase 1 - Parte E).
+/// Helper compartido para validar permisos en la capa de servicios.
 /// Centraliza el patrón "fail closed": sin principal o sin permiso se lanza
 /// UnauthorizedAccessException para que la UI muestre una denegación controlada.
 /// </summary>

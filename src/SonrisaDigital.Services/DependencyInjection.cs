@@ -35,7 +35,20 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("No se configuro DefaultConnection.");
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(connectionString));
+            options.UseSqlServer(connectionString, sqlServer =>
+            {
+                // Reintenta automáticamente errores transitorios de SQL Server
+                // (cortes de red, timeouts, bloqueos momentáneos) hasta 5 veces,
+                // esperando como máximo 30 segundos entre intentos.
+                sqlServer.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+
+                // Las consultas de reportes y odontogramas pueden tardar más que
+                // el valor por defecto de 30 segundos en bases grandes.
+                sqlServer.CommandTimeout(60);
+            }));
 
         services.AddAuthentication(options =>
         {
@@ -55,7 +68,7 @@ public static class DependencyInjection
                 // abiertos se cubren con RevalidatingIdentityAuthenticationStateProvider.
                 cookieOptions.Events.OnValidatePrincipal = SecurityStampValidator.ValidatePrincipalAsync;
 
-                // Endurecimiento de la cookie de sesión (Fase 1 - Parte A).
+                // Endurecimiento de la cookie de sesión.
                 // HttpOnly evita que JavaScript (XSS) lea la cookie.
                 cookieOptions.Cookie.HttpOnly = true;
                 // SameSite=Lax protege contra CSRF sin romper la navegación top-level.

@@ -109,7 +109,7 @@
                 <strong>@UserName</strong>
                 <span>@UserRole</span>
             </div>
-            @* Logout por POST (Fase 1 - Parte D): evita CSRF. El token antiforgery se incluye automáticamente. *@
+            @* Logout por POST: evita CSRF. El token antiforgery se incluye automáticamente. *@
             <form method="post" action="/account/logout" class="logout-form">
                 <AntiforgeryToken />
                 <button type="submit" class="logout-button" aria-label="Cerrar sesión" title="Cerrar sesión">↪</button>

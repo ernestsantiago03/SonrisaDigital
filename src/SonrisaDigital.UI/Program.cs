@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Net;
 using System.Threading.RateLimiting;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.Data.Entities;
@@ -13,11 +15,56 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddSonrisaDigitalServices(builder.Configuration, builder.Environment);
+
+// ============================================================================
+//
+// Cuando la aplicacion corre detras de IIS, nginx o un balanceador, el request
+// llega al proceso como HTTP y con la IP del proxy. Sin ForwardedHeaders la app
+// no sabe que el usuario entro por HTTPS, las cookies Secure no se envian y
+// UseHttpsRedirection puede entrar en un bucle de redirecciones.
+//
+// ForwardLimit = 1 significa "confiar en el ultimo proxy de la cadena". Los
+// proxies adicionales se declaran en ReverseProxy:KnownProxies; si la lista esta
+// vacia se mantiene el comportamiento por defecto (loopback, util para IIS en
+// la misma maquina).
+// ============================================================================
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = builder.Configuration.GetValue<int?>("ReverseProxy:ForwardLimit") ?? 1;
+
+    var knownProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
+    foreach (var proxy in knownProxies)
+    {
+        if (IPAddress.TryParse(proxy, out var direccion))
+        {
+            options.KnownProxies.Add(direccion);
+        }
+    }
+});
+
+// HSTS explicito: el valor por defecto son 30 dias; para produccion se usa un
+// ano y se incluyen los subdominios. Preload se deja apagado hasta que el
+// dominio este confirmado en la lista de precarga de los navegadores.
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = false;
+});
+
+// Redireccion permanente (308) en lugar de temporal (307): conserva el metodo
+// HTTP y le indica al navegador que recuerde el cambio a HTTPS.
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
+});
+
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Rate limiting (Fase 1 - Parte D): limita intentos de login por IP.
+// Rate limiting : limita intentos de login por IP.
 builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("login", limiterOptions =>
@@ -50,15 +97,20 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Debe ser el primer middleware del pipeline.
+// Toma X-Forwarded-For / X-Forwarded-Proto y reconstruye el esquema y la IP
+// reales antes de que HSTS, HTTPS o la autenticacion tomen decisiones.
+app.UseForwardedHeaders();
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    // HSTS configurado en AddHsts (365 dias, subdominios incluidos).
     app.UseHsts();
 }
 
-// Cabeceras HTTP de seguridad (Fase 1 - Parte B).
+// Cabeceras HTTP de seguridad.
 // Se aplican a todas las respuestas para endurecer el navegador frente a
 // clickjacking, MIME-sniffing, fuga de referrer y carga de recursos no confiables.
 app.Use(async (context, next) =>
@@ -82,9 +134,11 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// La redireccion a HTTPS va antes de autenticacion/autorizacion para que un
+// request HTTP no llegue a generar un challenge de login sobre HTTP.
+app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseHttpsRedirection();
 
 // Si alguien pide una direccion que no existe, el servidor responde 404 pero
 // SIN cuerpo: el navegador mostraba una pantalla en blanco.

@@ -58,36 +58,39 @@ public sealed class RolService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Roles.Editar", "No tienes permiso para asignar permisos a roles.");
 
-        var role = await roleManager.FindByIdAsync(roleId)
-            ?? throw new InvalidOperationException("El rol no existe.");
-        var names = permissionNames.ToHashSet(StringComparer.Ordinal);
+        // Se materializa una sola vez para que un reintento no dependa de una
+        // secuencia que ya se consumió en el intento anterior.
+        var requestedNames = permissionNames.ToList();
 
-        if (string.Equals(role.Name, RolesSonrisaDigital.Administrador, StringComparison.Ordinal))
+        await dbContext.ExecuteInTransactionAsync(async () =>
         {
-            names.UnionWith(PermisosQueAdministradorConserva);
-        }
+            var role = await roleManager.FindByIdAsync(roleId)
+                ?? throw new InvalidOperationException("El rol no existe.");
+            var names = requestedNames.ToHashSet(StringComparer.Ordinal);
 
-        var permissions = await dbContext.Permisos
-            .Where(permission => names.Contains(permission.Nombre))
-            .ToListAsync(cancellationToken);
+            if (string.Equals(role.Name, RolesSonrisaDigital.Administrador, StringComparison.Ordinal))
+            {
+                names.UnionWith(PermisosQueAdministradorConserva);
+            }
 
-        if (permissions.Count != names.Count)
-        {
-            throw new InvalidOperationException("Uno o más permisos no existen.");
-        }
+            var permissions = await dbContext.Permisos
+                .Where(permission => names.Contains(permission.Nombre))
+                .ToListAsync(cancellationToken);
 
-        var current = await dbContext.RolesPermisos
-            .Where(rolePermission => rolePermission.RolId == role.Id)
-            .ToListAsync(cancellationToken);
-        var currentNames = await dbContext.RolesPermisos
-            .Where(rolePermission => rolePermission.RolId == role.Id)
-            .Select(rolePermission => rolePermission.Permiso.Nombre)
-            .ToListAsync(cancellationToken);
-        var permissionsChanged = !currentNames.ToHashSet(StringComparer.Ordinal).SetEquals(names);
+            if (permissions.Count != names.Count)
+            {
+                throw new InvalidOperationException("Uno o más permisos no existen.");
+            }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
-        {
+            var current = await dbContext.RolesPermisos
+                .Where(rolePermission => rolePermission.RolId == role.Id)
+                .ToListAsync(cancellationToken);
+            var currentNames = await dbContext.RolesPermisos
+                .Where(rolePermission => rolePermission.RolId == role.Id)
+                .Select(rolePermission => rolePermission.Permiso.Nombre)
+                .ToListAsync(cancellationToken);
+            var permissionsChanged = !currentNames.ToHashSet(StringComparer.Ordinal).SetEquals(names);
+
             dbContext.RolesPermisos.RemoveRange(current);
             await dbContext.RolesPermisos.AddRangeAsync(
                 permissions.Select(permission => new RolPermiso { RolId = role.Id, PermisoId = permission.Id }),
@@ -106,17 +109,10 @@ public sealed class RolService(
                 }
             }
 
-            await transaction.CommitAsync(cancellationToken);
-
             await auditoriaService.RegistrarAsync(
                 "Modificó", "Roles y Permisos", nameof(Rol), null,
                 $"Actualizó los permisos del rol {role.Name} ({permissions.Count} permiso(s))", cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
     }
 
     private static void EnsureSucceeded(IdentityResult result)
