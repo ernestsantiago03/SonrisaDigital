@@ -87,6 +87,24 @@ public sealed class PagoRepository(ApplicationDbContext dbContext) : IPagoReposi
             .FirstOrDefaultAsync(treatment => treatment.Id == tratamientoRealizadoId, cancellationToken);
 
     /// <summary>
+    /// Trae el tratamiento para cobrar y bloquea su fila hasta que termine la transacción.
+    /// El bloqueo evita que dos cajas calculen el saldo al mismo tiempo y acepten cobros
+    /// que juntos superen el precio del tratamiento.
+    /// </summary>
+    public async Task<TratamientoRealizado?> GetTratamientoParaPagoAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default)
+    {
+        // UPDLOCK reserva la fila para esta transacción; HOLDLOCK mantiene el bloqueo
+        // hasta el commit o rollback.
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM TratamientosRealizados WITH (UPDLOCK, HOLDLOCK) WHERE Id = {tratamientoRealizadoId}",
+            cancellationToken);
+
+        return await GetTratamientoAsync(tratamientoRealizadoId, cancellationToken);
+    }
+
+    /// <summary>
     /// Trae un tratamiento con todo lo que necesita la pantalla de detalle: paciente, tratamiento,
     /// odontólogo, pieza dental y pagos, incluyendo el usuario que registró cada pago.
     /// </summary>

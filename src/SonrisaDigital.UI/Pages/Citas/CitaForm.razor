@@ -496,59 +496,8 @@
                 return;
             }
 
-            // === VALIDACIÓN DE DOBLE RESERVA (NUEVO) ===
-            // Obtenemos las citas de este día
-            var citasDelDia = await CitaService.SearchAsync(model.Fecha, null, null, null);
-            var odontologoSeleccionado = odontologos.FirstOrDefault(o => o.Id == model.OdontologoId);
-
-            if (odontologoSeleccionado != null)
-            {
-                // Buscamos si existe al menos una cita que se cruce
-                bool horarioOcupado = citasDelDia.Any(c =>
-                    // 1. Debe ser el mismo odontólogo
-                    c.OdontologoNombre == odontologoSeleccionado.NombreCompleto &&
-                    // 2. No contamos citas que fueron canceladas o inasistencias
-                    c.Estado != EstadoCita.Cancelada &&
-                    c.Estado != EstadoCita.NoAsistio &&
-                    // 3. Si estamos editando, no podemos cruzarnos con "nuestra propia" cita actual
-                    (!IsEditing || c.Id != model.Id) &&
-                    // 4. Lógica de solapamiento de tiempo matemático: (Inicio1 < Fin2) Y (Fin1 > Inicio2)
-                    (model.HoraInicio < c.HoraFin && model.HoraFin > c.HoraInicio)
-                );
-
-                if (horarioOcupado)
-                {
-                    errorMessage = $"El odontólogo {odontologoSeleccionado.NombreCompleto} ya tiene una cita ocupando ese horario. Por favor selecciona otra hora.";
-                    saving = false;
-                    return;
-                }
-            }
-
-            var citasDelDia2 = await CitaService.SearchAsync(model.Fecha, null, null, null);
-            var pacienteSeleccionado = pacientes.FirstOrDefault(o => o.Id == model.PacienteId);
-
-            if (pacienteSeleccionado is not null)
-            {
-                bool horarioOcupado = citasDelDia2.Any(c =>
-                c.PacienteNombre == pacienteSeleccionado.NombreCompleto &&
-                c.Estado != EstadoCita.Cancelada &&
-                c.Estado != EstadoCita.NoAsistio &&
-
-                (!IsEditing || c.Id != model.Id) &&
-
-                (model.HoraInicio < c.HoraFin && model.HoraFin > c.HoraInicio)
-                );
-
-                if (horarioOcupado)
-                {
-                    errorMessage = $"El Paciente {pacienteSeleccionado.NombreCompleto} ya tiene una cita ocupando ese horario. Por favor selecciona otra hora.";
-                    saving = false;
-                    return;
-                }
-            }
-
-            // ============================================
-
+            // El choque de horario lo valida el servicio dentro de la transacción. Aquí solo
+            // se comprueban los datos básicos del formulario.
             if (IsEditing)
                 await CitaService.UpdateAsync(model);
             else

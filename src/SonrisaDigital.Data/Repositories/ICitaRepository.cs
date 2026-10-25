@@ -12,6 +12,20 @@ public interface ICitaRepository
         CancellationToken cancellationToken = default);
 
     Task<Cita?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Revisa si el odontólogo o el paciente ya tienen una cita activa que se cruce
+    /// con el horario indicado. Al editar, se puede excluir la cita actual.
+    /// </summary>
+    Task<CitaConflicto> BuscarConflictoAsync(
+        int odontologoId,
+        int pacienteId,
+        DateOnly fecha,
+        TimeOnly horaInicio,
+        TimeOnly horaFin,
+        int? excluirCitaId = null,
+        CancellationToken cancellationToken = default);
+
     Task<Cita> AddAsync(Cita cita, CancellationToken cancellationToken = default);
     Task<Cita> UpdateAsync(Cita cita, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

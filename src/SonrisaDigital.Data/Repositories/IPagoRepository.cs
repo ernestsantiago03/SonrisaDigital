@@ -19,6 +19,15 @@ public interface IPagoRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Igual que <see cref="GetTratamientoAsync"/>, pero bloquea la fila del tratamiento
+    /// hasta que termine la transacción. Se usa al registrar pagos para que dos cobros
+    /// simultáneos no calculen el saldo sobre los mismos datos.
+    /// </summary>
+    Task<TratamientoRealizado?> GetTratamientoParaPagoAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Devuelve el tratamiento con todo lo necesario para la ficha de detalle:
     /// paciente, odontólogo, pieza dental y sus pagos con el usuario que los registró.
     /// </summary>

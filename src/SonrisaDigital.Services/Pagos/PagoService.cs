@@ -1,5 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Logging;
+using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
@@ -36,7 +38,9 @@ public sealed class PagoService(
     IPagoRepository repository,
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService,
-    IAuditoriaService auditoriaService) : IPagoService
+    IAuditoriaService auditoriaService,
+    ApplicationDbContext dbContext,
+    ILogger<PagoService> logger) : IPagoService
 {
     // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 1,500.00".
     private static readonly CultureInfo Cultura = new("es-DO");
@@ -242,55 +246,24 @@ public sealed class PagoService(
     public async Task<int> RegistrarAsync(RegistrarPagoDto model, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Crear", "No tienes permiso para registrar pagos.");
+        ArgumentNullException.ThrowIfNull(model);
 
-        // ---- Validaciones: se revisan TODAS antes de tocar la base de datos ----
-        // Así, si algo está mal, no se guarda nada a medias.
+        if (model.TratamientoRealizadoId <= 0)
+            throw new InvalidOperationException("El tratamiento seleccionado no es válido.");
 
-        // Paso 1: el monto debe venir y ser mayor que cero.
         if (model.Monto is null || model.Monto <= 0)
-        {
             throw new InvalidOperationException("El monto del pago debe ser mayor que cero.");
-        }
 
-        // Se copia a una variable normal (no nullable) para trabajar más cómodo.
+        if (model.Fecha == default)
+            throw new InvalidOperationException("La fecha del pago no es válida.");
+
+        if (!Enum.IsDefined(model.MetodoPago))
+            throw new InvalidOperationException("El método de pago no es válido.");
+
         var monto = model.Monto.Value;
 
-        // Paso 2: el tratamiento debe existir.
-        var tratamiento = await repository.GetTratamientoAsync(model.TratamientoRealizadoId, cancellationToken)
-            ?? throw new InvalidOperationException("El tratamiento seleccionado no existe.");
-
-        // Paso 3: calcular cuánto falta por pagar de ese tratamiento.
-        var saldoPendiente = tratamiento.Precio - TotalPagado(tratamiento);
-
-        // Un tratamiento cancelado o completado ya es terminal: no admite más cobros.
-        if (tratamiento.Estado == EstadoTratamiento.Cancelado)
-        {
-            throw new InvalidOperationException(
-                "Este tratamiento está cancelado; no se pueden registrar pagos.");
-        }
-
-        if (tratamiento.Estado == EstadoTratamiento.Completado)
-        {
-            throw new InvalidOperationException(
-                "Este tratamiento ya está completado; no se pueden registrar más pagos.");
-        }
-
-        // Si ya está saldado, no se aceptan más pagos.
-        if (saldoPendiente <= 0)
-        {
-            throw new InvalidOperationException("Este tratamiento ya está saldado; no se pueden registrar más pagos.");
-        }
-
-        // Si el monto es mayor que el saldo, tampoco (no se cobra de más).
-        if (monto > saldoPendiente)
-        {
-            throw new InvalidOperationException(
-                $"El monto supera el saldo pendiente (RD$ {saldoPendiente.ToString("N2", Cultura)}).");
-        }
-
-        var completaElTratamiento = monto >= saldoPendiente;
-
-        // Paso 4: saber QUIÉN está registrando el pago (queda guardado en la fila del pago).
+        // El usuario se toma antes de abrir la transacción: si la sesión no está completa,
+        // no tiene sentido bloquear el tratamiento.
         var usuarioId = currentUserService.UsuarioId;
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
@@ -298,44 +271,94 @@ public sealed class PagoService(
                 "No se pudo identificar al usuario de la sesión para registrar el pago.");
         }
 
-        // ---- Ya validado todo: se crea la fila del pago ----
-        var pago = new Pago
-        {
-            TratamientoRealizadoId = tratamiento.Id,
-            // La fecha de un pago es una fecha de calendario elegida por el usuario: se guarda sin hora.
-            Fecha = model.Fecha.Date,
-            Monto = monto,
-            MetodoPago = model.MetodoPago,
-            // Las observaciones vacías se guardan como null (no como texto vacío).
-            Observaciones = string.IsNullOrWhiteSpace(model.Observaciones) ? null : model.Observaciones.Trim(),
-            UsuarioId = usuarioId
-        };
+        var pagoId = 0;
 
-        // Paso 5: guardar el pago en la base de datos. Si con este pago se cubre el precio
-        // total, el tratamiento pasa automáticamente a Completado en el mismo guardado.
-        if (completaElTratamiento)
+        try
         {
-            tratamiento.Estado = EstadoTratamiento.Completado;
+            await dbContext.ExecuteInTransactionAsync(async () =>
+            {
+                // El repositorio bloquea la fila del tratamiento hasta que termine la transacción.
+                // Así dos cobros simultáneos no leen el mismo saldo y permiten cobrar de más.
+                var tratamiento = await repository.GetTratamientoParaPagoAsync(
+                    model.TratamientoRealizadoId,
+                    cancellationToken)
+                    ?? throw new InvalidOperationException("El tratamiento seleccionado no existe.");
+
+                var saldoPendiente = tratamiento.Precio - TotalPagado(tratamiento);
+
+                if (tratamiento.Estado == EstadoTratamiento.Cancelado)
+                {
+                    throw new InvalidOperationException(
+                        "Este tratamiento está cancelado; no se pueden registrar pagos.");
+                }
+
+                if (tratamiento.Estado == EstadoTratamiento.Completado)
+                {
+                    throw new InvalidOperationException(
+                        "Este tratamiento ya está completado; no se pueden registrar más pagos.");
+                }
+
+                if (saldoPendiente <= 0)
+                {
+                    throw new InvalidOperationException("Este tratamiento ya está saldado; no se pueden registrar más pagos.");
+                }
+
+                if (monto > saldoPendiente)
+                {
+                    throw new InvalidOperationException(
+                        $"El monto supera el saldo pendiente (RD$ {saldoPendiente.ToString("N2", Cultura)}).");
+                }
+
+                var completaElTratamiento = monto >= saldoPendiente;
+
+                var pago = new Pago
+                {
+                    TratamientoRealizadoId = tratamiento.Id,
+                    // La fecha de un pago es una fecha de calendario elegida por el usuario: se guarda sin hora.
+                    Fecha = model.Fecha.Date,
+                    Monto = monto,
+                    MetodoPago = model.MetodoPago,
+                    // Las observaciones vacías se guardan como null (no como texto vacío).
+                    Observaciones = string.IsNullOrWhiteSpace(model.Observaciones) ? null : model.Observaciones.Trim(),
+                    UsuarioId = usuarioId
+                };
+
+                if (completaElTratamiento)
+                {
+                    tratamiento.Estado = EstadoTratamiento.Completado;
+                }
+
+                await repository.AddAsync(pago, cancellationToken);
+                await repository.SaveChangesAsync(cancellationToken);
+
+                // La auditoría se guarda dentro de la misma transacción: si falla, el pago
+                // y el cambio de estado del tratamiento también se revierten.
+                var detalleEstado = completaElTratamiento
+                    ? " El tratamiento quedó completado."
+                    : string.Empty;
+
+                await auditoriaService.RegistrarAsync(
+                    "Registró", "Pagos", nameof(Pago), pago.Id,
+                    $"Registró un pago de RD$ {pago.Monto.ToString("N2", Cultura)} para " +
+                    $"{tratamiento.Paciente.Nombres} {tratamiento.Paciente.Apellidos} ({tratamiento.Tratamiento.Nombre})." +
+                    detalleEstado,
+                    cancellationToken);
+
+                pagoId = pago.Id;
+            }, cancellationToken);
+
+            return pagoId;
         }
-
-        await repository.AddAsync(pago, cancellationToken);
-        await repository.SaveChangesAsync(cancellationToken);
-
-        // Paso 6: anotar el movimiento en la auditoría (queda el rastro de quién cobró y cuánto).
-        // pago.Id ya tiene valor porque SaveChangesAsync lo generó al insertar.
-        var detalleEstado = completaElTratamiento
-            ? " El tratamiento quedó completado."
-            : string.Empty;
-
-        await auditoriaService.RegistrarAsync(
-            "Registró", "Pagos", nameof(Pago), pago.Id,
-            $"Registró un pago de RD$ {pago.Monto.ToString("N2", Cultura)} para " +
-            $"{tratamiento.Paciente.Nombres} {tratamiento.Paciente.Apellidos} ({tratamiento.Tratamiento.Nombre})." +
-            detalleEstado,
-            cancellationToken);
-
-        // Paso 7: devolver el id del pago creado (la pantalla lo usa para refrescar).
-        return pago.Id;
+        catch (InvalidOperationException)
+        {
+            // Las validaciones del servicio ya traen un mensaje para el usuario.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error al registrar el pago del tratamiento {TratamientoId}.", model.TratamientoRealizadoId);
+            throw new InvalidOperationException("No se pudo registrar el pago. Intenta de nuevo o contacta soporte.");
+        }
     }
 
     // =========================================================================================

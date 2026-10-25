@@ -174,9 +174,9 @@ namespace SonrisaDigital.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PacienteId");
-
                     b.HasIndex("OdontologoId", "Fecha", "HoraInicio");
+
+                    b.HasIndex("PacienteId", "Fecha", "HoraInicio");
 
                     b.ToTable("Citas", (string)null);
                 });

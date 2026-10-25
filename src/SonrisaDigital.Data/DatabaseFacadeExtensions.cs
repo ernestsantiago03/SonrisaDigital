@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -46,6 +47,39 @@ public static class DatabaseFacadeExtensions
     }
 
     /// <summary>
+    /// Igual que la variante anterior, pero permite elegir el nivel de aislamiento.
+    /// Se usa cuando la operación necesita bloquear un rango de filas mientras
+    /// comprueba y guarda, como ocurre al reservar una cita.
+    /// </summary>
+    public static async Task ExecuteInTransactionAsync(
+        this DatabaseFacade database,
+        Func<Task> operation,
+        IsolationLevel isolationLevel,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(database);
+        ArgumentNullException.ThrowIfNull(operation);
+
+        var strategy = database.CreateExecutionStrategy();
+
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await database.BeginTransactionAsync(isolationLevel, cancellationToken);
+
+            try
+            {
+                await operation();
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+        });
+    }
+
+    /// <summary>
     /// Variante para operaciones que cargan y modifican entidades dentro del
     /// bloque. Limpia el rastreador antes de cada intento para que un reintento
     /// no reutilice entidades que quedaron marcadas por el intento anterior.
@@ -58,10 +92,47 @@ public static class DatabaseFacadeExtensions
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(operation);
 
-        await context.Database.ExecuteInTransactionAsync(async () =>
+        try
+        {
+            await context.Database.ExecuteInTransactionAsync(async () =>
+            {
+                context.ChangeTracker.Clear();
+                await operation();
+            }, cancellationToken);
+        }
+        catch
         {
             context.ChangeTracker.Clear();
-            await operation();
-        }, cancellationToken);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Variante de la transacción con nivel de aislamiento para operaciones que
+    /// también cargan entidades. Al terminar con error se limpia el rastreador
+    /// para no dejar cambios a medio aplicar en la siguiente operación.
+    /// </summary>
+    public static async Task ExecuteInTransactionAsync(
+        this DbContext context,
+        Func<Task> operation,
+        IsolationLevel isolationLevel,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(operation);
+
+        try
+        {
+            await context.Database.ExecuteInTransactionAsync(async () =>
+            {
+                context.ChangeTracker.Clear();
+                await operation();
+            }, isolationLevel, cancellationToken);
+        }
+        catch
+        {
+            context.ChangeTracker.Clear();
+            throw;
+        }
     }
 }

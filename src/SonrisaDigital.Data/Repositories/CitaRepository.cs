@@ -46,6 +46,41 @@ public sealed class CitaRepository(ApplicationDbContext dbContext) : ICitaReposi
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
+    public async Task<CitaConflicto> BuscarConflictoAsync(
+        int odontologoId,
+        int pacienteId,
+        DateOnly fecha,
+        TimeOnly horaInicio,
+        TimeOnly horaFin,
+        int? excluirCitaId = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Dos citas se cruzan cuando una empieza antes de que termine la otra y termina
+        // después de que la otra empiece. Las canceladas y las inasistencias liberan el hueco.
+        var query = dbContext.Citas
+            .AsNoTracking()
+            .Where(cita =>
+                cita.Fecha == fecha
+                && cita.Estado != EstadoCita.Cancelada
+                && cita.Estado != EstadoCita.NoAsistio
+                && cita.HoraInicio < horaFin
+                && cita.HoraFin > horaInicio
+                && (cita.OdontologoId == odontologoId || cita.PacienteId == pacienteId));
+
+        if (excluirCitaId.HasValue)
+        {
+            query = query.Where(cita => cita.Id != excluirCitaId.Value);
+        }
+
+        var citas = await query
+            .Select(cita => new { cita.OdontologoId, cita.PacienteId })
+            .ToListAsync(cancellationToken);
+
+        return new CitaConflicto(
+            citas.Any(cita => cita.OdontologoId == odontologoId),
+            citas.Any(cita => cita.PacienteId == pacienteId));
+    }
+
     public async Task<Cita> AddAsync(Cita cita, CancellationToken cancellationToken = default)
     {
         dbContext.Citas.Add(cita);

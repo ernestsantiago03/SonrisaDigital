@@ -113,6 +113,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(appointment => appointment.Motivo).HasMaxLength(500);
             entity.Property(appointment => appointment.Observaciones).HasMaxLength(1000);
             entity.HasIndex(appointment => new { appointment.OdontologoId, appointment.Fecha, appointment.HoraInicio });
+            // Permite localizar rápido los choques de horario de un paciente en una fecha.
+            entity.HasIndex(appointment => new { appointment.PacienteId, appointment.Fecha, appointment.HoraInicio });
             entity.HasOne(appointment => appointment.Paciente)
                 .WithMany(patient => patient.Citas)
                 .HasForeignKey(appointment => appointment.PacienteId)
