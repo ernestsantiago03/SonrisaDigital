@@ -33,6 +33,27 @@ public sealed class PacienteRepository(ApplicationDbContext dbContext) : IPacien
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<int> CountAsync(
+        EstadoRegistro? estado = null,
+        DateTime? registradosDesdeUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Paciente> query = dbContext.Pacientes.AsNoTracking();
+
+        if (estado.HasValue)
+        {
+            query = query.Where(patient => patient.Estado == estado.Value);
+        }
+
+        if (registradosDesdeUtc.HasValue)
+        {
+            query = query.Where(patient => patient.FechaRegistro >= registradosDesdeUtc.Value);
+        }
+
+        // CountAsync se traduce a un COUNT en SQL; no se cargan los pacientes en memoria.
+        return await query.CountAsync(cancellationToken);
+    }
+
     public Task<Paciente?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         dbContext.Pacientes
             .Include(patient => patient.HistoriaClinica)

@@ -57,19 +57,16 @@ public sealed class PagoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
 
-        // Paso 1: traer TODOS los tratamientos (con sus pagos incluidos) desde el repositorio.
-        // El "null" significa "sin filtro de búsqueda".
-        var tratamientos = await repository.GetTratamientosAsync(null, cancellationToken);
+        // El repositorio hace las sumas y el conteo en SQL. Antes se traían todos los
+        // tratamientos con sus pagos para calcular lo mismo en memoria.
+        var totales = await repository.GetTotalesAsync(cancellationToken);
+        var saldoPendiente = totales.TotalFacturado - totales.TotalCobrado;
 
-        // Paso 2: hacer las cuentas sobre esa lista.
-        var totalFacturado = tratamientos.Sum(treatment => treatment.Precio);          // lo que cuesta todo
-        var totalCobrado = tratamientos.Sum(TotalPagado);                              // lo que ya se pagó
-        var saldoPendiente = totalFacturado - totalCobrado;                            // lo que falta por cobrar
-        var tratamientosConSaldo = tratamientos.Count(                                 // cuántos deben dinero todavía
-            treatment => treatment.Precio - TotalPagado(treatment) > 0);
-
-        // Paso 3: devolver los 4 números juntos en un solo objeto.
-        return new PagosResumenDto(totalFacturado, totalCobrado, saldoPendiente, tratamientosConSaldo);
+        return new PagosResumenDto(
+            totales.TotalFacturado,
+            totales.TotalCobrado,
+            saldoPendiente,
+            totales.TratamientosConSaldo);
     }
 
     // =========================================================================================

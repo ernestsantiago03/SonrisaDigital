@@ -10,6 +10,11 @@ public sealed class DashboardService(
     IOdontologoRepository odontologoRepository,
     ICurrentUserService currentUserService) : IDashboardService
 {
+    // La clínica trabaja con la hora de República Dominicana, pero las fechas de registro
+    // se guardan en UTC. Esta zona se usa para encontrar el lunes de la semana actual.
+    private static readonly TimeZoneInfo ZonaHorariaClinica = TimeZoneInfo.FindSystemTimeZoneById(
+        OperatingSystem.IsWindows() ? "SA Western Standard Time" : "America/Santo_Domingo");
+
     public async Task<DashboardStatsDto> GetStatsAsync(CancellationToken cancellationToken = default)
     {
         // Defensa en servicio: el dashboard requiere sesión autenticada.
@@ -18,18 +23,47 @@ public sealed class DashboardService(
             throw new UnauthorizedAccessException("No hay una sesión autenticada.");
         }
 
-        var pacientesActivos = await pacienteRepository.SearchAsync(null, EstadoRegistro.Activo, cancellationToken);
-        var odontologosActivos = await odontologoRepository.SearchAsync(null, EstadoRegistro.Activo, cancellationToken);
+        var inicioSemanaUtc = ObtenerInicioSemanaUtc();
 
-        var ahora = DateTime.Now;
-        var inicioSemana = ahora.Subtract(TimeSpan.FromDays(ahora.DayOfWeek == DayOfWeek.Sunday ? 6 : (int)ahora.DayOfWeek - 1));
+        // Los conteos se resuelven en SQL. Antes se traían todos los pacientes y odontólogos
+        // solo para contarlos en memoria, lo que crecía con el tamaño de la clínica.
+        var pacientesActivos = await pacienteRepository.CountAsync(
+            EstadoRegistro.Activo,
+            cancellationToken: cancellationToken);
 
-        var pacientesEstaSemana = pacientesActivos.Count(p => p.FechaRegistro.Date >= inicioSemana.Date);
+        var odontologosActivos = await odontologoRepository.CountAsync(
+            EstadoRegistro.Activo,
+            cancellationToken: cancellationToken);
+
+        var pacientesEstaSemana = await pacienteRepository.CountAsync(
+            EstadoRegistro.Activo,
+            inicioSemanaUtc,
+            cancellationToken);
+
+        var odontologosEstaSemana = await odontologoRepository.CountAsync(
+            EstadoRegistro.Activo,
+            inicioSemanaUtc,
+            cancellationToken);
 
         return new DashboardStatsDto(
-            TotalPacientesActivos: pacientesActivos.Count,
-            TotalOdontologosActivos: odontologosActivos.Count,
+            TotalPacientesActivos: pacientesActivos,
+            TotalOdontologosActivos: odontologosActivos,
             PacientesRegistradosEstaSemana: pacientesEstaSemana,
-            OdontologosRegistradosEstaSemana: 0);
+            OdontologosRegistradosEstaSemana: odontologosEstaSemana);
+    }
+
+    /// <summary>
+    /// Devuelve el lunes a las 00:00 de la semana actual en hora de la clínica, convertido
+    /// a UTC para poder compararlo con la columna FechaRegistro.
+    /// </summary>
+    private static DateTime ObtenerInicioSemanaUtc()
+    {
+        var ahoraLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaHorariaClinica);
+        var diasDesdeLunes = ((int)ahoraLocal.DayOfWeek + 6) % 7;
+        var inicioSemanaLocal = DateTime.SpecifyKind(
+            ahoraLocal.Date.AddDays(-diasDesdeLunes),
+            DateTimeKind.Unspecified);
+
+        return TimeZoneInfo.ConvertTimeToUtc(inicioSemanaLocal, ZonaHorariaClinica);
     }
 }

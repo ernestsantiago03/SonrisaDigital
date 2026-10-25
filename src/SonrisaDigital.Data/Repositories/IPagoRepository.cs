@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -12,6 +13,12 @@ public interface IPagoRepository
     Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
         string? searchTerm = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calcula en SQL el total facturado, el total cobrado y cuántos tratamientos siguen
+    /// con saldo. Evita cargar todos los tratamientos y sus pagos solo para sumarlos.
+    /// </summary>
+    Task<PagoTotales> GetTotalesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Un tratamiento para registrarle un pago (rastreando los cambios).</summary>
     Task<TratamientoRealizado?> GetTratamientoAsync(

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -23,7 +24,8 @@ namespace SonrisaDigital.Data.Repositories;
 ///  - "AsNoTracking()": para consultas de solo lectura; hace la consulta más rápida.
 ///
 /// Orden de lectura del archivo:
-///  1) Consultas de lectura  → GetTratamientosAsync, GetDetalleAsync, GetByPacienteAsync, GetHistorialAsync
+///  1) Consultas de lectura  → GetTotalesAsync, GetTratamientosAsync, GetDetalleAsync,
+///                              GetByPacienteAsync, GetHistorialAsync
 ///  2) Antes de escribir     → GetTratamientoAsync (esta sí rastrea cambios)
 ///  3) Escritura             → AddAsync, SaveChangesAsync
 /// </summary>
@@ -32,6 +34,37 @@ public sealed class PagoRepository(ApplicationDbContext dbContext) : IPagoReposi
     // =========================================================================================
     // 1) CONSULTAS DE LECTURA  →  no cambian nada, solo traen datos
     // =========================================================================================
+
+    /// <summary>
+    /// Calcula los totales del módulo de pagos con consultas agregadas. Solo se consideran
+    /// tratamientos con precio, igual que en la lista de pagos.
+    /// </summary>
+    public async Task<PagoTotales> GetTotalesAsync(CancellationToken cancellationToken = default)
+    {
+        // Total facturado: suma de los precios de los tratamientos cobrables.
+        var totalFacturado = await dbContext.TratamientosRealizados
+            .AsNoTracking()
+            .Where(treatment => treatment.Precio > 0)
+            .SumAsync(treatment => (decimal?)treatment.Precio, cancellationToken) ?? 0m;
+
+        // Total cobrado: suma de los pagos que pertenecen a esos mismos tratamientos.
+        var totalCobrado = await dbContext.Pagos
+            .AsNoTracking()
+            .Where(payment => payment.TratamientoRealizado.Precio > 0)
+            .SumAsync(payment => (decimal?)payment.Monto, cancellationToken) ?? 0m;
+
+        // Un tratamiento sigue con saldo cuando su precio supera la suma de sus pagos.
+        // La suma se hace como subconsulta dentro de la misma consulta SQL.
+        var tratamientosConSaldo = await dbContext.TratamientosRealizados
+            .AsNoTracking()
+            .Where(treatment => treatment.Precio > 0)
+            .CountAsync(
+                treatment => treatment.Precio >
+                    (treatment.Pagos.Sum(payment => (decimal?)payment.Monto) ?? 0m),
+                cancellationToken);
+
+        return new PagoTotales(totalFacturado, totalCobrado, tratamientosConSaldo);
+    }
 
     /// <summary>
     /// Trae los tratamientos que pueden generar pagos (solo los que tienen precio), con su

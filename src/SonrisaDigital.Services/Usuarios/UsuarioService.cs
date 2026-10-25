@@ -41,15 +41,33 @@ public sealed class UsuarioService(
         }
 
         var users = await query.OrderBy(user => user.Nombre).ToListAsync(cancellationToken);
-        var result = new List<UsuarioListItemDto>(users.Count);
-
-        foreach (var user in users)
+        if (users.Count == 0)
         {
-            var roles = await userManager.GetRolesAsync(user);
-            result.Add(new UsuarioListItemDto(user.Id, user.Nombre, user.Email ?? string.Empty, user.Estado, user.FechaCreacion, roles.ToList()));
+            return [];
         }
 
-        return result;
+        // Se traen los roles de todos los usuarios en una sola consulta y se agrupan en
+        // memoria. Antes se llamaba a GetRolesAsync dentro del bucle, lo que generaba
+        // una consulta adicional por cada usuario.
+        var userIds = users.Select(user => user.Id).ToList();
+        var rolesPorUsuario = (await (
+                from userRole in dbContext.UserRoles.AsNoTracking()
+                join role in dbContext.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                where userIds.Contains(userRole.UserId)
+                orderby role.Name
+                select new { userRole.UserId, RoleName = role.Name })
+            .ToListAsync(cancellationToken))
+            .ToLookup(item => item.UserId, item => item.RoleName ?? string.Empty);
+
+        return users
+            .Select(user => new UsuarioListItemDto(
+                user.Id,
+                user.Nombre,
+                user.Email ?? string.Empty,
+                user.Estado,
+                user.FechaCreacion,
+                rolesPorUsuario[user.Id].ToList()))
+            .ToList();
     }
 
     public async Task<UsuarioFormDto?> GetFormAsync(string id, CancellationToken cancellationToken = default)

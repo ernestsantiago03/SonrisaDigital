@@ -1,12 +1,9 @@
-﻿@page "/"
+@page "/"
 @attribute [Authorize]
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Citas
 @using SonrisaDigital.Services.Citas.DTOs
-@using SonrisaDigital.Services.Pacientes
-@using SonrisaDigital.Services.Pacientes.DTOs
-@using SonrisaDigital.Services.Odontologos
-@using SonrisaDigital.Services.Odontologos.DTOs
+@using SonrisaDigital.Services.Dashboard
 @using SonrisaDigital.Services.Auditoria
 @using SonrisaDigital.Services.Auditoria.DTOs
 @using SonrisaDigital.Services.Autorizacion
@@ -14,8 +11,7 @@
 @using SonrisaDigital.Services.Pagos.DTOs
 @using System.Globalization
 @inject ICitaService CitaService
-@inject IPacienteService PacienteService
-@inject IOdontologoService OdontologoService
+@inject IDashboardService DashboardService
 @inject IAuditoriaService AuditoriaService
 @inject IPagoService PagoService
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -34,7 +30,7 @@
        "Pagos pendientes".
      - @code (al final):
          OnInitializedAsync     -> al abrir la página, cargar todo
-         LoadDashboardDataAsync -> 4 bloques: citas, pacientes/odontólogos, auditoría y pagos
+         LoadDashboardDataAsync -> 4 bloques: citas, métricas, auditoría y pagos
          Ayudantes              -> dinero, plurales, colores y símbolos de las etiquetas
    ============================================================================ *@
 
@@ -50,11 +46,16 @@
 
     @* --- TARJETAS DE ESTADÍSTICAS --- *@
     <div class="stats-grid">
-        <div class="stat-card">
-            <span>Citas hoy</span>
-            <strong>@totalCitasHoy</strong>
-            <small>@citasProgramadas pendientes de confirmar</small>
-        </div>
+        @* La tarjeta de citas solo se muestra a quien puede consultar citas. *@
+        <AuthorizeView Policy="Citas.Ver">
+            <Authorized>
+                <div class="stat-card">
+                    <span>Citas hoy</span>
+                    <strong>@totalCitasHoy</strong>
+                    <small>@citasProgramadas pendientes de confirmar</small>
+                </div>
+            </Authorized>
+        </AuthorizeView>
 
         <div class="stat-card">
             <span>Pacientes activos</span>
@@ -88,95 +89,100 @@
     </div>
 
     @* --- CUADRÍCULA PRINCIPAL DEL PANEL --- *@
-    <div class="dashboard-grid">
-        @* Citas del Día *@
-        <section class="dashboard-panel appointments-panel">
-            <div class="panel-heading">
-                <h2>Citas de hoy</h2>
-                <a href="/cita">Ver todas</a>
-            </div>
+    @* Las citas y su resumen solo se muestran a quien tiene permiso de consultarlas. *@
+    <AuthorizeView Policy="Citas.Ver">
+        <Authorized>
+            <div class="dashboard-grid">
+                @* Citas del Día *@
+                <section class="dashboard-panel appointments-panel">
+                    <div class="panel-heading">
+                        <h2>Citas de hoy</h2>
+                        <a href="/cita">Ver todas</a>
+                    </div>
 
-            <div class="table-scroll" style="max-height: 250px; overflow-y: auto;">
-                @if (loading)
-                {
-                    <div style="padding: 20px; text-align: center;">Cargando citas de hoy...</div>
-                }
-                else if (!citasHoy.Any())
-                {
-                    <div style="padding: 20px; text-align: center; color: #64748b;">No hay citas agendadas para el día de hoy.</div>
-                }
-                else
-                {
-                    <table class="data-table">
-                        <thead style="position: sticky; top: 0; background-color: #ffffff; z-index: 2;">
-                            <tr>
-                                <th>Hora</th>
-                                <th>Paciente</th>
-                                <th>Odontólogo</th>
-                                <th>Motivo</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var cita in citasHoy)
-                            {
-                                <tr>
-                                    <td class="mono">@cita.HoraInicio.ToString("HH:mm")</td>
-                                    <td><strong>@cita.PacienteNombre</strong></td>
-                                    <td>@cita.OdontologoNombre</td>
-                                    <td>@(cita.Motivo ?? "-")</td>
-                                    <td>
-                                        <span class="status @GetEstadoClassDashboard(cita.Estado)">
-                                            @GetEstadoTextoDashboard(cita.Estado)
-                                        </span>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </div>
-        </section>
+                    <div class="table-scroll" style="max-height: 250px; overflow-y: auto;">
+                        @if (loading)
+                        {
+                            <div style="padding: 20px; text-align: center;">Cargando citas de hoy...</div>
+                        }
+                        else if (!citasHoy.Any())
+                        {
+                            <div style="padding: 20px; text-align: center; color: #64748b;">No hay citas agendadas para el día de hoy.</div>
+                        }
+                        else
+                        {
+                            <table class="data-table">
+                                <thead style="position: sticky; top: 0; background-color: #ffffff; z-index: 2;">
+                                    <tr>
+                                        <th>Hora</th>
+                                        <th>Paciente</th>
+                                        <th>Odontólogo</th>
+                                        <th>Motivo</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var cita in citasHoy)
+                                    {
+                                        <tr>
+                                            <td class="mono">@cita.HoraInicio.ToString("HH:mm")</td>
+                                            <td><strong>@cita.PacienteNombre</strong></td>
+                                            <td>@cita.OdontologoNombre</td>
+                                            <td>@(cita.Motivo ?? "-")</td>
+                                            <td>
+                                                <span class="status @GetEstadoClassDashboard(cita.Estado)">
+                                                    @GetEstadoTextoDashboard(cita.Estado)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </section>
 
-        @* Resumen del Día *@
-        <section class="dashboard-panel day-summary">
-            <div class="panel-heading">
-                <h2>Resumen del día</h2>
-            </div>
+                @* Resumen del Día *@
+                <section class="dashboard-panel day-summary">
+                    <div class="panel-heading">
+                        <h2>Resumen del día</h2>
+                    </div>
 
-            <div class="summary-list">
-                <div>
-                </div>
-                <div>
-                    <span><i class="dot blue"></i>Programadas</span>
-                    <strong>@citasProgramadas</strong>
-                </div>
-                <div>
-                    <span><i class="dot green"></i>Confirmadas</span>
-                    <strong>@citasConfirmadas</strong>
-                </div>
-                <div>
-                    <span><i class="dot fuchsia"></i>Atendidas hoy</span>
-                    <strong>@citasAtendidas</strong>
-                </div>
-                <div>
-                    <span><i class="dot red"></i>Canceladas hoy</span>
-                    <strong>@citasCanceladas</strong>
-                </div>
-                <div>
-                    <span><i class="dot gray"></i>No asistio</span>
-                    <strong>@citasNoAsistio</strong>
-                </div>
-                <div>
-                </div>
-            </div>
+                    <div class="summary-list">
+                        <div>
+                        </div>
+                        <div>
+                            <span><i class="dot blue"></i>Programadas</span>
+                            <strong>@citasProgramadas</strong>
+                        </div>
+                        <div>
+                            <span><i class="dot green"></i>Confirmadas</span>
+                            <strong>@citasConfirmadas</strong>
+                        </div>
+                        <div>
+                            <span><i class="dot fuchsia"></i>Atendidas hoy</span>
+                            <strong>@citasAtendidas</strong>
+                        </div>
+                        <div>
+                            <span><i class="dot red"></i>Canceladas hoy</span>
+                            <strong>@citasCanceladas</strong>
+                        </div>
+                        <div>
+                            <span><i class="dot gray"></i>No asistio</span>
+                            <strong>@citasNoAsistio</strong>
+                        </div>
+                        <div>
+                        </div>
+                    </div>
 
-            <div class="summary-total">
-                <span>Total citas hoy</span>
-                <strong>@totalCitasHoy</strong>
+                    <div class="summary-total">
+                        <span>Total citas hoy</span>
+                        <strong>@totalCitasHoy</strong>
+                    </div>
+                </section>
             </div>
-        </section>
-    </div>
+        </Authorized>
+    </AuthorizeView>
 
     @* --- PANEL DE ACTIVIDAD RECIENTE --- *@
     @* La auditoría solo se muestra a quien tenga Auditoria.Ver. *@
@@ -227,6 +233,8 @@
     private PagosResumenDto resumen = new(0, 0, 0, 0);              // números de la tarjeta "Pagos pendientes"
     private bool loading = true;                                    // ¿la página sigue cargando?
     private bool puedeVerAuditoria;                                 // evita consultar la auditoría sin permiso
+    private bool puedeVerCitas;                                     // evita consultar las citas sin permiso
+    private bool puedeVerPagos;                                     // evita consultar los pagos sin permiso
 
     // ===== Contadores (métricas) que se calculan al cargar =====
     private int totalCitasHoy = 0;
@@ -255,36 +263,38 @@
         loading = true;
         try
         {
-            // Antes de consultar la auditoría se comprueba el permiso real del usuario.
-            // El panel también está dentro de AuthorizeView, pero así evitamos ejecutar
-            // la consulta y cargar datos sensibles cuando no corresponde (DASH-01).
+            // Los permisos se comprueban antes de consultar. Los paneles también están
+            // dentro de AuthorizeView, pero así evitamos ejecutar consultas que el
+            // usuario no puede usar y que antes terminaban en una excepción silenciosa.
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            puedeVerAuditoria = authenticationState.User.HasClaim(
-                PermissionCatalog.ClaimType,
-                "Auditoria.Ver");
+            var usuario = authenticationState.User;
+
+            puedeVerAuditoria = usuario.HasClaim(PermissionCatalog.ClaimType, "Auditoria.Ver");
+            puedeVerCitas = usuario.HasClaim(PermissionCatalog.ClaimType, "Citas.Ver");
+            puedeVerPagos = usuario.HasClaim(PermissionCatalog.ClaimType, "Pagos.Ver");
 
             DateOnly hoy = DateOnly.FromDateTime(DateTime.Now);
 
-            // 1. CARGAR CITAS DE HOY
-            var resultCitas = await CitaService.SearchAsync(hoy, null, null, null);
-            citasHoy = resultCitas.OrderBy(c => c.HoraInicio).ToList();
+            // 1. CITAS DE HOY
+            if (puedeVerCitas)
+            {
+                var resultCitas = await CitaService.SearchAsync(hoy, null, null, null);
+                citasHoy = resultCitas.OrderBy(c => c.HoraInicio).ToList();
 
-            totalCitasHoy = citasHoy.Count;
-            citasProgramadas = citasHoy.Count(c => c.Estado == EstadoCita.Programada);
-            citasConfirmadas = citasHoy.Count(c => c.Estado == EstadoCita.Confirmada);
-            citasAtendidas = citasHoy.Count(c => c.Estado == EstadoCita.Atendida);
-            citasCanceladas = citasHoy.Count(c => c.Estado == EstadoCita.Cancelada);
-            citasNoAsistio = citasHoy.Count(c => c.Estado == EstadoCita.NoAsistio);
+                totalCitasHoy = citasHoy.Count;
+                citasProgramadas = citasHoy.Count(c => c.Estado == EstadoCita.Programada);
+                citasConfirmadas = citasHoy.Count(c => c.Estado == EstadoCita.Confirmada);
+                citasAtendidas = citasHoy.Count(c => c.Estado == EstadoCita.Atendida);
+                citasCanceladas = citasHoy.Count(c => c.Estado == EstadoCita.Cancelada);
+                citasNoAsistio = citasHoy.Count(c => c.Estado == EstadoCita.NoAsistio);
+            }
 
-            // 2. CARGAR PACIENTES Y ODONTÓLOGOS
-            var pacientes = (await PacienteService.SearchAsync(null, null)).ToList();
-            var odontologos = (await OdontologoService.SearchAsync(null, null)).ToList();
-
-            pacientesActivos = pacientes.Count(p => p.Estado == EstadoRegistro.Activo);
-            odontologosActivos = odontologos.Count(o => o.Estado == EstadoRegistro.Activo);
-
-            var haceSieteDias = DateTime.Now.AddDays(-7);
-            pacientesNuevosSemana = pacientes.Count(p => p.FechaRegistro >= haceSieteDias);
+            // 2. MÉTRICAS DE PACIENTES Y ODONTÓLOGOS
+            // El servicio hace los conteos en SQL; la pantalla ya no carga las listas completas.
+            var stats = await DashboardService.GetStatsAsync();
+            pacientesActivos = stats.TotalPacientesActivos;
+            odontologosActivos = stats.TotalOdontologosActivos;
+            pacientesNuevosSemana = stats.PacientesRegistradosEstaSemana;
 
             // 3. ACTIVIDAD RECIENTE (solo con permiso de auditoría)
             if (puedeVerAuditoria)
@@ -293,7 +303,10 @@
             }
 
             // 4. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
-            resumen = await PagoService.GetResumenAsync();
+            if (puedeVerPagos)
+            {
+                resumen = await PagoService.GetResumenAsync();
+            }
         }
         catch (Exception)
         {

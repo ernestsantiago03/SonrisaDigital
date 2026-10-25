@@ -34,6 +34,27 @@ public sealed class OdontologoRepository(ApplicationDbContext dbContext) : IOdon
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<int> CountAsync(
+        EstadoRegistro? estado = null,
+        DateTime? registradosDesdeUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Odontologo> query = dbContext.Odontologos.AsNoTracking();
+
+        if (estado.HasValue)
+        {
+            query = query.Where(odontologo => odontologo.Estado == estado.Value);
+        }
+
+        if (registradosDesdeUtc.HasValue)
+        {
+            query = query.Where(odontologo => odontologo.FechaRegistro >= registradosDesdeUtc.Value);
+        }
+
+        // CountAsync se traduce a un COUNT en SQL; no se cargan los odontólogos en memoria.
+        return await query.CountAsync(cancellationToken);
+    }
+
     public Task<Odontologo?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
         dbContext.Odontologos
             .FirstOrDefaultAsync(odontologo => odontologo.Id == id, cancellationToken);
