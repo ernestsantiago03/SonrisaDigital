@@ -68,7 +68,21 @@ builder.Services.AddHttpsRedirection(options =>
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        // Tiempo que el servidor conserva el estado de un circuito desconectado
+        // para que el cliente pueda reconectarse sin perder el trabajo en curso.
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(5);
+
+        // Límite de circuitos desconectados retenidos en memoria. 100 cubre el
+        // uso de una clínica y evita que un pico de desconexiones consuma memoria
+        // sin control.
+        options.DisconnectedCircuitMaxRetained = 100;
+
+        // Los detalles técnicos de una excepción solo se envían al navegador en
+        // Development; en producción se evita filtrar rutas, SQL o datos internos.
+        options.DetailedErrors = builder.Environment.IsDevelopment();
+    });
 
 // Rate limiting : limita intentos de login por IP.
 builder.Services.AddRateLimiter(options =>

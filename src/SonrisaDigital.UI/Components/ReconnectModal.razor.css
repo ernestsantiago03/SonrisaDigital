@@ -1,0 +1,185 @@
+/* Mensajes que permanecen ocultos hasta que Blazor informa el estado. */
+.components-reconnect-first-attempt-visible,
+.components-reconnect-repeated-attempt-visible,
+.components-reconnect-failed-visible,
+.components-pause-visible,
+.components-resume-failed-visible,
+.components-rejoining-animation {
+    display: none;
+}
+
+/* Cada estado de Blazor muestra únicamente el mensaje que le corresponde. */
+#components-reconnect-modal.components-reconnect-show .components-reconnect-first-attempt-visible,
+#components-reconnect-modal.components-reconnect-show .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-paused .components-pause-visible,
+#components-reconnect-modal.components-reconnect-resume-failed .components-resume-failed-visible,
+#components-reconnect-modal.components-reconnect-retrying,
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-repeated-attempt-visible,
+#components-reconnect-modal.components-reconnect-retrying .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible {
+    display: block;
+}
+
+/* El diálogo usa la capa superior del navegador, por eso no necesita z-index. */
+#components-reconnect-modal {
+    width: min(22rem, calc(100vw - 2rem));
+    margin: 20vh auto;
+    padding: 2rem;
+    border: 0;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+    font-family: inherit;
+    opacity: 0;
+    transition: display 0.3s allow-discrete, overlay 0.3s allow-discrete;
+    animation: components-reconnect-modal-fade-out 0.3s both;
+}
+
+#components-reconnect-modal[open] {
+    animation:
+        components-reconnect-modal-slide-up 0.35s cubic-bezier(0.05, 0.89, 0.25, 1.02),
+        components-reconnect-modal-fade-in 0.25s ease-out;
+    animation-fill-mode: both;
+}
+
+#components-reconnect-modal::backdrop {
+    background: rgba(15, 23, 42, 0.55);
+    animation: components-reconnect-modal-fade-in 0.25s ease-out;
+}
+
+.components-reconnect-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+#components-reconnect-modal p {
+    margin: 0;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#components-reconnect-modal button {
+    min-height: 36px;
+    padding: 0 18px;
+    border: 1px solid #1d4ed8;
+    border-radius: 5px;
+    background: #2563eb;
+    color: #ffffff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+#components-reconnect-modal button:hover {
+    background: #1d4ed8;
+}
+
+#components-reconnect-modal button:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.35);
+    outline-offset: 2px;
+}
+
+.components-rejoining-animation {
+    position: relative;
+    width: 64px;
+    height: 64px;
+}
+
+.components-rejoining-animation div {
+    position: absolute;
+    border: 3px solid #2563eb;
+    opacity: 1;
+    border-radius: 50%;
+    animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.components-rejoining-animation div:nth-child(2) {
+    animation-delay: -0.5s;
+}
+
+@keyframes components-reconnect-modal-slide-up {
+    0% {
+        transform: translateY(18px) scale(0.97);
+    }
+
+    100% {
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes components-reconnect-modal-fade-in {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes components-reconnect-modal-fade-out {
+    0% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes components-rejoining-animation {
+    0% {
+        top: 32px;
+        left: 32px;
+        width: 0;
+        height: 0;
+        opacity: 0;
+    }
+
+    4.9% {
+        top: 32px;
+        left: 32px;
+        width: 0;
+        height: 0;
+        opacity: 0;
+    }
+
+    5% {
+        top: 32px;
+        left: 32px;
+        width: 0;
+        height: 0;
+        opacity: 1;
+    }
+
+    100% {
+        top: 0;
+        left: 0;
+        width: 64px;
+        height: 64px;
+        opacity: 0;
+    }
+}
+
+/* Respeta la preferencia del sistema de reducir animaciones. */
+@media (prefers-reduced-motion: reduce) {
+    #components-reconnect-modal {
+        opacity: 1;
+        transition: none;
+        animation: none;
+    }
+
+    #components-reconnect-modal[open] {
+        animation: none;
+    }
+
+    .components-rejoining-animation div {
+        animation: none;
+    }
+}

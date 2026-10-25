@@ -1,0 +1,49 @@
+@* Modal de reconexión de Blazor Server.
+   Blazor aplica clases al <dialog> según el estado de la conexión; el CSS
+   muestra el mensaje correspondiente y el script abre/cierra el diálogo,
+   reintenta la conexión o recarga la página cuando el circuito ya no existe. *@
+<script type="module" src="@Assets["Components/ReconnectModal.razor.js"]"></script>
+
+<dialog id="components-reconnect-modal" data-nosnippet>
+    <div class="components-reconnect-container">
+        <div class="components-rejoining-animation" aria-hidden="true">
+            <div></div>
+            <div></div>
+        </div>
+
+        <p class="components-reconnect-first-attempt-visible">
+            Reconectando con el servidor...
+        </p>
+
+        <p class="components-reconnect-repeated-attempt-visible">
+            No se pudo reconectar. Nuevo intento en
+            <span id="components-seconds-to-next-attempt"></span> segundos.
+        </p>
+
+        <p class="components-reconnect-failed-visible">
+            No fue posible reconectar.<br />
+            Reintenta o recarga la página.
+        </p>
+
+        <button id="components-reconnect-button"
+                class="components-reconnect-failed-visible"
+                type="button">
+            Reintentar
+        </button>
+
+        <p class="components-pause-visible">
+            La sesión fue pausada por el servidor.
+        </p>
+
+        <p class="components-resume-failed-visible">
+            No fue posible reanudar la sesión.<br />
+            Reintenta o recarga la página.
+        </p>
+
+        <button id="components-resume-button"
+                class="components-pause-visible components-resume-failed-visible"
+                type="button">
+            Reanudar
+        </button>
+    </div>
+</dialog>

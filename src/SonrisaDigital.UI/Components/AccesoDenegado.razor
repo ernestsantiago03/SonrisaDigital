@@ -1,6 +1,6 @@
 @page "/acceso-denegado"
 @attribute [AllowAnonymous]
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [ExcludeFromInteractiveRouting]
 
 <PageTitle>Sin permisos · Sonrisa Digital</PageTitle>
 
@@ -22,11 +22,15 @@ else
 }
 
 @code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
     private bool esAnonimo;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        esAnonimo = estado.User.Identity?.IsAuthenticated != true;
+        // En SSR estático la cookie se refleja en HttpContext.User; el
+        // AuthenticationStateProvider del circuito no está disponible aquí.
+        esAnonimo = HttpContext.User.Identity?.IsAuthenticated != true;
     }
 }
