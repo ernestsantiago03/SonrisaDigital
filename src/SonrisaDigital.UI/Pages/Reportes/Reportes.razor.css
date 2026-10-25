@@ -111,8 +111,10 @@
     min-height: 36px;
     padding: 0 14px;
     border-radius: 5px;
+    font-family: inherit;
     font-size: 12px;
     font-weight: 650;
+    text-decoration: none;
     cursor: pointer;
     transition: background-color 140ms ease, border-color 140ms ease;
 }

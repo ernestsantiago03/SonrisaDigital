@@ -5,8 +5,7 @@
 @using SonrisaDigital.Services.Reportes
 @using SonrisaDigital.Services.Reportes.DTOs
 @inject IReporteService ReporteService
-@inject IReportePdfService ReportePdfService
-@inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 @* ============================================================================
    PÁGINA: Reportes                 Ruta: /reportes
@@ -23,7 +22,7 @@
          AplicarPeriodo      -> recalcula el rango y recarga el panel
          AplicarFiltros      -> recarga el resumen y la pestaña activa
          CargarPestana       -> consulta el reporte seleccionado
-         DescargarPdf        -> genera el PDF de la pestaña activa
+         CrearUrlPdf         -> construye la URL HTTP de descarga del PDF
    ============================================================================ *@
 
 <PageTitle>Reportes · Sonrisa Digital</PageTitle>
@@ -192,11 +191,11 @@
                     </button>
                     @* El PDF se permite aunque no haya registros, para dejar
                        constancia del período y los filtros consultados. *@
-                    <button class="secondary-action"
-                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Citas)'
-                            disabled="@(cargandoPestana || cargandoPdf)">
-                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
-                    </button>
+                    <a class="secondary-action"
+                       href="@CrearUrlPdf(TipoReportePdf.Citas)"
+                       data-enhance-nav="false">
+                        Descargar PDF
+                    </a>
                 </div>
             </header>
 
@@ -266,11 +265,11 @@
                     <span>@pacientes.Count paciente(s) atendido(s) en el período</span>
                 </div>
                 <div class="report-filters">
-                    <button class="secondary-action"
-                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Pacientes)'
-                            disabled="@(cargandoPestana || cargandoPdf)">
-                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
-                    </button>
+                    <a class="secondary-action"
+                       href="@CrearUrlPdf(TipoReportePdf.Pacientes)"
+                       data-enhance-nav="false">
+                        Descargar PDF
+                    </a>
                 </div>
             </header>
 
@@ -364,11 +363,11 @@
                     <button class="primary-action" @onclick="AplicarFiltrosAsync" disabled="@cargandoPestana">
                         Aplicar
                     </button>
-                    <button class="secondary-action"
-                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Tratamientos)'
-                            disabled="@(cargandoPestana || cargandoPdf)">
-                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
-                    </button>
+                    <a class="secondary-action"
+                       href="@CrearUrlPdf(TipoReportePdf.Tratamientos)"
+                       data-enhance-nav="false">
+                        Descargar PDF
+                    </a>
                 </div>
             </header>
 
@@ -454,11 +453,11 @@
                     <button class="primary-action" @onclick="AplicarFiltrosAsync" disabled="@cargandoPestana">
                         Aplicar
                     </button>
-                    <button class="secondary-action"
-                            @onclick='() => DescargarPdfAsync(TipoReportePdf.Pagos)'
-                            disabled="@(cargandoPestana || cargandoPdf)">
-                        @(cargandoPdf ? "Generando PDF..." : "Descargar PDF")
-                    </button>
+                    <a class="secondary-action"
+                       href="@CrearUrlPdf(TipoReportePdf.Pagos)"
+                       data-enhance-nav="false">
+                        Descargar PDF
+                    </a>
                 </div>
             </header>
 
@@ -548,8 +547,6 @@
 
     private bool cargandoResumen;
     private bool cargandoPestana;
-    // Evita solicitar dos PDF simultáneos mientras QuestPDF arma el documento.
-    private bool cargandoPdf;
     private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
@@ -775,48 +772,42 @@
     }
 
     /// <summary>
-    /// Genera el PDF del reporte de la pestaña activa. Se reutiliza el filtro
-    /// actual para que el archivo incluya el mismo período, estado y odontólogo
-    /// que se están viendo en pantalla.
+    /// Construye la URL HTTP del PDF con los mismos filtros que se ven en
+    /// pantalla. El navegador descarga el archivo directamente, sin pasar por
+    /// el circuito de Blazor ni por base64.
     /// </summary>
-    private async Task DescargarPdfAsync(TipoReportePdf tipo)
+    private string CrearUrlPdf(TipoReportePdf tipo)
     {
-        if (cargandoPdf)
+        var filtro = CrearFiltro();
+
+        var parametros = new Dictionary<string, object?>
         {
-            return;
+            ["tipo"] = tipo.ToString(),
+            ["desde"] = filtro.Desde.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["hasta"] = filtro.Hasta.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
+
+        if (filtro.OdontologoId is int odontologoId)
+        {
+            parametros["odontologoId"] = odontologoId;
         }
 
-        cargandoPdf = true;
-        errorMessage = null;
+        if (filtro.EstadoCitaFiltro is EstadoCita estadoCita)
+        {
+            parametros["estadoCita"] = estadoCita.ToString();
+        }
 
-        try
+        if (filtro.EstadoTratamientoFiltro is EstadoTratamiento estadoTratamiento)
         {
-            var pdf = await ReportePdfService.GenerarAsync(tipo, CrearFiltro());
-            var archivo = $"reporte-{tipo.ToString().ToLowerInvariant()}-{desde:yyyyMMdd}-{hasta:yyyyMMdd}.pdf";
+            parametros["estadoTratamiento"] = estadoTratamiento.ToString();
+        }
 
-            // El PDF se envía como base64 porque QuestPDF lo construye en el
-            // servidor y el navegador solo necesita recibir el archivo final.
-            await JS.InvokeVoidAsync(
-                "sonrisaDescargarPdf",
-                archivo,
-                Convert.ToBase64String(pdf));
-        }
-        catch (UnauthorizedAccessException ex)
+        if (filtro.MetodoPagoFiltro is MetodoPago metodoPago)
         {
-            errorMessage = ex.Message;
+            parametros["metodoPago"] = metodoPago.ToString();
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            errorMessage = ex.Message;
-        }
-        catch
-        {
-            errorMessage = "No fue posible generar el PDF del reporte.";
-        }
-        finally
-        {
-            cargandoPdf = false;
-        }
+
+        return Navigation.GetUriWithQueryParameters("/reportes/pdf", parametros);
     }
 
     /// <summary>Formato de dinero usado en las tarjetas y las tablas: sin decimales cuando el monto es entero.</summary>

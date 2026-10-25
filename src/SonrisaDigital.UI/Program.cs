@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Net;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 using SonrisaDigital.Data;
 using SonrisaDigital.UI.Components;
@@ -12,6 +14,8 @@ using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Odontograma;
+using SonrisaDigital.Services.Reportes;
+using SonrisaDigital.Services.Reportes.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -273,6 +277,126 @@ app.MapPost("/account/logout", async (HttpContext context, IAntiforgery antiforg
     return Results.Redirect("/login");
 }).AllowAnonymous();
 
+// Descarga de reportes en PDF por HTTP.
+// El documento se genera en el servidor y se entrega con Content-Disposition
+// attachment, sin base64 ni transporte por el circuito de Blazor.
+app.MapGet("/reportes/pdf", async (
+    HttpContext context,
+    string? tipo,
+    DateOnly? desde,
+    DateOnly? hasta,
+    int? odontologoId,
+    string? estadoCita,
+    string? estadoTratamiento,
+    string? metodoPago,
+    IReportePdfService pdfService,
+    ICurrentUserService currentUserService,
+    ILoggerFactory loggerFactory,
+    CancellationToken cancellationToken) =>
+{
+    if (!Enum.TryParse<TipoReportePdf>(tipo, ignoreCase: true, out var tipoReporte)
+        || !Enum.IsDefined(tipoReporte))
+    {
+        return Results.BadRequest(new { error = "Tipo de reporte inválido." });
+    }
+
+    if (desde is null || hasta is null)
+    {
+        return Results.BadRequest(new
+        {
+            error = "Debes indicar la fecha inicial y la fecha final."
+        });
+    }
+
+    var fechaDesde = desde.Value;
+    var fechaHasta = hasta.Value;
+
+    if (fechaHasta < fechaDesde)
+    {
+        return Results.BadRequest(new
+        {
+            error = "La fecha final no puede ser anterior a la fecha inicial."
+        });
+    }
+
+    if (!TryParseFiltro<EstadoCita>(estadoCita, out var filtroEstadoCita))
+    {
+        return Results.BadRequest(new { error = "Estado de cita inválido." });
+    }
+
+    if (!TryParseFiltro<EstadoTratamiento>(estadoTratamiento, out var filtroEstadoTratamiento))
+    {
+        return Results.BadRequest(new { error = "Estado de tratamiento inválido." });
+    }
+
+    if (!TryParseFiltro<MetodoPago>(metodoPago, out var filtroMetodoPago))
+    {
+        return Results.BadRequest(new { error = "Método de pago inválido." });
+    }
+
+    // El endpoint corre en una petición HTTP distinta al circuito de Blazor.
+    // ICurrentUserService se llena normalmente desde MainLayout, por lo que aquí
+    // debe alimentarse desde el usuario autenticado de esta petición.
+    var usuario = context.User;
+    currentUserService.Establecer(
+        usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+        usuario.FindFirst(ClaimTypes.GivenName)?.Value
+            ?? usuario.FindFirst(ClaimTypes.Name)?.Value,
+        usuario);
+
+    var filtro = new ReporteFiltroDto(
+        fechaDesde,
+        fechaHasta,
+        odontologoId,
+        filtroEstadoCita,
+        filtroEstadoTratamiento,
+        filtroMetodoPago);
+
+    try
+    {
+        var pdf = await pdfService.GenerarAsync(
+            tipoReporte,
+            filtro,
+            cancellationToken);
+
+        var nombreArchivo =
+            $"reporte-{tipoReporte.ToString().ToLowerInvariant()}-" +
+            $"{fechaDesde:yyyyMMdd}-{fechaHasta:yyyyMMdd}.pdf";
+
+        // Los reportes contienen datos clínicos y financieros: no deben quedar
+        // almacenados en la caché del navegador ni de un proxy.
+        context.Response.Headers["Cache-Control"] = "no-store";
+
+        return Results.File(pdf, "application/pdf", nombreArchivo);
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Results.Json(
+            new { error = "No tienes permiso para descargar este reporte." },
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        loggerFactory
+            .CreateLogger("Reportes.Pdf")
+            .LogError(
+                ex,
+                "Error generando el PDF. Tipo: {Tipo}, Desde: {Desde}, Hasta: {Hasta}",
+                tipoReporte,
+                fechaDesde,
+                fechaHasta);
+
+        return Results.Json(
+            new { error = "No fue posible generar el PDF del reporte." },
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
+})
+.RequireAuthorization("Reportes.Ver");
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
@@ -280,4 +404,26 @@ app.Run();
 
 static bool IsLocalUrl(string? url) =>
     !string.IsNullOrWhiteSpace(url) && url.StartsWith('/') && !url.StartsWith("//") && !url.Contains('\\');
+
+// Convierte un valor de query string en un enum opcional. Devuelve true cuando
+// el valor está vacío (sin filtro) o cuando es un nombre válido del enum.
+static bool TryParseFiltro<T>(string? valor, out T? resultado)
+    where T : struct, Enum
+{
+    resultado = null;
+
+    if (string.IsNullOrWhiteSpace(valor))
+    {
+        return true;
+    }
+
+    if (!Enum.TryParse<T>(valor, ignoreCase: true, out var parseado)
+        || !Enum.IsDefined(parseado))
+    {
+        return false;
+    }
+
+    resultado = parseado;
+    return true;
+}
 
