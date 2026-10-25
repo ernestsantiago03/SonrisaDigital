@@ -241,6 +241,8 @@ Inicia sesión con esas credenciales y, de inmediato:
 
 Antes de desplegar con clientes reales:
 
+> La guía completa de instalación, configuración, respaldos y operación está en [Despliegue y operación en producción](docs/06-despliegue.md).
+
 - [ ] Cambiar la contraseña del administrador inicial.
 - [ ] Mover cadenas de conexión y credenciales a **variables de entorno** o un almacén de secretos.
 - [ ] No versionar `appsettings.Development.json` ni archivos `.env`.
@@ -262,6 +264,7 @@ Antes de desplegar con clientes reales:
 | [Módulos y funcionalidades](docs/03-modulos-funcionalidades.md) | Comportamiento esperado de cada módulo. |
 | [Modelo de dominio](docs/04-modelos-dominio.md) | Entidades, relaciones y reglas del negocio. |
 | [Arquitectura](docs/05-arquitectura.md) | Capas, dependencias y decisiones técnicas. |
+| [Despliegue y operación](docs/06-despliegue.md) | IIS, nginx, Docker, HTTPS, migraciones, respaldos y rollback. |
 
 ---
 
@@ -274,7 +277,7 @@ Antes de desplegar con clientes reales:
 - [ ] Portal de pacientes (consulta de citas e historial).
 - [ ] Soporte multi-clínica / multi-sucursal.
 - [ ] Pruebas automatizadas y pipeline de integración continua.
-- [ ] Despliegue con Docker e IIS documentado.
+- [x] Despliegue con Docker e IIS documentado.
 - [ ] Interfaz en inglés (i18n).
 
 ---
