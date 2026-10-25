@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Threading.RateLimiting;
+using SonrisaDigital.Data;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
@@ -102,6 +104,39 @@ using (var scope = app.Services.CreateScope())
 // reales antes de que HSTS, HTTPS o la autenticacion tomen decisiones.
 app.UseForwardedHeaders();
 
+// Health checks expuestos sin autenticacion y antes de la redireccion HTTPS,
+// para que un balanceador pueda consultarlos por HTTP sin recibir un 308.
+// /health -> live: indica que la aplicacion esta en marcha.
+// /health/ready -> ready: ademas valida que SQL Server responda.
+app.MapGet("/health", (ApplicationDbContext db) =>
+{
+    return Results.Json(new { status = "Healthy" });
+}).AllowAnonymous();
+
+app.MapGet("/health/ready", async (ApplicationDbContext db) =>
+{
+    try
+    {
+        var dbReady = await db.Database.CanConnectAsync();
+        if (!dbReady)
+        {
+            return Results.Json(
+                new { status = "Unhealthy", database = "unreachable" },
+                statusCode: 503);
+        }
+
+        return Results.Json(new { status = "Healthy", database = "reachable" });
+    }
+    catch
+    {
+        // No se expone el detalle de la excepcion (cadena de conexion,
+        // servidor, etc.) para no filtrar informacion interna.
+        return Results.Json(
+            new { status = "Unhealthy", database = "error" },
+            statusCode: 503);
+    }
+}).AllowAnonymous();
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -131,6 +166,57 @@ app.Use(async (context, next) =>
         "frame-ancestors 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self';";
+    await next();
+});
+
+// Los endpoints de salud se responden sin forzar HTTPS para que un balanceador
+// pueda consultarlos por HTTP sin recibir un 308. Se colocan antes de
+// UseHttpsRedirection y devuelven la respuesta directamente, sin pasar al resto
+// del pipeline.
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
+    {
+        await next();
+        return;
+    }
+
+    var db = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+    if (context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.ContentType = "application/json; charset=utf-8";
+        await context.Response.WriteAsync("{\"status\":\"Healthy\"}");
+        return;
+    }
+
+    if (context.Request.Path.Equals("/health/ready", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var dbReady = await db.Database.CanConnectAsync();
+            if (!dbReady)
+            {
+                context.Response.StatusCode = 503;
+                context.Response.ContentType = "application/json; charset=utf-8";
+                await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"unreachable\"}");
+                return;
+            }
+
+            context.Response.ContentType = "application/json; charset=utf-8";
+            await context.Response.WriteAsync("{\"status\":\"Healthy\",\"database\":\"reachable\"}");
+            return;
+        }
+        catch
+        {
+            // No se expone el detalle de la excepcion para no filtrar informacion interna.
+            context.Response.StatusCode = 503;
+            context.Response.ContentType = "application/json; charset=utf-8";
+            await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"error\"}");
+            return;
+        }
+    }
+
     await next();
 });
 
@@ -194,3 +280,4 @@ app.Run();
 
 static bool IsLocalUrl(string? url) =>
     !string.IsNullOrWhiteSpace(url) && url.StartsWith('/') && !url.StartsWith("//") && !url.Contains('\\');
+
