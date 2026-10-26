@@ -127,7 +127,7 @@ El login de demostración fue retirado de la interfaz. Antes de vender, verifica
 - [x] Revisar dependencias: no hay paquetes vulnerables y Dependabot está configurado.
 - [x] Confirmar que no hay secretos en el repositorio ni en el artefacto publicado.
 - [ ] Revisar la política de contraseñas y retención de datos clínicos.
-- [ ] Confirmar la regla de Pull Request y la protección de `main` en GitHub.
+- [x] Confirmar la regla de Pull Request y la protección de `main`. El ruleset `Proteccion Main` está activo: exige PR, historial lineal y bloquea borrado y force push; no exige checks obligatorios.
 - [x] Definir la política de actualización de Dependabot.
 
 ### 4.7. Criterios de salida de 6A
