@@ -243,6 +243,7 @@ Antes de desplegar con clientes reales:
 
 > La guía completa de instalación, configuración, respaldos y operación está en [Despliegue y operación en producción](docs/06-despliegue.md).
 
+- [ ] Retirar el login de demostración y la generación automática de contraseñas.
 - [ ] Cambiar la contraseña del administrador inicial.
 - [ ] Mover cadenas de conexión y credenciales a **variables de entorno** o un almacén de secretos.
 - [ ] No versionar `appsettings.Development.json` ni archivos `.env`.
@@ -265,6 +266,9 @@ Antes de desplegar con clientes reales:
 | [Modelo de dominio](docs/04-modelos-dominio.md) | Entidades, relaciones y reglas del negocio. |
 | [Arquitectura](docs/05-arquitectura.md) | Capas, dependencias y decisiones técnicas. |
 | [Despliegue y operación](docs/06-despliegue.md) | IIS, nginx, Docker, HTTPS, migraciones, respaldos y rollback. |
+| [Pruebas, integración continua y respaldos](docs/07-pruebas-y-ci.md) | Pruebas unitarias, integración, concurrencia, E2E, cobertura, CI y respaldos. |
+| [Puesta en producción y aceptación](docs/08-puesta-en-produccion.md) | Cierre técnico, despliegue, cutover, aceptación y go-live. |
+| [Cambios de red y despliegue](docs/CAMBIOS-RED-Y-DESPLIEGUE.md) | Registro técnico acumulativo de las mejoras implementadas. |
 
 ---
 
@@ -276,8 +280,9 @@ Antes de desplegar con clientes reales:
 - [ ] Recordatorios de citas por correo o WhatsApp.
 - [ ] Portal de pacientes (consulta de citas e historial).
 - [ ] Soporte multi-clínica / multi-sucursal.
-- [ ] Pruebas automatizadas y pipeline de integración continua.
+- [x] Pruebas automatizadas y pipeline de integración continua.
 - [x] Despliegue con Docker e IIS documentado.
+- [ ] Puesta en producción y aceptación con la clínica.
 - [ ] Interfaz en inglés (i18n).
 
 ---
