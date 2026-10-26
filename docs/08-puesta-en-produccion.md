@@ -139,7 +139,7 @@ El login de demostración fue retirado de la interfaz. Antes de vender, verifica
 - [x] La migración está probada en una copia de la base.
 - [x] El respaldo y la restauración fueron verificados en local.
 - [x] El runbook y el rollback están documentados.
-- [ ] El pipeline está en verde y el artefacto fue revisado.
+- [x] El pipeline del PR #11 está en verde (`build-test` y `e2e`); el artefacto local se revisó y `publish` se ejecutará al fusionar.
 - [ ] No hay defectos abiertos de severidad alta o crítica.
 
 ---
