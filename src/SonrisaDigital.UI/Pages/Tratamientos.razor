@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = "Tratamientos.Ver")]
 @implements IDisposable
 @using System.Globalization
+@using System.Threading
 @using SonrisaDigital.Data.Common
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Tratamientos
@@ -635,6 +636,12 @@
     private bool cancelando;
     private bool opcionesCargadas;
 
+    // La página comparte un único ApplicationDbContext. Si el usuario cambia de
+    // pestaña mientras una tabla sigue cargando, las dos consultas se cruzarían
+    // y EF Core lanzaría "A second operation was started on this context".
+    // Este semáforo atiende una carga (o la lectura de opciones) a la vez.
+    private readonly SemaphoreSlim cargaLock = new(1, 1);
+
     private PagedResult<TratamientoListItemDto> catalogo = PagedResult<TratamientoListItemDto>.Empty(PageSize);
     private PagedResult<TratamientoRealizadoListItemDto> realizados = PagedResult<TratamientoRealizadoListItemDto>.Empty(PageSize);
 
@@ -687,6 +694,8 @@
 
     private async Task CargarCatalogoAsync()
     {
+        // Se espera a que termine cualquier otra consulta de la página.
+        await cargaLock.WaitAsync();
         cargando = true;
         errorMessage = null;
 
@@ -705,11 +714,14 @@
         finally
         {
             cargando = false;
+            cargaLock.Release();
         }
     }
 
     private async Task CargarRealizadosAsync()
     {
+        // Se espera a que termine cualquier otra consulta de la página.
+        await cargaLock.WaitAsync();
         cargando = true;
         errorMessage = null;
 
@@ -728,6 +740,7 @@
         finally
         {
             cargando = false;
+            cargaLock.Release();
         }
     }
 
@@ -1052,8 +1065,17 @@
             return true;
         }
 
+        // La lectura de opciones también usa el DbContext compartido: espera a
+        // que termine la carga de la tabla que esté en curso.
+        await cargaLock.WaitAsync();
         try
         {
+            // Otra llamada pudo haber cargado las opciones mientras se esperaba.
+            if (opcionesCargadas)
+            {
+                return true;
+            }
+
             // Las consultas se ejecutan una detrás de otra a propósito: el repositorio y el
             // servicio comparten el mismo ApplicationDbContext (scoped) y EF Core no permite
             // dos operaciones simultáneas sobre el mismo contexto.
@@ -1069,6 +1091,10 @@
             Logger.LogError(ex, "No se pudieron cargar las opciones del formulario de tratamientos realizados.");
             errorMessage = "No fue posible cargar pacientes, odontólogos y tratamientos.";
             return false;
+        }
+        finally
+        {
+            cargaLock.Release();
         }
     }
 
