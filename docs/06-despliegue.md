@@ -91,6 +91,7 @@ ASP.NET Core traduce `__` a `:` en la jerarquía de configuración:
 | `Authentication__AdminEmail` | `Authentication:AdminEmail` | Obligatoria para crear el administrador | Correo del administrador inicial |
 | `Authentication__AdminPassword` | `Authentication:AdminPassword` | Obligatoria para crear el administrador | Contraseña inicial del administrador |
 | `AllowedHosts` | `AllowedHosts` | Sí | Dominio o dominios separados por `;` |
+| `DataProtection__KeysPath` | `DataProtection:KeysPath` | Sí en producción | Carpeta persistente y respaldada para las claves de Data Protection |
 | `ReverseProxy__ForwardLimit` | `ReverseProxy:ForwardLimit` | No | Número de proxies de confianza; por defecto `1` |
 | `ReverseProxy__KnownProxies__0` | `ReverseProxy:KnownProxies[0]` | Solo si el proxy no es loopback | IP del proxy |
 | `Logging__LogLevel__Default` | `Logging:LogLevel:Default` | No | Nivel de log global |
@@ -125,6 +126,18 @@ Ejecutar en PowerShell **como administrador**. Los valores son ejemplos: reempla
     "Authentication__AdminPassword",
     "CAMBIA_ESTA_CLAVE_INICIAL",
     "Machine")
+
+[Environment]::SetEnvironmentVariable(
+    "DataProtection__KeysPath",
+    "C:\Sites\SonrisaDigital\data-protection-keys",
+    "Machine")
+```
+
+Crear la carpeta de claves antes de arrancar y dar permiso de escritura a la identidad del pool:
+
+```powershell
+New-Item -ItemType Directory -Path "C:\Sites\SonrisaDigital\data-protection-keys" -Force
+icacls "C:\Sites\SonrisaDigital\data-protection-keys" /grant "IIS APPPOOL\SonrisaDigital:(OI)(CI)(M)" /T
 ```
 
 Después de cambiar variables de máquina, **reciclar el pool de IIS** o reiniciar el servicio para que el proceso las lea.
@@ -142,6 +155,7 @@ AllowedHosts=clinica.ejemplo.com;www.clinica.ejemplo.com
 ConnectionStrings__DefaultConnection=Server=sql01.ejemplo.local,1433;Database=SonrisaDigital;User Id=sonrisa_app;Password=CAMBIA_ESTA_CLAVE;Encrypt=True;TrustServerCertificate=False;MultipleActiveResultSets=True;
 Authentication__AdminEmail=admin@clinica.ejemplo.com
 Authentication__AdminPassword=CAMBIA_ESTA_CLAVE_INICIAL
+DataProtection__KeysPath=/var/lib/sonrisadigital/data-protection-keys
 ReverseProxy__ForwardLimit=1
 ```
 
@@ -156,12 +170,15 @@ El archivo `src/SonrisaDigital.UI/appsettings.Production.json` está versionado,
 
 - `ConnectionStrings:DefaultConnection` está vacío.
 - `AllowedHosts` contiene `REEMPLAZAR_CON_DOMINIO_REAL`.
+- `DataProtection:KeysPath` está vacío.
 - `ReverseProxy:KnownProxies` está vacío.
 - El logging baja a `Warning` y `SonrisaDigital: Error`.
 
 No editar ese archivo con la cadena real ni con contraseñas. Las variables de entorno sobrescriben sus valores.
 
-> Si `AllowedHosts` queda con el marcador `REEMPLAZAR_CON_DOMINIO_REAL`, las peticiones al dominio real pueden responder `400 Bad Request`. Configurar el dominio antes de la puesta en marcha.
+La aplicación valida esta configuración al arrancar fuera de Development. Si `AllowedHosts` sigue con el marcador, la cadena de conexión está vacía o falta `DataProtection:KeysPath`, **el proceso no arranca** y escribe los errores en el log. Esto evita publicar una instancia con valores de ejemplo. En Development la validación no se aplica para no romper el runner E2E.
+
+> El archivo `appsettings.Development.json` y su plantilla quedaron excluidos de `dotnet publish`. El artefacto de producción solo incluye `appsettings.json` y `appsettings.Production.json`.
 
 ### 3.5. Cadena de conexión de producción
 
@@ -258,7 +275,7 @@ dotnet publish src/SonrisaDigital.UI/SonrisaDigital.UI.csproj `
 El resultado incluye:
 
 - `SonrisaDigital.UI.dll`
-- `appsettings.json` y `appsettings.Production.json`
+- `appsettings.json` y `appsettings.Production.json` (no se publica `appsettings.Development.json`)
 - `web.config` (necesario para IIS)
 - `wwwroot` y los assets estáticos generados
 - Dependencias de la aplicación
@@ -296,7 +313,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -Configuration Release
 ```
 
-El proyecto debe compilar con **0 errores y 0 warnings** y las 30 pruebas deben aprobarse. El runner E2E crea una base temporal, aplica las migraciones, arranca la aplicación y recorre login, odontólogo, paciente, cita, tratamiento y pago; al terminar elimina la base y detiene la aplicación. No usa datos de producción.
+El proyecto debe compilar con **0 errores y 0 warnings** y las 35 pruebas deben aprobarse. El runner E2E crea una base temporal, aplica las migraciones, arranca la aplicación y recorre login, odontólogo, paciente, cita, tratamiento y pago; al terminar elimina la base y detiene la aplicación. No usa datos de producción.
 
 Si el equipo de publicación no tiene Node.js o SQL Server local, ejecutar el pipeline de GitHub Actions y descargar el artefacto solo cuando `build-test` y `e2e` estén en verde. En cualquier caso, antes de abrir el sistema a los usuarios hay que completar las pruebas manuales de humo descritas al final de esta guía.
 
@@ -492,16 +509,24 @@ Si WebSocket no funciona, SignalR puede intentar otros transportes, pero la expe
 
 ### 6.6. Data Protection
 
-La aplicación usa la configuración predeterminada de Data Protection de ASP.NET Core para firmar cookies y proteger el estado de autenticación. En Windows, el key ring predeterminado se guarda bajo `%LOCALAPPDATA%\ASP.NET\DataProtection-Keys`; en Linux queda bajo el home del usuario que ejecuta el servicio.
+Data Protection firma las cookies de autenticación y protege el estado de los circuitos de Blazor. La aplicación lee la ruta desde `DataProtection:KeysPath`:
 
-Para producción:
+```json
+"DataProtection": {
+  "KeysPath": "C:\\Sites\\SonrisaDigital\\data-protection-keys"
+}
+```
 
-- Asegurar que el pool cargue el perfil de usuario (`Load User Profile = True`) si se usa el key ring predeterminado. Sin perfil, el pool puede no tener una carpeta persistente donde guardar las claves.
-- Incluir la carpeta de claves en el respaldo.
+Comportamiento:
+
+- Si la ruta está configurada, las claves se guardan ahí con `PersistKeysToFileSystem` y se identifican con el nombre de aplicación `SonrisaDigital`.
+- En producción la ruta es **obligatoria**: si falta, la aplicación no arranca. En Development puede quedar vacía y se usa el key ring predeterminado.
+- La carpeta debe estar **fuera de la carpeta de publicación**, con permiso de escritura para la cuenta de la aplicación y respaldo periódico.
+- En IIS se recomienda `C:\Sites\SonrisaDigital\data-protection-keys`; en Linux, `/var/lib/sonrisadigital/data-protection-keys`; en Docker, un volumen persistente.
 - Si se escala a varios servidores, compartir el mismo key ring entre las instancias.
 - No borrar la carpeta de claves al publicar una nueva versión.
 
-La aplicación **no configura una ruta explícita** de Data Protection. Si se necesita una carpeta propia (por ejemplo, para compartirla entre servidores o para Docker), hay que agregar la configuración en `Program.cs` con `AddDataProtection().PersistKeysToFileSystem(...)` y volver a publicar. No basta con crear la carpeta.
+La aplicación crea la carpeta si no existe, pero no puede concederse permisos a sí misma. La cuenta de servicio debe tenerlos antes del arranque.
 
 Si las claves se pierden o cambian, los usuarios deben iniciar sesión de nuevo. Esto no corrompe datos, pero afecta la continuidad.
 
@@ -681,6 +706,10 @@ WORKDIR /app
 COPY --from=build --chown=app:app /app/publish .
 USER app
 
+# Carpeta persistente para las claves de Data Protection. El volumen se monta
+# sobre esta ruta para que las sesiones sobrevivan a la recreación del contenedor.
+RUN mkdir -p /home/app/.aspnet/DataProtection-Keys
+
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
@@ -703,6 +732,8 @@ docker run -d \
   -e ConnectionStrings__DefaultConnection="Server=sql01.ejemplo.local,1433;Database=SonrisaDigital;User Id=sonrisa_app;Password=CAMBIA_ESTA_CLAVE;Encrypt=True;TrustServerCertificate=False;MultipleActiveResultSets=True;" \
   -e Authentication__AdminEmail="admin@clinica.ejemplo.com" \
   -e Authentication__AdminPassword="CAMBIA_ESTA_CLAVE_INICIAL" \
+  -e DataProtection__KeysPath="/home/app/.aspnet/DataProtection-Keys" \
+  -v sonrisadigital-keys:/home/app/.aspnet/DataProtection-Keys \
   sonrisadigital:1.0
 ```
 
@@ -712,7 +743,7 @@ Recomendaciones:
 - No incluir contraseñas en la imagen ni en el `Dockerfile`.
 - Usar un archivo de entorno con permisos restringidos o un gestor de secretos; no dejar la contraseña en el historial del shell.
 - Mantener SQL Server fuera del contenedor para producción, salvo que se administre con respaldo, licencia y monitoreo adecuados.
-- **Persistir las claves de Data Protection.** La aplicación no configura una ruta explícita; antes de usar Docker en producción, identificar la carpeta efectiva del key ring dentro del contenedor y montar allí un volumen. Sin ese volumen, al recrear el contenedor se invalidan las sesiones. Si se necesita una ruta fija, agregar `AddDataProtection().PersistKeysToFileSystem(...)` en `Program.cs` y publicar una nueva imagen.
+- **Persistir las claves de Data Protection.** Configurar `DataProtection__KeysPath` y montar un volumen en esa ruta. Sin el volumen, al recrear el contenedor se invalidan las sesiones. El ejemplo usa `/home/app/.aspnet/DataProtection-Keys` porque la imagen ejecuta como el usuario `app`.
 - Configurar el health check en el proxy o el orquestador contra `/health/ready`.
 - Revisar la zona horaria del contenedor si la clínica depende de fechas locales.
 
@@ -796,6 +827,7 @@ Si el sitio IIS solo tiene binding HTTPS, consultar los health checks por HTTPS.
 - Monitorear espacio en disco de SQL Server, backups y logs.
 - Monitorear la fecha de vencimiento del certificado.
 - Verificar que el job de backup haya terminado correctamente.
+- Ejecutar `scripts/verificar-produccion.ps1` después de cada despliegue y de cada cambio de configuración.
 - Revisar la auditoría de la aplicación periódicamente.
 
 ### 10.3. Logging
@@ -977,6 +1009,26 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 El script restaura el respaldo en una base temporal, ejecuta `DBCC CHECKDB` y elimina la base al terminar. No se debe ejecutar contra la base de producción.
 
+**Script de migraciones:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/generar-script-migraciones.ps1
+```
+
+Genera `artefactos/migraciones-sonrisadigital.sql` con `dotnet ef migrations script --idempotent`. El archivo queda fuera de Git (`artefactos/` está ignorado), se revisa y se entrega al DBA. El script verifica que esté presente la migración `20261025015324_AddCitaPacienteFechaIndex`.
+
+**Verificación de producción:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/verificar-produccion.ps1 `
+  -BaseUrl "https://clinica.ejemplo.com" `
+  -RequireHttps
+```
+
+Comprueba `/health`, `/health/ready`, la pantalla `/login`, la ausencia de textos demo y las cabeceras de seguridad. Con `-RequireHttps` también exige `Strict-Transport-Security`. Sin ese modificador se puede usar en un smoke test local por HTTP.
+
 La guía completa de pruebas, cobertura y pipeline está en `docs/07-pruebas-y-ci.md`.
 
 ---
@@ -993,9 +1045,10 @@ La guía completa de pruebas, cobertura y pipeline está en `docs/07-pruebas-y-c
 6. Cambiar `current` a la nueva release.
 7. Arrancar el pool o el servicio.
 8. Verificar `/health/ready`.
-9. Probar login, dashboard, agenda, pacientes y descarga de un PDF.
-10. Revisar logs de errores.
-11. Conservar la release anterior y el backup hasta confirmar la estabilidad.
+9. Ejecutar `scripts/verificar-produccion.ps1 -BaseUrl "https://clinica.ejemplo.com" -RequireHttps`.
+10. Probar login, dashboard, agenda, pacientes y descarga de un PDF.
+11. Revisar logs de errores.
+12. Conservar la release anterior y el backup hasta confirmar la estabilidad.
 
 ### 12.2. Rollback
 
@@ -1023,16 +1076,20 @@ Si la migración de base de datos no es compatible con la versión anterior, res
 
 - [ ] `ASPNETCORE_ENVIRONMENT=Production`.
 - [ ] `AllowedHosts` contiene solo los dominios reales; no queda `*` ni el marcador.
+- [x] La aplicación valida al arrancar `AllowedHosts`, la cadena de conexión y `DataProtection:KeysPath` fuera de Development.
 - [ ] HTTPS obligatorio con certificado válido.
 - [ ] HSTS presente en respuestas HTTPS.
 - [ ] Cadena de conexión y contraseñas fuera del repositorio.
 - [ ] `appsettings.Production.json` sin secretos.
+- [x] `appsettings.Development.json` y su plantilla quedan excluidos de `dotnet publish`.
 - [ ] Usuario de SQL Server con permisos mínimos; no `sa`.
 - [ ] `Encrypt=True` y `TrustServerCertificate=False`.
 - [ ] Contraseña del administrador inicial cambiada.
 - [x] Login de demostración retirado de la interfaz y sin credenciales por defecto.
 - [ ] `KnownProxies` y `ForwardLimit` correctos.
 - [ ] Health checks monitoreados y, si es posible, restringidos a la red interna.
+- [x] La aplicación soporta una ruta persistente para Data Protection.
+- [ ] `DataProtection:KeysPath` configurado, con permisos y respaldo.
 - [ ] Certificado y claves de Data Protection respaldados.
 - [ ] Firewall: solo 80/443 expuestos; SQL Server no expuesto a Internet.
 
@@ -1047,7 +1104,7 @@ Si la migración de base de datos no es compatible con la versión anterior, res
 - [ ] Logs con retención definida.
 - [ ] Recicles del pool programados fuera del horario de atención.
 - [ ] WebSocket funcionando.
-- [ ] Key ring de Data Protection persistente y respaldado; si se requiere una ruta explícita, configuración implementada en código.
+- [ ] Key ring de Data Protection persistente, con ruta configurada y respaldo verificado.
 - [ ] Procedimiento de actualización y rollback probado.
 - [ ] Responsable de soporte y contacto definidos.
 
@@ -1076,6 +1133,7 @@ Si la migración de base de datos no es compatible con la versión anterior, res
 | `500.31` en IIS | Falta el runtime o ANCM | Instalar el .NET 10 Hosting Bundle y reiniciar IIS |
 | `502.5` en IIS | El proceso de ANCM falló | Revisar stdout, permisos y variables de entorno |
 | `400 Bad Request` con el dominio real | `AllowedHosts` no incluye el dominio | Configurar `AllowedHosts` y reciclar |
+| La aplicación no arranca y muestra “configuración de producción incompleta” | Falta `AllowedHosts` real, cadena de conexión o `DataProtection:KeysPath` | Revisar el log y completar las variables de entorno |
 | Bucle de redirección HTTPS | El proxy no envía `X-Forwarded-Proto` o `KnownProxies` está mal | Revisar ForwardedHeaders y el proxy |
 | Login no funciona en producción | Cookie `Secure` sobre HTTP o falta HTTPS | Publicar por HTTPS y revisar el binding |
 | `/health/ready` responde `503` | SQL Server no conecta | Revisar cadena, firewall, certificado y credenciales |
@@ -1097,6 +1155,11 @@ Restart-WebAppPool -Name "SonrisaDigital"
 Get-WinEvent -LogName Application -MaxEvents 50
 Invoke-WebRequest https://clinica.ejemplo.com/health
 Invoke-WebRequest https://clinica.ejemplo.com/health/ready
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/verificar-produccion.ps1 `
+  -BaseUrl "https://clinica.ejemplo.com" `
+  -RequireHttps
 ```
 
 Linux/nginx:

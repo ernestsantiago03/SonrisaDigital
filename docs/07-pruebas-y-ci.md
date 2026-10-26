@@ -76,6 +76,7 @@ Las pruebas de xUnit se ejecutan en serie (`DisableTestParallelization`) porque 
 | `PagedResultTests` | Total de páginas y botones anterior/siguiente. |
 | `CitaServiceValidationTests` | Paciente y odontólogo obligatorios, fecha, horas, fin de semana, horario de atención, almuerzo y permiso. |
 | `PagoServiceTests` | Tratamiento, monto, fecha, método de pago, permiso y cálculo del saldo pendiente. |
+| `ValidadorConfiguracionProduccionTests` | Dominio, cadena, proxy y ruta de Data Protection obligatorios fuera de Development; configuración válida sin errores. |
 
 ### 2.2. Pruebas de integración
 
@@ -161,10 +162,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verificar-cobertura.
 
 El umbral actual es **60% de líneas**. En la última ejecución local se obtuvo:
 
-- 30 pruebas aprobadas, 0 fallidas.
-- Cobertura de líneas: **65.5%**.
-- Cobertura de ramas: **11.89%**.
-- Duración aproximada: 7 segundos.
+- 35 pruebas aprobadas, 0 fallidas.
+- Cobertura de líneas: **65.55%**.
+- Cobertura de ramas: **14.68%**.
+- Duración aproximada: 11 segundos.
 
 La cobertura de ramas todavía es baja porque los servicios incluyen muchas pantallas y flujos auxiliares. El umbral de líneas evita que una versión nueva elimine pruebas críticas sin que el pipeline lo detecte.
 
@@ -214,7 +215,7 @@ Archivo: `.github/workflows/ci.yml`.
 3. Restaura la solución.
 4. Compila en Release con `-warnaserror`.
 5. Levanta SQL Server 2022 como servicio.
-6. Ejecuta las 30 pruebas con cobertura.
+6. Ejecuta las 35 pruebas con cobertura.
 7. Verifica el umbral de cobertura.
 8. Publica `test-results.trx` y `coverage.cobertura.xml` como artefacto, incluso si las pruebas fallan.
 
@@ -309,7 +310,45 @@ El script:
 
 Esta prueba se ejecutó localmente con una base temporal y confirmó `DBCC CHECKDB sin errores`. No se dejó ninguna base de prueba en la instancia.
 
-### 5.3. Retención
+### 5.3. Script de migraciones
+
+Archivo: `scripts/generar-script-migraciones.ps1`.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/generar-script-migraciones.ps1
+```
+
+El script restaura `dotnet-ef` desde `.config/dotnet-tools.json`, genera `artefactos/migraciones-sonrisadigital.sql` con `--idempotent` y avisa si no aparece la migración `20261025015324_AddCitaPacienteFechaIndex`. La carpeta `artefactos/` está ignorada por Git: el script se revisa y se entrega al DBA, pero no se versiona.
+
+La prueba local aplicó ese script sobre una copia de la base y confirmó:
+
+- Las cinco migraciones quedaron registradas en `__EFMigrationsHistory`.
+- El índice `IX_Citas_PacienteId_Fecha_HoraInicio` quedó como `NONCLUSTERED`.
+- La base temporal se eliminó al terminar.
+
+### 5.4. Verificación de producción
+
+Archivo: `scripts/verificar-produccion.ps1`.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/verificar-produccion.ps1 `
+  -BaseUrl "https://clinica.ejemplo.com" `
+  -RequireHttps
+```
+
+Comprueba:
+
+- `/health` responde `200` con estado `Healthy`.
+- `/health/ready` responde `200` y confirma que la base está accesible.
+- `/login` responde `200` y no contiene textos de la demo.
+- Están presentes `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` y `Content-Security-Policy`.
+- Con `-RequireHttps`, también exige `Strict-Transport-Security`.
+
+Sin `-RequireHttps` se puede usar contra un entorno local por HTTP; en ese caso solo advierte que no validó HSTS.
+
+### 5.5. Retención
 
 La retención del script aplica a los archivos con el patrón `SonrisaDigital_FULL_*.bak` dentro de la carpeta indicada. Una política mínima:
 
@@ -327,10 +366,10 @@ Mantener al menos una copia fuera del servidor de producción. Los respaldos con
 ## 6. Pendientes
 
 - Descargar y revisar el artefacto `sonrisadigital-publicacion` generado por el pipeline. La primera ejecución ya confirmó el servicio de SQL Server, las bases temporales, el job E2E y la publicación del artefacto.
-- Aplicar la migración `20261025015324_AddCitaPacienteFechaIndex` en el servidor de producción. Ya está aplicada en la base local `SonrisaDigital` y en las bases temporales de pruebas.
+- Aplicar la migración `20261025015324_AddCitaPacienteFechaIndex` en el servidor de producción. Ya está aplicada en la base local `SonrisaDigital`, en las bases temporales de pruebas y en una copia restaurada del respaldo.
 - Revisar la cobertura de ramas y elevarla en los servicios con más flujos de negocio.
 - Ampliar las pruebas E2E a historia clínica, odontograma y administración de permisos.
-- Probar el respaldo y la restauración en el servidor de producción o en una copia aislada antes de la salida comercial.
+- Repetir el respaldo y la restauración en el servidor de producción o en una copia aislada antes de la salida comercial. La prueba local ya confirmó `RESTORE VERIFYONLY` y `DBCC CHECKDB`.
 
 ---
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -14,11 +15,64 @@ using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Catalogos;
+using SonrisaDigital.Services.Configuracion;
 using SonrisaDigital.Services.Odontograma;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Reportes.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ============================================================================
+// Validación temprana de la configuración de producción.
+//
+// El objetivo es no arrancar con un dominio de ejemplo, una cadena de conexión
+// vacía o claves de Data Protection efímeras. En Development no se aplica para
+// no romper el runner E2E ni la configuración local.
+// ============================================================================
+var resultadoConfiguracion = ValidadorConfiguracionProduccion.Validar(
+    builder.Configuration,
+    builder.Environment.IsDevelopment());
+
+foreach (var advertencia in resultadoConfiguracion.Advertencias)
+{
+    Console.Error.WriteLine($"[Configuración] Advertencia: {advertencia}");
+}
+
+if (resultadoConfiguracion.Errores.Count > 0)
+{
+    foreach (var error in resultadoConfiguracion.Errores)
+    {
+        Console.Error.WriteLine($"[Configuración] Error: {error}");
+    }
+
+    throw new InvalidOperationException(
+        "La configuración de producción está incompleta. " +
+        "Revisa los errores mostrados antes de iniciar la aplicación.");
+}
+
+// ============================================================================
+// Data Protection firma las cookies de autenticación y protege el estado de los
+// circuitos de Blazor. Si las claves cambian en cada publicación, todos los
+// usuarios pierden la sesión. En producción se exige una carpeta persistente y
+// respaldada, configurada en DataProtection:KeysPath.
+// ============================================================================
+var rutaClavesDataProtection = builder.Configuration["DataProtection:KeysPath"]?.Trim();
+if (!string.IsNullOrWhiteSpace(rutaClavesDataProtection))
+{
+    var directorioClaves = new DirectoryInfo(rutaClavesDataProtection);
+    if (!directorioClaves.Exists)
+    {
+        // La cuenta que ejecuta la aplicación debe tener permiso de escritura
+        // sobre esta carpeta. Si no lo tiene, el arranque falla y queda visible
+        // en el log en lugar de perder las claves silenciosamente.
+        directorioClaves.Create();
+    }
+
+    builder.Services
+        .AddDataProtection()
+        .PersistKeysToFileSystem(directorioClaves)
+        .SetApplicationName("SonrisaDigital");
+}
 
 // Add services to the container.
 builder.Services.AddSonrisaDigitalServices(builder.Configuration, builder.Environment);

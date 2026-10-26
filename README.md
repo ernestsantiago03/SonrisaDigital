@@ -244,9 +244,12 @@ Antes de desplegar con clientes reales:
 > La guía completa de instalación, configuración, respaldos y operación está en [Despliegue y operación en producción](docs/06-despliegue.md).
 
 - [x] Login de demostración retirado y sin credenciales por defecto en la interfaz.
+- [x] La aplicación valida al arrancar el dominio, la cadena de conexión y la ruta de Data Protection fuera de Development.
 - [ ] Cambiar la contraseña del administrador inicial.
 - [ ] Mover cadenas de conexión y credenciales a **variables de entorno** o un almacén de secretos.
 - [ ] No versionar `appsettings.Development.json` ni archivos `.env`.
+- [x] `appsettings.Development.json` y su plantilla quedan excluidos de `dotnet publish`.
+- [ ] Configurar `DataProtection:KeysPath` en una carpeta persistente y respaldada.
 - [ ] Publicar únicamente sobre **HTTPS** y mantener **HSTS** habilitado.
 - [ ] Usar un usuario de SQL Server con permisos mínimos (no `sa`).
 - [ ] Configurar respaldos automáticos de la base de datos y probar la restauración.

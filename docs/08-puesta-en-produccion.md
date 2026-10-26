@@ -74,38 +74,41 @@ El login de demostración fue retirado de la interfaz. Antes de vender, verifica
 
 ### 4.2. Configuración de producción
 
+> Los puntos marcados con `[x]` quedaron implementados o verificados en local. Los que dependen del dominio, del servidor o de la red se cierran en 6B.
+
 - [ ] Configurar `AllowedHosts` con el dominio real.
 - [ ] Configurar `ReverseProxy:KnownProxies` según la ubicación del proxy.
 - [ ] Verificar `X-Forwarded-For` y `X-Forwarded-Proto`.
 - [ ] Publicar únicamente por HTTPS y confirmar HSTS.
-- [ ] Confirmar cookies `Secure`, `HttpOnly` y `SameSite`.
+- [x] Confirmar cookies `Secure`, `HttpOnly` y `SameSite`. Están configuradas en `DependencyInjection`; `Secure` se activa fuera de Development.
 - [ ] Habilitar WebSocket en IIS o en el proxy.
-- [ ] Persistir y respaldar las claves de Data Protection.
+- [x] Persistir las claves de Data Protection en una ruta configurable con `DataProtection:KeysPath`.
+- [ ] Respaldar la carpeta de claves de Data Protection en producción.
 - [ ] Configurar la zona horaria del servidor y del contenedor, si aplica.
-- [ ] Mover cadenas de conexión y secretos a variables de entorno o almacén seguro.
-- [ ] Confirmar que `appsettings.Development.json` no se publica en producción.
+- [x] El repositorio no contiene cadenas ni secretos reales; la configuración real se suministra por variables de entorno en 6B.
+- [x] Confirmar que `appsettings.Development.json` no se publica en producción. Está excluido en el `.csproj` y el pipeline lo verifica.
 
 ### 4.3. Base de datos y migraciones
 
 - [ ] Crear la base de producción con el DBA.
 - [ ] Crear un usuario de aplicación con permisos mínimos, sin `sa`.
-- [ ] Generar el script de migraciones y revisarlo.
-- [ ] Aplicar `20261025015324_AddCitaPacienteFechaIndex`.
-- [ ] Confirmar el índice `IX_Citas_PacienteId_Fecha_HoraInicio` como `NONCLUSTERED`.
-- [ ] Verificar el historial de migraciones de EF Core.
+- [x] Generar el script de migraciones y revisarlo con `scripts/generar-script-migraciones.ps1`.
+- [ ] Aplicar `20261025015324_AddCitaPacienteFechaIndex` en producción.
+- [x] Confirmar el índice `IX_Citas_PacienteId_Fecha_HoraInicio` como `NONCLUSTERED` en una copia restaurada.
+- [x] Verificar el historial de migraciones de EF Core en la copia.
 - [ ] Crear el administrador inicial y cambiar su contraseña en el primer acceso.
 - [ ] Retirar `Authentication__AdminPassword` del entorno después del primer acceso.
 - [ ] Revisar roles, permisos y usuarios reales.
 
 ### 4.4. Respaldos y restauración
 
-- [ ] Definir frecuencia, retención y ubicación de los respaldos.
+- [ ] Definir frecuencia, retención y ubicación definitivas con la clínica.
 - [ ] Configurar respaldo completo, diferencial y de log según el RPO/RTO acordado.
 - [ ] Guardar una copia fuera del servidor de producción.
 - [ ] Verificar permisos de la cuenta de servicio sobre la carpeta de respaldos.
-- [ ] Ejecutar `RESTORE VERIFYONLY`.
-- [ ] Restaurar en una base temporal y ejecutar `DBCC CHECKDB`.
-- [ ] Documentar el procedimiento de restauración y el tiempo estimado.
+- [x] Ejecutar `RESTORE VERIFYONLY` sobre un respaldo local.
+- [x] Restaurar en una base temporal y ejecutar `DBCC CHECKDB` sin errores.
+- [x] Documentar el procedimiento de restauración. El tiempo real se medirá en el servidor de producción.
 
 ### 4.5. Observabilidad y operación
 
@@ -113,29 +116,29 @@ El login de demostración fue retirado de la interfaz. Antes de vender, verifica
 - [ ] Configurar monitoreo de disponibilidad y espacio en disco.
 - [ ] Revisar logs de aplicación, IIS o systemd.
 - [ ] Definir quién revisa los logs y con qué frecuencia.
-- [ ] Confirmar que la auditoría de actividades se registra.
+- [ ] Confirmar que la auditoría de actividades se registra en producción.
 - [ ] Documentar contactos, escalamiento y ventana de soporte.
-- [ ] Preparar el runbook de incidentes y rollback.
+- [x] Preparar el runbook de incidentes y rollback en `docs/06-despliegue.md`.
 
 ### 4.6. Seguridad y revisión final
 
 - [ ] Revisar permisos por rol con el responsable de la clínica.
-- [ ] Confirmar rate limiting y cabeceras de seguridad.
-- [ ] Revisar dependencias y actualizaciones pendientes.
-- [ ] Confirmar que no hay secretos en el repositorio ni en el artefacto.
+- [x] Confirmar rate limiting y cabeceras de seguridad con `scripts/verificar-produccion.ps1`.
+- [x] Revisar dependencias: no hay paquetes vulnerables y Dependabot está configurado.
+- [x] Confirmar que no hay secretos en el repositorio ni en el artefacto publicado.
 - [ ] Revisar la política de contraseñas y retención de datos clínicos.
-- [ ] Confirmar la regla de Pull Request y la protección de `main`.
-- [ ] Definir la política de actualización de Dependabot.
+- [ ] Confirmar la regla de Pull Request y la protección de `main` en GitHub.
+- [x] Definir la política de actualización de Dependabot.
 
 ### 4.7. Criterios de salida de 6A
 
 6A se considera cerrada cuando:
 
 - [x] El login de demostración fue retirado y no hay generación automática de contraseñas en el producto.
-- [ ] La configuración de producción está revisada y documentada.
-- [ ] La migración está probada en una copia de la base.
-- [ ] El respaldo y la restauración fueron verificados.
-- [ ] El runbook y el rollback están documentados.
+- [x] La configuración de producción está revisada, validada al arrancar y documentada.
+- [x] La migración está probada en una copia de la base.
+- [x] El respaldo y la restauración fueron verificados en local.
+- [x] El runbook y el rollback están documentados.
 - [ ] El pipeline está en verde y el artefacto fue revisado.
 - [ ] No hay defectos abiertos de severidad alta o crítica.
 

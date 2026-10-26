@@ -70,7 +70,11 @@ if ($SqlUser -and [string]::IsNullOrWhiteSpace($env:SQLCMDPASSWORD)) {
     throw "Para usar autenticación SQL defina la variable SQLCMDPASSWORD. No pase la contraseña por parámetro."
 }
 
-$BackupFile = (Resolve-Path -LiteralPath $BackupFile).Path
+# Se usa GetFullPath en lugar de Resolve-Path porque el respaldo puede estar en
+# la carpeta protegida de SQL Server: el servicio de SQL puede leerlo aunque la
+# cuenta que ejecuta este script no tenga permiso directo sobre el archivo.
+# La existencia y validez las comprueba RESTORE FILELISTONLY.
+$BackupFile = [System.IO.Path]::GetFullPath($BackupFile)
 
 if ([string]::IsNullOrWhiteSpace($DatabaseTemporal)) {
     $DatabaseTemporal = "SonrisaDigital_RestoreTest_$(Get-Date -Format 'yyyyMMddHHmmss')"
