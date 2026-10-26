@@ -1,0 +1,45 @@
+@* Pie de tabla reutilizable: muestra el total y permite moverse entre páginas. *@
+<footer class="pagination-footer">
+    <span class="pagination-summary">@Total @ItemLabel</span>
+    <div class="pagination-controls">
+        <button type="button"
+                class="pagination-button"
+                aria-label="Página anterior"
+                disabled="@(Page <= 1)"
+                @onclick="PaginaAnteriorAsync">‹</button>
+        <span class="pagination-indicator">Página @Page de @TotalPages</span>
+        <button type="button"
+                class="pagination-button"
+                aria-label="Página siguiente"
+                disabled="@(Page >= TotalPages)"
+                @onclick="PaginaSiguienteAsync">›</button>
+    </div>
+</footer>
+
+@code {
+    /// <summary>Página que se está mostrando actualmente.</summary>
+    [Parameter, EditorRequired]
+    public int Page { get; set; }
+
+    /// <summary>Cantidad total de páginas disponibles.</summary>
+    [Parameter, EditorRequired]
+    public int TotalPages { get; set; }
+
+    /// <summary>Cantidad total de registros que cumplen el filtro.</summary>
+    [Parameter, EditorRequired]
+    public int Total { get; set; }
+
+    /// <summary>Texto que acompaña al total, por ejemplo "paciente(s) encontrado(s)".</summary>
+    [Parameter]
+    public string ItemLabel { get; set; } = "registro(s)";
+
+    /// <summary>Evento que recibe la página nueva cuando el usuario navega.</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<int> OnPageChange { get; set; }
+
+    private Task PaginaAnteriorAsync() =>
+        Page <= 1 ? Task.CompletedTask : OnPageChange.InvokeAsync(Page - 1);
+
+    private Task PaginaSiguienteAsync() =>
+        Page >= TotalPages ? Task.CompletedTask : OnPageChange.InvokeAsync(Page + 1);
+}

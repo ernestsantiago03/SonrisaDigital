@@ -37,7 +37,7 @@
             </select>
         </div>
         <div style="display: flex; gap: 8px; align-items: flex-end;">
-            <button class="secondary-action" @onclick="LoadCitasAsync">Buscar</button>
+            <button class="secondary-action" @onclick="BuscarCitasAsync">Buscar</button>
             <button class="secondary-action" style="background-color: transparent; border: 1px solid transparent; color: #64748b; text-decoration: underline;" @onclick="ClearFilters">Ver todas</button>
         </div>
     </section>
@@ -48,12 +48,12 @@
     }
 
     <section class="table-panel">
-        <div class="table-summary">@citas.Count cita(s) encontrada(s)</div>
+        <div class="table-summary">@citas.Total cita(s) encontrada(s)</div>
         @if (loading)
         {
             <div class="table-state">Cargando citas...</div>
         }
-        else if (citas.Count == 0)
+        else if (citas.Items.Count == 0)
         {
             <div class="table-state empty-state">
                 <strong>No hay citas para mostrar</strong>
@@ -76,7 +76,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var cita in citas)
+                        @foreach (var cita in citas.Items)
                         {
                             <tr>
                                 <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
@@ -98,15 +98,26 @@
                 </table>
             </div>
         }
+
+        @if (!loading && citas.Total > 0)
+        {
+            <PaginationFooter Page="citas.Page"
+                              TotalPages="citas.TotalPages"
+                              Total="citas.Total"
+                              ItemLabel="cita(s) encontrada(s)"
+                              OnPageChange="IrAPaginaCitasAsync" />
+        }
     </section>
 </div>
 
 @code {
-    private List<CitaListItemDto> citas = [];
+    private const int PageSize = 10;
+    private PagedResult<CitaListItemDto> citas = PagedResult<CitaListItemDto>.Empty(PageSize);
     private bool loading;
     private string? errorMessage;
     private string statusFilter = "";
     private ClaimsPrincipal currentUser = new();
+    private readonly SemaphoreSlim cargaLock = new(1, 1);
 
     // EL CAMBIO PRINCIPAL: Se inicializa con la fecha actual
     private DateOnly? selectedDate = DateOnly.FromDateTime(DateTime.Now);
@@ -127,6 +138,9 @@
 
     private async Task LoadCitasAsync()
     {
+        // El DbContext es compartido: se atienden las cargas una por una para que
+        // dos clics rápidos no ejecuten consultas al mismo tiempo.
+        await cargaLock.WaitAsync();
         loading = true;
         errorMessage = null;
         try
@@ -141,8 +155,8 @@
                 _ => null
             };
 
-            var result = await CitaService.SearchAsync(selectedDate, null, null, estado);
-            citas = result.ToList();
+            // El servicio cuenta en SQL y devuelve solo la página solicitada.
+            citas = await CitaService.SearchPagedAsync(selectedDate, null, null, estado, citas.Page, PageSize);
         }
         catch (InvalidOperationException exception)
         {
@@ -151,14 +165,34 @@
         finally
         {
             loading = false;
+            cargaLock.Release();
         }
     }
 
-    // MÉTODO NUEVO: Limpia los filtros y carga el listado completo
+    // Al aplicar un filtro se vuelve a la primera página.
+    private async Task BuscarCitasAsync()
+    {
+        citas = citas with { Page = 1 };
+        await LoadCitasAsync();
+    }
+
+    private async Task IrAPaginaCitasAsync(int page)
+    {
+        if (page < 1 || page > citas.TotalPages)
+        {
+            return;
+        }
+
+        citas = citas with { Page = page };
+        await LoadCitasAsync();
+    }
+
+    // Limpia los filtros y carga el listado completo desde la primera página.
     private async Task ClearFilters()
     {
         selectedDate = null;
         statusFilter = "";
+        citas = citas with { Page = 1 };
         await LoadCitasAsync();
     }
 

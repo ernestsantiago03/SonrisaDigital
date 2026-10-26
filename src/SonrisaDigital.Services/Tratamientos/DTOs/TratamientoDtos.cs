@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using SonrisaDigital.Data.Entities;
-using SonrisaDigital.Services.Pagos;
 
 namespace SonrisaDigital.Services.Tratamientos.DTOs;
 

@@ -1,3 +1,5 @@
+using SonrisaDigital.Data.Common;
+using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Pagos.DTOs;
 
 namespace SonrisaDigital.Services.Pagos;
@@ -27,12 +29,15 @@ public interface IPagoService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Tratamientos que pueden generar pagos, filtrando por texto (nombre del paciente o
-    /// del tratamiento) y por estado de pago. Primero los que tienen saldo pendiente.
+    /// Página de tratamientos que pueden generar pagos, filtrando por texto, por estado
+    /// financiero y, si se indica, por paciente. Devuelve también el total del filtro.
     /// </summary>
-    Task<IReadOnlyList<TratamientoPagoListItemDto>> SearchTratamientosAsync(
+    Task<PagedResult<TratamientoPagoListItemDto>> SearchTratamientosPagedAsync(
         string? searchTerm,
         EstadoFinanciero? estado,
+        int? pacienteId,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default);
 
     /// <summary>Últimos pagos registrados, del más reciente al más antiguo.</summary>

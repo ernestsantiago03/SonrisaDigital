@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
@@ -14,6 +15,9 @@ public sealed class PacienteService(
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IPacienteService
 {
+    // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
+    private const int MaxPageSize = 50;
+
     public async Task<IReadOnlyList<PacienteListItemDto>> SearchAsync(
         string? searchTerm,
         EstadoRegistro? estado,
@@ -23,17 +27,30 @@ public sealed class PacienteService(
 
         var pacientes = await repository.SearchAsync(searchTerm, estado, cancellationToken);
 
-        return pacientes
-            .Select(patient => new PacienteListItemDto(
-                patient.Id,
-                $"{patient.Nombres} {patient.Apellidos}",
-                patient.Identificacion,
-                patient.TipoSangre,
-                patient.Telefono,
-                patient.Correo,
-                patient.FechaRegistro,
-                patient.Estado))
-            .ToList();
+        return pacientes.Select(ToListItem).ToList();
+    }
+
+    /// <summary>
+    /// Devuelve una página de pacientes para la tabla principal. El repositorio hace
+    /// el conteo y el recorte en SQL; aquí solo se convierten las filas al DTO.
+    /// </summary>
+    public async Task<PagedResult<PacienteListItemDto>> SearchPagedAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Ver", "No tienes permiso para consultar pacientes.");
+
+        var (pagina, tamano) = NormalizarPagina(page, pageSize);
+        var result = await repository.SearchPagedAsync(searchTerm, estado, pagina, tamano, cancellationToken);
+
+        return new PagedResult<PacienteListItemDto>(
+            result.Items.Select(ToListItem).ToList(),
+            result.Total,
+            result.Page,
+            result.PageSize);
     }
 
     public async Task<PacienteDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -184,6 +201,21 @@ public sealed class PacienteService(
         ContactoEmergenciaTelefono = patient.ContactoEmergenciaTelefono,
         ContactoEmergenciaRelacion = patient.ContactoEmergenciaRelacion
     };
+
+    // Convierte la entidad de base de datos en la fila que muestra la tabla.
+    private static PacienteListItemDto ToListItem(Paciente patient) => new(
+        patient.Id,
+        $"{patient.Nombres} {patient.Apellidos}",
+        patient.Identificacion,
+        patient.TipoSangre,
+        patient.Telefono,
+        patient.Correo,
+        patient.FechaRegistro,
+        patient.Estado);
+
+    // Página mínima 1 y tamaño dentro del límite permitido por el servicio.
+    private static (int Page, int PageSize) NormalizarPagina(int page, int pageSize) =>
+        (Math.Max(1, page), Math.Clamp(pageSize, 1, MaxPageSize));
 
     private static PacienteDetalleDto ToDetail(Paciente patient) => new(
         patient.Id,

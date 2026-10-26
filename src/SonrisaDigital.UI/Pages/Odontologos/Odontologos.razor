@@ -24,7 +24,7 @@
             <label for="dentist-search">Buscar</label>
             <input id="dentist-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Nombre, licencia, especialidad o teléfono" />
         </div>
-        <button class="secondary-action" @onclick="LoadOdontologosAsync">Buscar</button>
+        <button class="secondary-action" @onclick="BuscarOdontologosAsync">Buscar</button>
     </section>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -33,12 +33,12 @@
     }
 
     <section class="table-panel">
-        <div class="table-summary">@odontologos.Count odontólogo(s) encontrado(s)</div>
+        <div class="table-summary">@odontologos.Total odontólogo(s) encontrado(s)</div>
         @if (loading)
         {
             <div class="table-state">Cargando odontólogos...</div>
         }
-        else if (odontologos.Count == 0)
+        else if (odontologos.Items.Count == 0)
         {
             <div class="table-state empty-state">
                 <strong>No hay odontólogos para mostrar</strong>
@@ -61,7 +61,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var odontologo in odontologos)
+                        @foreach (var odontologo in odontologos.Items)
                         {
                             <tr>
                                 <td><a class="patient-name" href="/odontologo/@odontologo.Id">@odontologo.NombreCompleto</a></td>
@@ -81,20 +81,34 @@
                 </table>
             </div>
         }
+
+        @if (!loading && odontologos.Total > 0)
+        {
+            <PaginationFooter Page="odontologos.Page"
+                              TotalPages="odontologos.TotalPages"
+                              Total="odontologos.Total"
+                              ItemLabel="odontólogo(s) encontrado(s)"
+                              OnPageChange="IrAPaginaOdontologosAsync" />
+        }
     </section>
 </div>
 
 @code {
-    private List<OdontologoListItemDto> odontologos = [];
+    private const int PageSize = 10;
+    private PagedResult<OdontologoListItemDto> odontologos = PagedResult<OdontologoListItemDto>.Empty(PageSize);
     private string searchTerm = string.Empty;
     private string statusFilter = "Todos";
     private bool loading;
     private string? errorMessage;
+    private readonly SemaphoreSlim cargaLock = new(1, 1);
 
     protected override Task OnInitializedAsync() => LoadOdontologosAsync();
 
     private async Task LoadOdontologosAsync()
     {
+        // El DbContext es compartido: se atienden las cargas una por una para que
+        // dos clics rápidos no ejecuten consultas al mismo tiempo.
+        await cargaLock.WaitAsync();
         loading = true;
         errorMessage = null;
         try
@@ -104,11 +118,9 @@
                 "Activo" => EstadoRegistro.Activo,
                 _ => EstadoRegistro.Activo
             };
-            // 1. Obtenemos los datos desde el servicio
-            var result = await OdontologoService.SearchAsync(searchTerm, status);
 
-            // 2. Ordenamos alfabéticamente por NombreCompleto usando LINQ (.OrderBy)
-            odontologos = result.OrderBy(o => o.NombreCompleto).ToList();
+            // El servicio cuenta en SQL y devuelve solo la página solicitada.
+            odontologos = await OdontologoService.SearchPagedAsync(searchTerm, status, odontologos.Page, PageSize);
         }
         catch (Exception)
         {
@@ -117,9 +129,28 @@
         finally
         {
             loading = false;
+            cargaLock.Release();
         }
     }
 
+    // Al aplicar un filtro se vuelve a la primera página.
+    private async Task BuscarOdontologosAsync()
+    {
+        odontologos = odontologos with { Page = 1 };
+        await LoadOdontologosAsync();
+    }
+
+    private async Task IrAPaginaOdontologosAsync(int page)
+    {
+        if (page < 1 || page > odontologos.TotalPages)
+        {
+            return;
+        }
+
+        odontologos = odontologos with { Page = page };
+        await LoadOdontologosAsync();
+    }
+
     private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
-        args.Key == "Enter" ? LoadOdontologosAsync() : Task.CompletedTask;
+        args.Key == "Enter" ? BuscarOdontologosAsync() : Task.CompletedTask;
 }

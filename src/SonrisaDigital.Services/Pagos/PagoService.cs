@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
@@ -29,7 +30,7 @@ namespace SonrisaDigital.Services.Pagos;
 /// Orden de lectura del archivo:
 ///  1) Totales para las tarjetas          → GetResumenAsync
 ///  2) Consultas de lectura               → GetDetalleAsync, GetByPacienteAsync,
-///                                          SearchTratamientosAsync, GetHistorialAsync
+///                                          SearchTratamientosPagedAsync, GetHistorialAsync
 ///  3) Registrar un pago nuevo            → RegistrarAsync
 ///  4) Ayudantes privados                 → ToDetalle, TotalPagado, ToListItem,
 ///                                          ObtenerNombreRegistrador
@@ -44,6 +45,9 @@ public sealed class PagoService(
 {
     // Cultura de República Dominicana: se usa para escribir el dinero como "RD$ 1,500.00".
     private static readonly CultureInfo Cultura = new("es-DO");
+
+    // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
+    private const int MaxPageSize = 50;
 
     // =========================================================================================
     // 1) TOTALES PARA LAS TARJETAS  →  Dashboard ("Pagos pendientes") y página de Pagos
@@ -169,38 +173,34 @@ public sealed class PagoService(
     }
 
     /// <summary>
-    /// Lista de tratamientos que pueden generar pagos, filtrando por texto (nombre del paciente
-    /// o del tratamiento) y por estado de pago. Los que tienen saldo pendiente salen primero.
+    /// Página de tratamientos que pueden generar pagos. El repositorio filtra en SQL por
+    /// texto, por estado financiero y por paciente; aquí solo se convierten las filas al
+    /// DTO que pinta la tabla.
     /// </summary>
-    public async Task<IReadOnlyList<TratamientoPagoListItemDto>> SearchTratamientosAsync(
+    public async Task<PagedResult<TratamientoPagoListItemDto>> SearchTratamientosPagedAsync(
         string? searchTerm,
         EstadoFinanciero? estado,
+        int? pacienteId,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Ver", "No tienes permiso para consultar pagos.");
 
-        // Paso 1: traer los tratamientos que coinciden con el texto buscado (el filtro de
-        // texto lo hace el repositorio, en SQL).
-        var tratamientos = await repository.GetTratamientosAsync(searchTerm, cancellationToken);
+        var (pagina, tamano) = NormalizarPagina(page, pageSize);
+        var result = await repository.SearchTratamientosPagedAsync(
+            searchTerm,
+            estado,
+            pacienteId,
+            pagina,
+            tamano,
+            cancellationToken);
 
-        // Paso 2: convertir cada tratamiento en una fila de la tabla.
-        IEnumerable<TratamientoPagoListItemDto> filas = tratamientos.Select(ToListItem);
-
-        // Paso 3: si el usuario eligió un estado de pago (Pagado, Pendiente...), filtrar por él.
-        // Se hace aquí en memoria porque el estado se calcula con los pagos, no es una columna
-        // de la base de datos.
-        if (estado.HasValue)
-        {
-            filas = filas.Where(fila => fila.Estado == estado.Value);
-        }
-
-        // Paso 4: ordenar. Primero los que más deben (saldo mayor) y, a igual saldo,
-        // por nombre del paciente.
-        // Los tratamientos con saldo pendiente se muestran primero.
-        return filas
-            .OrderByDescending(fila => fila.Saldo)
-            .ThenBy(fila => fila.PacienteNombre)
-            .ToList();
+        return new PagedResult<TratamientoPagoListItemDto>(
+            result.Items.Select(ToListItem).ToList(),
+            result.Total,
+            result.Page,
+            result.PageSize);
     }
 
     /// <summary>
@@ -414,4 +414,8 @@ public sealed class PagoService(
     /// </summary>
     private static string ObtenerNombreRegistrador(Usuario? usuario) =>
         usuario is null || string.IsNullOrWhiteSpace(usuario.Nombre) ? "Sistema" : usuario.Nombre;
+
+    // Página mínima 1 y tamaño dentro del límite permitido por el servicio.
+    private static (int Page, int PageSize) NormalizarPagina(int page, int pageSize) =>
+        (Math.Max(1, page), Math.Clamp(pageSize, 1, MaxPageSize));
 }

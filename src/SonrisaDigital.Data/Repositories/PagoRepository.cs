@@ -67,27 +67,34 @@ public sealed class PagoRepository(ApplicationDbContext dbContext) : IPagoReposi
     }
 
     /// <summary>
-    /// Trae los tratamientos que pueden generar pagos (solo los que tienen precio), con su
-    /// paciente, su tratamiento y sus pagos ya cargados. Si recibe un texto, busca por nombre
-    /// del paciente o por nombre del tratamiento.
+    /// Página de tratamientos que pueden generar pagos. Filtra en SQL por texto, por
+    /// estado financiero y por paciente. Primero cuenta todos los que cumplen el filtro
+    /// y después trae solamente los de la página, con sus pagos incluidos.
     /// </summary>
-    public async Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
-        string? searchTerm = null,
+    public async Task<PagedResult<TratamientoRealizado>> SearchTratamientosPagedAsync(
+        string? searchTerm,
+        EstadoFinanciero? estado,
+        int? pacienteId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
-        // Paso 1: armar la consulta.
-        // Solo se consideran tratamientos con precio, que son los que pueden generar pagos.
-        // Se incluyen el paciente, el tratamiento y TODOS los pagos, porque el Service necesita
-        // esas listas para calcular cuánto se ha pagado y cuánto falta.
-        var query = dbContext.TratamientosRealizados
-            .Include(treatment => treatment.Paciente)
-            .Include(treatment => treatment.Tratamiento)
-            .Include(treatment => treatment.Pagos)
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        // Paso 1: armar la consulta base. Solo se consideran tratamientos con precio,
+        // que son los que pueden generar pagos.
+        IQueryable<TratamientoRealizado> query = dbContext.TratamientosRealizados
             .AsNoTracking()
             .Where(treatment => treatment.Precio > 0);
 
-        // Paso 2: si hay texto de búsqueda, filtrar por nombre/apellido del paciente o por
-        // nombre del tratamiento (como el LIKE '%texto%' de SQL).
+        // Paso 2: filtro por paciente, por ejemplo cuando se llega desde /pagos?paciente=12.
+        if (pacienteId.HasValue)
+        {
+            query = query.Where(treatment => treatment.PacienteId == pacienteId.Value);
+        }
+
+        // Paso 3: filtro por texto del paciente o del tratamiento.
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             var term = searchTerm.Trim();
@@ -97,12 +104,54 @@ public sealed class PagoRepository(ApplicationDbContext dbContext) : IPagoReposi
                 treatment.Tratamiento.Nombre.Contains(term));
         }
 
-        // Paso 3: ordenar por apellido y nombre del paciente, y ejecutar la consulta.
-        return await query
-            .OrderBy(treatment => treatment.Paciente.Apellidos)
+        // Paso 4: filtro por estado financiero. El estado no es una columna: se calcula
+        // comparando el precio con la suma de los pagos.
+        if (estado.HasValue)
+        {
+            query = AplicarFiltroFinanciero(query, estado.Value);
+        }
+
+        // Paso 5: contar en SQL y ajustar la página si el filtro dejó menos resultados.
+        var total = await query.CountAsync(cancellationToken);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
+        // Paso 6: traer solo la página, con el paciente, el tratamiento y los pagos
+        // necesarios para calcular los montos y el último pago. AsSplitQuery evita que
+        // los pagos se dupliquen en una sola consulta grande.
+        var items = await query
+            .Include(treatment => treatment.Paciente)
+            .Include(treatment => treatment.Tratamiento)
+            .Include(treatment => treatment.Pagos)
+            .AsSplitQuery()
+            .OrderByDescending(treatment =>
+                treatment.Precio - (treatment.Pagos.Sum(payment => (decimal?)payment.Monto) ?? 0m))
             .ThenBy(treatment => treatment.Paciente.Nombres)
+            .ThenBy(treatment => treatment.Paciente.Apellidos)
+            .ThenBy(treatment => treatment.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<TratamientoRealizado>(items, total, page, pageSize);
     }
+
+    /// <summary>
+    /// Traduce el estado financiero a una condición SQL usando la suma de los pagos
+    /// del tratamiento. Se usa una subconsulta correlacionada, no una carga en memoria.
+    /// </summary>
+    private static IQueryable<TratamientoRealizado> AplicarFiltroFinanciero(
+        IQueryable<TratamientoRealizado> query,
+        EstadoFinanciero estado) => estado switch
+    {
+        EstadoFinanciero.Pagado => query.Where(treatment =>
+            treatment.Precio <= (treatment.Pagos.Sum(payment => (decimal?)payment.Monto) ?? 0m)),
+        EstadoFinanciero.PagoParcial => query.Where(treatment =>
+            treatment.Precio > (treatment.Pagos.Sum(payment => (decimal?)payment.Monto) ?? 0m) &&
+            treatment.Pagos.Any()),
+        EstadoFinanciero.Pendiente => query.Where(treatment => !treatment.Pagos.Any()),
+        _ => query
+    };
 
     /// <summary>
     /// Trae un tratamiento para registrarle un pago (versión que sí rastrea los cambios,

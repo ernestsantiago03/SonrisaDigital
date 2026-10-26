@@ -24,7 +24,7 @@
             <label for="patient-search">Buscar</label>
             <input id="patient-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Nombre, identificación o teléfono" />
         </div>
-        <button class="secondary-action" @onclick="LoadPatientsAsync">Buscar</button>
+        <button class="secondary-action" @onclick="BuscarPacientesAsync">Buscar</button>
     </section>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -33,12 +33,12 @@
     }
 
     <section class="table-panel">
-        <div class="table-summary">@patients.Count paciente(s) encontrado(s)</div>
+        <div class="table-summary">@patients.Total paciente(s) encontrado(s)</div>
         @if (loading)
         {
             <div class="table-state">Cargando pacientes...</div>
         }
-        else if (patients.Count == 0)
+        else if (patients.Items.Count == 0)
         {
             <div class="table-state empty-state">
                 <strong>No hay pacientes para mostrar</strong>
@@ -53,7 +53,7 @@
                         <tr><th>Nombre completo</th><th>Identificación</th><th>Tipo de Sangre</th><th>Teléfono</th><th>Correo</th><th>Registro</th><th>Opciones</th><th><span class="visually-hidden">Acciones</span></th></tr>
                     </thead>
                     <tbody>
-                        @foreach (var patient in patients)
+                        @foreach (var patient in patients.Items)
                         {
                             <tr>
                                 <td><a class="patient-name" href="/pacientes/@patient.Id">@patient.NombreCompleto</a></td>
@@ -74,20 +74,34 @@
                 </table>
             </div>
         }
+
+        @if (!loading && patients.Total > 0)
+        {
+            <PaginationFooter Page="patients.Page"
+                              TotalPages="patients.TotalPages"
+                              Total="patients.Total"
+                              ItemLabel="paciente(s) encontrado(s)"
+                              OnPageChange="IrAPaginaPacientesAsync" />
+        }
     </section>
 </div>
 
 @code {
-    private List<PacienteListItemDto> patients = [];
+    private const int PageSize = 10;
+    private PagedResult<PacienteListItemDto> patients = PagedResult<PacienteListItemDto>.Empty(PageSize);
     private string searchTerm = string.Empty;
     private string statusFilter = "Todos";
     private bool loading;
     private string? errorMessage;
+    private readonly SemaphoreSlim cargaLock = new(1, 1);
 
     protected override Task OnInitializedAsync() => LoadPatientsAsync();
 
     private async Task LoadPatientsAsync()
     {
+        // El DbContext es compartido: se atienden las cargas una por una para que
+        // dos clics rápidos no ejecuten consultas al mismo tiempo.
+        await cargaLock.WaitAsync();
         loading = true;
         errorMessage = null;
         try
@@ -98,11 +112,8 @@
                 _ => EstadoRegistro.Activo
             };
 
-            // 1. Obtenemos los datos desde el servicio
-            var result = await PacienteService.SearchAsync(searchTerm, status);
-
-            // 2. Ordenamos alfabéticamente por NombreCompleto usando LINQ (.OrderBy)
-            patients = result.OrderBy(o => o.NombreCompleto).ToList();
+            // El servicio cuenta en SQL y devuelve solo la página solicitada.
+            patients = await PacienteService.SearchPagedAsync(searchTerm, status, patients.Page, PageSize);
         }
         catch (Exception)
         {
@@ -111,9 +122,28 @@
         finally
         {
             loading = false;
+            cargaLock.Release();
         }
     }
 
+    // Al aplicar un filtro se vuelve a la primera página.
+    private async Task BuscarPacientesAsync()
+    {
+        patients = patients with { Page = 1 };
+        await LoadPatientsAsync();
+    }
+
+    private async Task IrAPaginaPacientesAsync(int page)
+    {
+        if (page < 1 || page > patients.TotalPages)
+        {
+            return;
+        }
+
+        patients = patients with { Page = page };
+        await LoadPatientsAsync();
+    }
+
     private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
-        args.Key == "Enter" ? LoadPatientsAsync() : Task.CompletedTask;
+        args.Key == "Enter" ? BuscarPacientesAsync() : Task.CompletedTask;
 }

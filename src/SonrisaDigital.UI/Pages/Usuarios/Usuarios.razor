@@ -40,7 +40,7 @@
                 <option value="Inactivo">Inactivos</option>
             </select>
         </div>
-        <button class="secondary-action" @onclick="LoadUsersAsync">Aplicar filtros</button>
+        <button class="secondary-action" @onclick="BuscarUsuariosAsync">Aplicar filtros</button>
     </section>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -53,7 +53,7 @@
         {
             <div class="table-state">Cargando usuarios...</div>
         }
-        else if (users.Count == 0)
+        else if (users.Items.Count == 0)
         {
             <div class="table-state empty-state">
                 <strong>No hay usuarios para mostrar</strong>
@@ -74,7 +74,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var user in users)
+                        @foreach (var user in users.Items)
                         {
                             <tr>
                                 <td>
@@ -115,20 +115,34 @@
                 </table>
             </div>
         }
+
+        @if (!loading && users.Total > 0)
+        {
+            <PaginationFooter Page="users.Page"
+                              TotalPages="users.TotalPages"
+                              Total="users.Total"
+                              ItemLabel="usuario(s) encontrado(s)"
+                              OnPageChange="IrAPaginaUsuariosAsync" />
+        }
     </section>
 </div>
 
 @code {
-    private List<UsuarioListItemDto> users = [];
+    private const int PageSize = 10;
+    private PagedResult<UsuarioListItemDto> users = PagedResult<UsuarioListItemDto>.Empty(PageSize);
     private string searchTerm = string.Empty;
     private string statusFilter = "Todos";
     private bool loading;
     private string? errorMessage;
+    private readonly SemaphoreSlim cargaLock = new(1, 1);
 
     protected override Task OnInitializedAsync() => LoadUsersAsync();
 
     private async Task LoadUsersAsync()
     {
+        // El DbContext es compartido: se atienden las cargas una por una para que
+        // dos clics rápidos no ejecuten consultas al mismo tiempo.
+        await cargaLock.WaitAsync();
         loading = true;
         errorMessage = null;
 
@@ -141,7 +155,8 @@
                 _ => (EstadoRegistro?)null
             };
 
-            users = (await UsuarioService.SearchAsync(searchTerm, status)).ToList();
+            // El servicio cuenta en SQL y trae solo los usuarios de la página.
+            users = await UsuarioService.SearchPagedAsync(searchTerm, status, users.Page, PageSize);
         }
         catch (Exception)
         {
@@ -150,7 +165,26 @@
         finally
         {
             loading = false;
+            cargaLock.Release();
         }
+    }
+
+    // Al aplicar un filtro se vuelve a la primera página.
+    private async Task BuscarUsuariosAsync()
+    {
+        users = users with { Page = 1 };
+        await LoadUsersAsync();
+    }
+
+    private async Task IrAPaginaUsuariosAsync(int page)
+    {
+        if (page < 1 || page > users.TotalPages)
+        {
+            return;
+        }
+
+        users = users with { Page = page };
+        await LoadUsersAsync();
     }
 
     private async Task ToggleStatusAsync(UsuarioListItemDto user)
@@ -161,7 +195,17 @@
                 ? EstadoRegistro.Inactivo
                 : EstadoRegistro.Activo;
 
-            await UsuarioService.SetStatusAsync(user.Id, nextStatus);
+            // La escritura también espera a que termine cualquier carga en curso.
+            await cargaLock.WaitAsync();
+            try
+            {
+                await UsuarioService.SetStatusAsync(user.Id, nextStatus);
+            }
+            finally
+            {
+                cargaLock.Release();
+            }
+
             await LoadUsersAsync();
         }
         catch (InvalidOperationException exception)
@@ -171,7 +215,7 @@
     }
 
     private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
-        args.Key == "Enter" ? LoadUsersAsync() : Task.CompletedTask;
+        args.Key == "Enter" ? BuscarUsuariosAsync() : Task.CompletedTask;
 
     private static string GetInitials(string name)
     {

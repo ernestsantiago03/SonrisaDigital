@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
@@ -18,6 +19,9 @@ public sealed class OdontologoService(
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IOdontologoService
 {
+    // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
+    private const int MaxPageSize = 50;
+
     public async Task<IReadOnlyList<OdontologoListItemDto>> SearchAsync(
         string? searchTerm,
         EstadoRegistro? estado,
@@ -27,16 +31,30 @@ public sealed class OdontologoService(
 
         var odontologos = await repository.SearchAsync(searchTerm, estado, cancellationToken);
 
-        return odontologos
-            .Select(odontologo => new OdontologoListItemDto(
-                odontologo.Id,
-                $"{odontologo.Nombres} {odontologo.Apellidos}",
-                odontologo.NumeroLicencia,
-                odontologo.Especialidad,
-                odontologo.Telefono,
-                odontologo.Correo,
-                odontologo.Estado))
-            .ToList();
+        return odontologos.Select(ToListItem).ToList();
+    }
+
+    /// <summary>
+    /// Devuelve una página de odontólogos para la tabla principal. El repositorio hace
+    /// el conteo y el recorte en SQL; aquí solo se convierten las filas al DTO.
+    /// </summary>
+    public async Task<PagedResult<OdontologoListItemDto>> SearchPagedAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontologos.Ver", "No tienes permiso para consultar odontólogos.");
+
+        var (pagina, tamano) = NormalizarPagina(page, pageSize);
+        var result = await repository.SearchPagedAsync(searchTerm, estado, pagina, tamano, cancellationToken);
+
+        return new PagedResult<OdontologoListItemDto>(
+            result.Items.Select(ToListItem).ToList(),
+            result.Total,
+            result.Page,
+            result.PageSize);
     }
 
     public async Task<OdontologoDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -147,6 +165,20 @@ public sealed class OdontologoService(
     }
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    // Convierte la entidad de base de datos en la fila que muestra la tabla.
+    private static OdontologoListItemDto ToListItem(Odontologo odontologo) => new(
+        odontologo.Id,
+        $"{odontologo.Nombres} {odontologo.Apellidos}",
+        odontologo.NumeroLicencia,
+        odontologo.Especialidad,
+        odontologo.Telefono,
+        odontologo.Correo,
+        odontologo.Estado);
+
+    // Página mínima 1 y tamaño dentro del límite permitido por el servicio.
+    private static (int Page, int PageSize) NormalizarPagina(int page, int pageSize) =>
+        (Math.Max(1, page), Math.Clamp(pageSize, 1, MaxPageSize));
 
     private static OdontologoFormDto ToForm(Odontologo odontologo) => new()
     {

@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -9,6 +10,19 @@ public interface ICitaRepository
         int? pacienteId = null,
         int? odontologoId = null,
         EstadoCita? estado = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve una página de citas y el total que cumple los filtros. El conteo y el
+    /// recorte se hacen en SQL para no cargar todas las citas en memoria.
+    /// </summary>
+    Task<PagedResult<Cita>> SearchPagedAsync(
+        DateOnly? fecha,
+        int? pacienteId,
+        int? odontologoId,
+        EstadoCita? estado,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default);
 
     Task<Cita?> GetByIdAsync(int id, CancellationToken cancellationToken = default);

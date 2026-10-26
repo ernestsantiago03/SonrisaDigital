@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -7,6 +8,17 @@ public interface IPacienteRepository
     Task<IReadOnlyList<Paciente>> SearchAsync(
         string? searchTerm,
         EstadoRegistro? estado,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve una página de pacientes y el total que cumple el filtro. El conteo y el
+    /// recorte se hacen en SQL, sin cargar todos los pacientes en memoria.
+    /// </summary>
+    Task<PagedResult<Paciente>> SearchPagedAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default);
 
     /// <summary>

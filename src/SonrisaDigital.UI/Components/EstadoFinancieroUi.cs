@@ -1,4 +1,4 @@
-using SonrisaDigital.Services.Pagos;
+using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.UI.Components;
 

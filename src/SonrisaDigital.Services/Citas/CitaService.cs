@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
@@ -29,6 +30,9 @@ public sealed class CitaService(
     private static readonly TimeOnly AlmuerzoInicio = new(12, 0);
     private static readonly TimeOnly AlmuerzoFin = new(14, 0);
 
+    // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
+    private const int MaxPageSize = 50;
+
     public async Task<IReadOnlyList<CitaListItemDto>> SearchAsync(
         DateOnly? fecha = null,
         int? pacienteId = null,
@@ -40,17 +44,39 @@ public sealed class CitaService(
 
         var citas = await repository.SearchAsync(fecha, pacienteId, odontologoId, estado, cancellationToken);
 
-        return citas
-            .Select(cita => new CitaListItemDto(
-                cita.Id,
-                $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}",
-                $"{cita.Odontologo.Nombres} {cita.Odontologo.Apellidos}",
-                cita.Fecha,
-                cita.HoraInicio,
-                cita.HoraFin,
-                cita.Motivo,
-                cita.Estado))
-            .ToList();
+        return citas.Select(ToListItem).ToList();
+    }
+
+    /// <summary>
+    /// Devuelve una página de citas para la tabla principal. El repositorio hace el
+    /// conteo y el recorte en SQL; aquí solo se convierten las filas al DTO.
+    /// </summary>
+    public async Task<PagedResult<CitaListItemDto>> SearchPagedAsync(
+        DateOnly? fecha = null,
+        int? pacienteId = null,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        int page = 1,
+        int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Ver", "No tienes permiso para consultar citas.");
+
+        var (pagina, tamano) = NormalizarPagina(page, pageSize);
+        var result = await repository.SearchPagedAsync(
+            fecha,
+            pacienteId,
+            odontologoId,
+            estado,
+            pagina,
+            tamano,
+            cancellationToken);
+
+        return new PagedResult<CitaListItemDto>(
+            result.Items.Select(ToListItem).ToList(),
+            result.Total,
+            result.Page,
+            result.PageSize);
     }
 
     public async Task<CitaDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -341,6 +367,21 @@ public sealed class CitaService(
         EstadoCita.NoAsistio => "No asistió",
         _ => estado.ToString()
     };
+
+    // Convierte la entidad de base de datos en la fila que muestra la tabla.
+    private static CitaListItemDto ToListItem(Cita cita) => new(
+        cita.Id,
+        $"{cita.Paciente.Nombres} {cita.Paciente.Apellidos}",
+        $"{cita.Odontologo.Nombres} {cita.Odontologo.Apellidos}",
+        cita.Fecha,
+        cita.HoraInicio,
+        cita.HoraFin,
+        cita.Motivo,
+        cita.Estado);
+
+    // Página mínima 1 y tamaño dentro del límite permitido por el servicio.
+    private static (int Page, int PageSize) NormalizarPagina(int page, int pageSize) =>
+        (Math.Max(1, page), Math.Clamp(pageSize, 1, MaxPageSize));
 
     private static CitaDetalleDto ToDetail(Cita cita) =>
         new(

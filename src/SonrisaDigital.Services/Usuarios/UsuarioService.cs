@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
@@ -19,13 +20,26 @@ public sealed class UsuarioService(
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IUsuarioService
 {
-    public async Task<IReadOnlyList<UsuarioListItemDto>> SearchAsync(
+    // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
+    private const int MaxPageSize = 50;
+
+    /// <summary>
+    /// Página de usuarios para la tabla principal. Primero cuenta en SQL y después
+    /// trae solo los usuarios de la página; los roles se consultan en un solo viaje.
+    /// </summary>
+    public async Task<PagedResult<UsuarioListItemDto>> SearchPagedAsync(
         string? searchTerm,
         EstadoRegistro? estado,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         // Autorización en servicio.
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
+
+        // Normalizar antes de contar para que el total de páginas sea correcto.
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         var query = userManager.Users.AsNoTracking();
 
@@ -40,15 +54,26 @@ public sealed class UsuarioService(
             query = query.Where(user => user.Nombre.Contains(term) || (user.Email != null && user.Email.Contains(term)));
         }
 
-        var users = await query.OrderBy(user => user.Nombre).ToListAsync(cancellationToken);
+        // CountAsync se traduce a COUNT en SQL; no se traen todos los usuarios.
+        var total = await query.CountAsync(cancellationToken);
+
+        // Si la página quedó fuera de rango después de un filtro, se baja a la última válida.
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
+        var users = await query
+            .OrderBy(user => user.Nombre)
+            .ThenBy(user => user.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
         if (users.Count == 0)
         {
-            return [];
+            return new PagedResult<UsuarioListItemDto>([], total, page, pageSize);
         }
 
-        // Se traen los roles de todos los usuarios en una sola consulta y se agrupan en
-        // memoria. Antes se llamaba a GetRolesAsync dentro del bucle, lo que generaba
-        // una consulta adicional por cada usuario.
+        // Los roles se traen solo de los usuarios de la página, en una sola consulta.
         var userIds = users.Select(user => user.Id).ToList();
         var rolesPorUsuario = (await (
                 from userRole in dbContext.UserRoles.AsNoTracking()
@@ -59,7 +84,7 @@ public sealed class UsuarioService(
             .ToListAsync(cancellationToken))
             .ToLookup(item => item.UserId, item => item.RoleName ?? string.Empty);
 
-        return users
+        var items = users
             .Select(user => new UsuarioListItemDto(
                 user.Id,
                 user.Nombre,
@@ -68,6 +93,8 @@ public sealed class UsuarioService(
                 user.FechaCreacion,
                 rolesPorUsuario[user.Id].ToList()))
             .ToList();
+
+        return new PagedResult<UsuarioListItemDto>(items, total, page, pageSize);
     }
 
     public async Task<UsuarioFormDto?> GetFormAsync(string id, CancellationToken cancellationToken = default)

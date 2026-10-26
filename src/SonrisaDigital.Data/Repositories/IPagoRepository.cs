@@ -6,12 +6,16 @@ namespace SonrisaDigital.Data.Repositories;
 public interface IPagoRepository
 {
     /// <summary>
-    /// Tratamientos que pueden generar pagos (solo los que tienen precio), con su paciente,
-    /// su tratamiento y sus pagos ya cargados. Si recibe texto, busca por nombre del paciente
-    /// o por nombre del tratamiento.
+    /// Página de tratamientos que pueden generar pagos (solo los que tienen precio), con
+    /// su paciente, su tratamiento y sus pagos cargados. Filtra por texto, por estado
+    /// financiero y, si se indica, por paciente. El conteo y el recorte se hacen en SQL.
     /// </summary>
-    Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
-        string? searchTerm = null,
+    Task<PagedResult<TratamientoRealizado>> SearchTratamientosPagedAsync(
+        string? searchTerm,
+        EstadoFinanciero? estado,
+        int? pacienteId,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default);
 
     /// <summary>

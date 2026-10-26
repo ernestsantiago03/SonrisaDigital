@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -5,6 +6,17 @@ namespace SonrisaDigital.Data.Repositories;
 public interface IOdontologoRepository
 {
     Task<IReadOnlyList<Odontologo>> SearchAsync(string? searchTerm, EstadoRegistro? estado, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve una página de odontólogos y el total que cumple el filtro. El conteo
+    /// y el recorte se hacen en SQL, sin cargar todos los registros en memoria.
+    /// </summary>
+    Task<PagedResult<Odontologo>> SearchPagedAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Cuenta odontólogos sin traer las filas completas. El filtro por fecha usa la fecha

@@ -53,9 +53,9 @@
         <div class="search-field">
             <input id="payment-search" @bind="searchTerm" @bind:event="oninput" @onkeydown="HandleSearchKeyDown" placeholder="Buscar paciente o tratamiento..." />
         </div>
-        <button class="secondary-action" @onclick="LoadAsync">Buscar</button>
+        <button class="secondary-action" @onclick="BuscarPagosAsync">Buscar</button>
         <div class="status-field">
-            <select aria-label="Estado financiero" @bind="estadoSeleccionado" @bind:after="LoadAsync">
+            <select aria-label="Estado financiero" @bind="estadoSeleccionado" @bind:after="BuscarPagosAsync">
                 <option value="">Todos</option>
                 <option value="Pendiente">Pendiente</option>
                 <option value="PagoParcial">Pago parcial</option>
@@ -75,12 +75,12 @@
     }
 
     <section class="table-panel">
-        <div class="table-summary">@tratamientos.Count tratamiento(s) encontrado(s)</div>
+        <div class="table-summary">@tratamientos.Total tratamiento(s) encontrado(s)</div>
         @if (loading)
         {
             <div class="table-state">Cargando pagos...</div>
         }
-        else if (tratamientos.Count == 0)
+        else if (tratamientos.Items.Count == 0)
         {
             <div class="table-state empty-state">
                 <strong>No hay tratamientos para mostrar</strong>
@@ -105,7 +105,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var row in tratamientos)
+                        @foreach (var row in tratamientos.Items)
                         {
                             <tr>
                                 <td class="patient-name">@row.PacienteNombre</td>
@@ -156,6 +156,15 @@
                     </tbody>
                 </table>
             </div>
+        }
+
+        @if (!loading && tratamientos.Total > 0)
+        {
+            <PaginationFooter Page="tratamientos.Page"
+                              TotalPages="tratamientos.TotalPages"
+                              Total="tratamientos.Total"
+                              ItemLabel="tratamiento(s) encontrado(s)"
+                              OnPageChange="IrAPaginaPagosAsync" />
         }
     </section>
 
@@ -269,8 +278,10 @@
     // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
     // =========================================================================================
 
+    private const int PageSize = 10;                                  // filas por página de la tabla principal
     private PagosResumenDto resumen = new(0, 0, 0, 0);              // los 4 números de las tarjetas
-    private List<TratamientoPagoListItemDto> tratamientos = [];     // filas de la tabla principal
+    private PagedResult<TratamientoPagoListItemDto> tratamientos =  // filas de la tabla principal
+        PagedResult<TratamientoPagoListItemDto>.Empty(PageSize);
     private List<PagoHistorialDto> historial = [];                  // filas del historial de pagos
     private RegistrarPagoDto nuevoPago = new();                     // el formulario de la ventana de pago
     private TratamientoPagoListItemDto? pagoSeleccionado;           // la fila sobre la que se está pagando
@@ -290,6 +301,7 @@
     private string? errorModal;
     private bool loading;
     private bool saving;
+    private readonly SemaphoreSlim cargaLock = new(1, 1);
 
     /// <summary>
     /// Al entrar a la página se cargan de una vez el resumen, la lista y el historial de pagos.
@@ -297,13 +309,16 @@
     protected override Task OnInitializedAsync() => LoadAsync();
 
     /// <summary>
-    /// Carga todo lo que muestra la página: las tarjetas de resumen, la lista de tratamientos
-    /// (aplicando el texto buscado y el filtro de estado) y el historial de los últimos pagos.
-    /// Si la página se abrió desde la ficha de un paciente (?paciente=12), deja únicamente
-    /// los tratamientos de ese paciente.
+    /// Carga todo lo que muestra la página: las tarjetas de resumen, la página de tratamientos
+    /// (aplicando el texto buscado, el filtro de estado y, si se indica, el paciente) y el
+    /// historial de los últimos pagos.
     /// </summary>
     private async Task LoadAsync()
     {
+        // El DbContext es compartido: se atienden las cargas una por una para que
+        // un cambio de filtro no se cruce con la consulta anterior.
+        await cargaLock.WaitAsync();
+
         // Paso 1: encender el "Cargando..." y limpiar errores anteriores.
         loading = true;
         errorMessage = null;
@@ -311,14 +326,15 @@
         {
             // Paso 2: pedir los 3 bloques de información al servicio.
             resumen = await PagoService.GetResumenAsync();
-            var filas = await PagoService.SearchTratamientosAsync(searchTerm, estadoSeleccionado);
 
-            // Paso 3: si la página se abrió desde la ficha de un paciente (?paciente=12),
-            // quedarse solo con sus tratamientos; si no, mostrar todos.
-            tratamientos = (PacienteDesdeUrl.HasValue
-                    ? filas.Where(fila => fila.PacienteId == PacienteDesdeUrl.Value)
-                    : filas)
-                .ToList();
+            // Paso 3: el servicio filtra y pagina en SQL. PacienteDesdeUrl llega desde
+            // la ficha del paciente con la forma /pagos?paciente=12.
+            tratamientos = await PagoService.SearchTratamientosPagedAsync(
+                searchTerm,
+                estadoSeleccionado,
+                PacienteDesdeUrl,
+                tratamientos.Page,
+                PageSize);
 
             // Paso 4: los últimos 10 pagos para la tabla de historial.
             historial = (await PagoService.GetHistorialAsync(10)).ToList();
@@ -331,14 +347,33 @@
         {
             // Paso 5: se haya cargado bien o mal, apagar el "Cargando...".
             loading = false;
+            cargaLock.Release();
         }
+    }
+
+    // Al aplicar un filtro se vuelve a la primera página.
+    private async Task BuscarPagosAsync()
+    {
+        tratamientos = tratamientos with { Page = 1 };
+        await LoadAsync();
+    }
+
+    private async Task IrAPaginaPagosAsync(int page)
+    {
+        if (page < 1 || page > tratamientos.TotalPages)
+        {
+            return;
+        }
+
+        tratamientos = tratamientos with { Page = page };
+        await LoadAsync();
     }
 
     /// <summary>
     /// Permite ejecutar la búsqueda con la tecla Enter, además de con el botón "Buscar".
     /// </summary>
     private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
-        args.Key == "Enter" ? LoadAsync() : Task.CompletedTask;
+        args.Key == "Enter" ? BuscarPagosAsync() : Task.CompletedTask;
 
     /// <summary>
     /// Abre la ventana para registrar un pago sobre el tratamiento de la fila elegida y deja
@@ -388,9 +423,18 @@
         try
         {
             // Paso 1: asegurar el id del tratamiento y mandar el pago al servicio.
-            // El servicio es el que valida el monto y el saldo.
+            // El servicio es el que valida el monto y el saldo. La escritura espera
+            // a que termine cualquier carga en curso sobre el mismo DbContext.
             nuevoPago.TratamientoRealizadoId = pagoSeleccionado.TratamientoRealizadoId;
-            await PagoService.RegistrarAsync(nuevoPago);
+            await cargaLock.WaitAsync();
+            try
+            {
+                await PagoService.RegistrarAsync(nuevoPago);
+            }
+            finally
+            {
+                cargaLock.Release();
+            }
 
             // Paso 2: guardar el nombre del paciente para el mensaje y cerrar el modal.
             var paciente = pagoSeleccionado.PacienteNombre;

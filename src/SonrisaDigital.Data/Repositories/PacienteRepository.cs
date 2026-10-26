@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -9,6 +10,53 @@ public sealed class PacienteRepository(ApplicationDbContext dbContext) : IPacien
         string? searchTerm,
         EstadoRegistro? estado,
         CancellationToken cancellationToken = default)
+    {
+        // Se mantiene sin paginar para los desplegables que necesitan todos los pacientes.
+        return await BuildQuery(searchTerm, estado)
+            .OrderBy(patient => patient.Apellidos)
+            .ThenBy(patient => patient.Nombres)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Página de pacientes para la tabla principal. El orden coincide con el nombre
+    /// completo que ve el usuario y el Id desempata para que la paginación sea estable.
+    /// </summary>
+    public async Task<PagedResult<Paciente>> SearchPagedAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var query = BuildQuery(searchTerm, estado);
+
+        // CountAsync se traduce a COUNT en SQL; no se traen las filas para contarlas.
+        var total = await query.CountAsync(cancellationToken);
+
+        // Si la página quedó fuera de rango después de un filtro, se baja a la última válida.
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
+        var items = await query
+            .OrderBy(patient => patient.Nombres)
+            .ThenBy(patient => patient.Apellidos)
+            .ThenBy(patient => patient.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<Paciente>(items, total, page, pageSize);
+    }
+
+    /// <summary>
+    /// Arma la consulta base de pacientes para que la búsqueda normal y la paginada
+    /// compartan exactamente los mismos filtros.
+    /// </summary>
+    private IQueryable<Paciente> BuildQuery(string? searchTerm, EstadoRegistro? estado)
     {
         IQueryable<Paciente> query = dbContext.Pacientes.AsNoTracking();
 
@@ -27,10 +75,7 @@ public sealed class PacienteRepository(ApplicationDbContext dbContext) : IPacien
                 (patient.Telefono != null && patient.Telefono.Contains(normalizedTerm)));
         }
 
-        return await query
-            .OrderBy(patient => patient.Apellidos)
-            .ThenBy(patient => patient.Nombres)
-            .ToListAsync(cancellationToken);
+        return query;
     }
 
     public async Task<int> CountAsync(

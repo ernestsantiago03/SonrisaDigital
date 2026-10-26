@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Citas.DTOs;
 
@@ -10,6 +11,19 @@ public interface ICitaService
         int? pacienteId = null,
         int? odontologoId = null,
         EstadoCita? estado = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Página de citas para la tabla principal. Devuelve también el total que cumple
+    /// los filtros para poder mostrar la paginación.
+    /// </summary>
+    Task<PagedResult<CitaListItemDto>> SearchPagedAsync(
+        DateOnly? fecha = null,
+        int? pacienteId = null,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default);
 
     Task<CitaDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default);

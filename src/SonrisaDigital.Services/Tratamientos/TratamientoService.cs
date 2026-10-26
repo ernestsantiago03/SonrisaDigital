@@ -9,7 +9,6 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
-using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.Tratamientos.DTOs;
 
 namespace SonrisaDigital.Services.Tratamientos;
