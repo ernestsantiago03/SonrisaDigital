@@ -121,7 +121,7 @@ El runner local es `scripts/ejecutar-e2e-local.ps1`:
 - Ejecuta Playwright.
 - Detiene la aplicación y elimina la base, salvo que se use `-KeepDatabase`.
 
-La contraseña del administrador temporal no se guarda en archivos: el runner la genera y la pasa por variables de entorno al proceso de Playwright.
+La contraseña del administrador temporal no se guarda en archivos: el runner la genera y la pasa por variables de entorno al proceso de Playwright. Esta generación es exclusiva del entorno de pruebas; el producto no genera contraseñas automáticamente para usuarios reales.
 
 ---
 
@@ -193,7 +193,7 @@ El runner acepta estas opciones:
 | `-Headed` | Muestra el navegador durante la prueba. |
 | `-KeepDatabase` | Conserva la base temporal para inspeccionarla. |
 
-El runner restaura `dotnet-ef` desde `.config/dotnet-tools.json` (versión 10.0.13), crea una base temporal, aplica las migraciones reales, arranca la aplicación con un administrador generado en memoria y espera a que `/health/ready` indique que la base responde. La contraseña temporal no se escribe en archivos: se pasa por variables de entorno al proceso de Playwright.
+El runner restaura `dotnet-ef` desde `.config/dotnet-tools.json` (versión 10.0.13), crea una base temporal, aplica las migraciones reales, arranca la aplicación con un administrador generado en memoria y espera a que `/health/ready` indique que la base responde. La contraseña temporal no se escribe en archivos: se pasa por variables de entorno al proceso de Playwright. La generación es exclusiva del runner de pruebas y no se publica en producción.
 
 La prueba espera la señal `Blazor.reconnect` después de cada navegación a una página interactiva. El HTML se muestra antes de que el circuito de Blazor esté conectado; sin esa espera, los campos aceptan texto pero el modelo del servidor queda vacío y el formulario no se guarda.
 

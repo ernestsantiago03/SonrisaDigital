@@ -643,6 +643,52 @@ El índice solo afecta a `Citas`; no modifica datos existentes.
 - PR #5: `build-test` y `e2e` en verde; `publish` se omitió porque solo corre en `main`.
 - Workflow de `main` (commit `372b939`, run `40262492849`): `build-test`, `e2e` y `publish` en verde; artefacto `sonrisadigital-publicacion` publicado.
 
+## Cierre técnico 6A: retiro de restos del login demo
+
+**Archivos modificados**
+- `src/SonrisaDigital.UI/Pages/Login/Login.razor`
+- `src/SonrisaDigital.UI/Pages/Login/Login.razor.css`
+- `src/SonrisaDigital.Services/Autenticacion/IdentitySeeder.cs`
+- `README.md`
+- `docs/06-despliegue.md`
+- `docs/07-pruebas-y-ci.md`
+- `docs/08-puesta-en-produccion.md`
+
+**Archivo local no versionado**
+- `src/SonrisaDigital.UI/appsettings.Development.json`: se retiraron el correo y la contraseña de demostración. El archivo sigue ignorado por Git.
+
+### Qué se cambió
+
+1. **Limpieza del login**
+   - Se eliminó el modelo `LoginModel`, que ya no se usaba después del retiro del bloque demo.
+   - Se eliminaron los estilos `.login-demo` de `Login.razor.css`.
+   - `/login` no muestra credenciales de prueba ni textos asociados a la demostración.
+
+2. **Seeding sin credenciales por defecto**
+   - `IdentitySeeder` ahora exige `Authentication:AdminEmail` y `Authentication:AdminPassword`.
+   - Se eliminó el correo predeterminado `admin@sonrisadigital.com`.
+   - Si falta cualquiera de las dos claves, no se crea el administrador y se registra una advertencia.
+
+3. **Configuración local**
+   - Se retiraron las credenciales demo de `appsettings.Development.json`.
+   - El administrador local se configura con user-secrets o variables de entorno, como indica el README.
+
+4. **Contraseñas de usuarios**
+   - El producto no genera contraseñas automáticamente.
+   - El administrador asigna la contraseña inicial y puede restablecerla desde **Usuarios**.
+   - La contraseña temporal del runner E2E es exclusiva de las pruebas y no se publica.
+
+5. **Documentación**
+   - Se actualizaron README, despliegue, pruebas y el plan de puesta en producción para reflejar que el login demo ya fue retirado.
+
+### Verificación
+
+- `dotnet build SonrisaDigital.slnx -c Release -warnaserror` → 0 errores, 0 warnings.
+- `dotnet test SonrisaDigital.slnx -c Release --no-build` → 30 pruebas aprobadas, 0 fallidas.
+- E2E local en Release → 1 prueba aprobada; base temporal eliminada al terminar.
+- Búsqueda de `login-demo`, `SonrisaDigitalAdmin123`, `LoginModel` y `admin@sonrisadigital.com` en código y configuración versionados, excluyendo este registro → sin coincidencias.
+- El pipeline del PR valida `build-test` y `e2e`; `publish` se ejecuta en `main`.
+
 ## Pendiente
 
 - Descargar y revisar el artefacto `sonrisadigital-publicacion`. La primera ejecución del workflow ya confirmó el servicio de SQL Server, el job E2E y la publicación de artefactos.
@@ -650,6 +696,6 @@ El índice solo afecta a `Citas`; no modifica datos existentes.
 - Elevar la cobertura de ramas en los servicios con más flujos de negocio.
 - Ampliar las pruebas E2E a historia clínica, odontograma y administración de permisos.
 - Probar el respaldo y la restauración en el servidor de producción o en una copia aislada.
-- Retirar el login de demostración y la generación de contraseñas antes de vender, según la decisión del propietario.
+- Mantener el login sin credenciales demo en cada publicación.
 - Mantener la documentación actualizada y versionada con cada cambio.
 - Integrar los cambios a `main` mediante Pull Request y pipeline en verde.

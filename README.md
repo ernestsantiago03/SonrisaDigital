@@ -224,7 +224,7 @@ Al arrancar por primera vez, la aplicación crea automáticamente:
 
 - Los roles **Administrador**, **Recepcionista** y **Odontólogo**.
 - Los 32 permisos del catálogo y su asignación inicial.
-- El usuario administrador definido en `Authentication:AdminEmail` / `Authentication:AdminPassword`.
+- El usuario administrador definido en `Authentication:AdminEmail` / `Authentication:AdminPassword`. Ambas claves son obligatorias; no hay correo ni contraseña predeterminados.
 - El catálogo base del odontograma.
 
 Inicia sesión con esas credenciales y, de inmediato:
@@ -243,7 +243,7 @@ Antes de desplegar con clientes reales:
 
 > La guía completa de instalación, configuración, respaldos y operación está en [Despliegue y operación en producción](docs/06-despliegue.md).
 
-- [ ] Retirar el login de demostración y la generación automática de contraseñas.
+- [x] Login de demostración retirado y sin credenciales por defecto en la interfaz.
 - [ ] Cambiar la contraseña del administrador inicial.
 - [ ] Mover cadenas de conexión y credenciales a **variables de entorno** o un almacén de secretos.
 - [ ] No versionar `appsettings.Development.json` ni archivos `.env`.

@@ -33,7 +33,7 @@ Si alguna condición falta, no se inicia la ventana de despliegue.
 - Respaldos automáticos, retención y prueba de restauración.
 - Health checks, logs, auditoría y monitoreo básico.
 - Pruebas de humo, aceptación con usuarios reales y capacitación inicial.
-- Retiro del login de demostración y de la generación automática de contraseñas.
+- Retiro del login de demostración y de las credenciales por defecto; verificación de que el producto no genera contraseñas automáticamente.
 
 ### Fuera de alcance
 
@@ -64,13 +64,13 @@ El objetivo de 6A es dejar una versión lista para instalar, sin cambios de cód
 
 ### 4.1. Retirar funciones de demostración
 
-- [ ] Eliminar el login de demostración y sus credenciales.
-- [ ] Retirar la generación automática de contraseñas.
-- [ ] Revisar que no queden rutas, botones, textos ni datos de prueba visibles.
-- [ ] Ajustar las pruebas y la documentación afectadas.
-- [ ] Confirmar que el administrador real se crea solo con el seeding controlado.
+- [x] Eliminar el login de demostración y sus credenciales.
+- [x] Confirmar que el producto no genera contraseñas automáticamente; la contraseña temporal del runner E2E es solo de pruebas.
+- [x] Revisar que no queden rutas, botones, textos ni datos de prueba visibles.
+- [x] Ajustar las pruebas y la documentación afectadas.
+- [x] Confirmar que el administrador real se crea solo con el seeding controlado.
 
-El sistema no debe venderse ni abrirse a usuarios reales mientras el login de demostración siga activo.
+El login de demostración fue retirado de la interfaz. Antes de vender, verificar que no se reintroduzca en una publicación y que el administrador inicial se cree únicamente con las variables de entorno configuradas.
 
 ### 4.2. Configuración de producción
 
@@ -131,7 +131,7 @@ El sistema no debe venderse ni abrirse a usuarios reales mientras el login de de
 
 6A se considera cerrada cuando:
 
-- [ ] El login de demostración y la generación de contraseñas fueron retirados.
+- [x] El login de demostración fue retirado y no hay generación automática de contraseñas en el producto.
 - [ ] La configuración de producción está revisada y documentada.
 - [ ] La migración está probada en una copia de la base.
 - [ ] El respaldo y la restauración fueron verificados.
@@ -302,7 +302,7 @@ La puesta en producción se considera terminada cuando:
 - [ ] La versión está publicada por HTTPS en el dominio real.
 - [ ] La base de producción tiene las migraciones aplicadas.
 - [ ] El administrador y los usuarios reales están creados.
-- [ ] El login de demostración y la generación de contraseñas fueron retirados.
+- [x] El login de demostración fue retirado y no hay generación automática de contraseñas en el producto.
 - [ ] Los respaldos automáticos y la restauración están verificados.
 - [ ] El monitoreo y los health checks están activos.
 - [ ] Las pruebas de humo y la aceptación de la clínica están completas.

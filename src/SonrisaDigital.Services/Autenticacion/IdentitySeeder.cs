@@ -69,11 +69,13 @@ public static class IdentitySeeder
             await dbContext.SaveChangesAsync();
         }
 
-        var email = configuration["Authentication:AdminEmail"] ?? "admin@sonrisadigital.com";
+        // No se usan credenciales por defecto: el administrador inicial solo se crea
+        // cuando el operador configura explicitamente un correo y una contrasena.
+        var email = configuration["Authentication:AdminEmail"]?.Trim();
         var password = configuration["Authentication:AdminPassword"];
-        if (string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            logger.LogWarning("Authentication:AdminPassword no esta configurada; no se creo el administrador inicial.");
+            logger.LogWarning("Authentication:AdminEmail y Authentication:AdminPassword deben estar configuradas; no se creo el administrador inicial.");
             return;
         }
 
