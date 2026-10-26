@@ -13,8 +13,6 @@
 .validation-message { color: #dc2626; font-size: 11px; }
 .login-submit { width: 100%; height: 36px; margin-top: 4px; border: 0; border-radius: 4px; background: #2563eb; color: white; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .login-submit:hover { background: #1d4ed8; }
-.login-demo { margin-top: 24px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; color: #64748b; font-size: 11px; }
-.login-demo strong { color: #334155; }
 .login-error { margin-top: 12px; padding: 9px 11px; border: 1px solid #fecaca; border-radius: 4px; background: #fef2f2; color: #b91c1c; font-size: 11px; }
 @media (max-width: 720px) { .mobile-login-brand { display: flex; } }
 
@@ -130,7 +128,7 @@
         background-color: #1e293b;
     }
 
-/* Alertas de error y caja demo */
+/* Alertas de error */
 .login-error {
     margin-top: 12px;
     padding: 8px 12px;
@@ -139,17 +137,6 @@
     color: #dc2626;
     border-radius: 6px;
     font-size: 0.82rem;
-}
-
-.login-demo {
-    margin-top: 18px;
-    padding: 8px;
-    background-color: #f8fafc;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    color: #64748b;
-    text-align: center;
-    border: 1px solid #e2e8f0;
 }
 
 /* Logotipo superior en móviles */
@@ -356,16 +343,6 @@
         color: #dc2626 !important;
         border-radius: 6px !important;
         font-size: 0.8rem !important;
-    }
-
-    .auth-page .login-demo {
-        margin-top: 12px !important;
-        padding: 6px !important;
-        background-color: #f8fafc !important;
-        border-radius: 6px !important;
-        font-size: 0.75rem !important;
-        color: #64748b !important;
-        text-align: center !important;
     }
 
     /* Lado derecho: Banner Corporativo Sonrisa Digital */

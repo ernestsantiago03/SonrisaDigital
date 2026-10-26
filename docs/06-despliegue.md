@@ -6,7 +6,7 @@ Esta guía describe cómo publicar SonrisaDigital en un servidor real, configura
 >
 > La aplicación ya incluye las defensas de red y sesión descritas en esta guía: ForwardedHeaders, HSTS, redirección HTTPS, health checks, reintentos de base de datos, descarga de PDF por HTTP y retención de circuitos. Esta guía explica cómo operarlas en un despliegue real.
 >
-> No cubre el plan multiclínica ni el login de demostración. El propietario retirará la demostración antes de la puesta en producción.
+> No cubre el plan multiclínica. El login de demostración fue retirado de la interfaz y no se publica en producción.
 
 ---
 
@@ -88,8 +88,8 @@ ASP.NET Core traduce `__` a `:` en la jerarquía de configuración:
 |---|---|---|---|
 | `ASPNETCORE_ENVIRONMENT` | — | Sí | `Production` |
 | `ConnectionStrings__DefaultConnection` | `ConnectionStrings:DefaultConnection` | Sí | Cadena de conexión a SQL Server |
-| `Authentication__AdminEmail` | `Authentication:AdminEmail` | Recomendada | Correo del administrador inicial |
-| `Authentication__AdminPassword` | `Authentication:AdminPassword` | Solo para crear el administrador inicial | Contraseña inicial del administrador |
+| `Authentication__AdminEmail` | `Authentication:AdminEmail` | Obligatoria para crear el administrador | Correo del administrador inicial |
+| `Authentication__AdminPassword` | `Authentication:AdminPassword` | Obligatoria para crear el administrador | Contraseña inicial del administrador |
 | `AllowedHosts` | `AllowedHosts` | Sí | Dominio o dominios separados por `;` |
 | `ReverseProxy__ForwardLimit` | `ReverseProxy:ForwardLimit` | No | Número de proxies de confianza; por defecto `1` |
 | `ReverseProxy__KnownProxies__0` | `ReverseProxy:KnownProxies[0]` | Solo si el proxy no es loopback | IP del proxy |
@@ -185,14 +185,14 @@ Al arrancar, `IdentitySeeder`:
 
 1. Crea los roles **Administrador**, **Recepcionista** y **Odontólogo** si no existen.
 2. Crea el catálogo de permisos y asigna los permisos iniciales a los roles nuevos.
-3. Crea el usuario administrador si no existe y si `Authentication:AdminPassword` está configurada.
+3. Crea el usuario administrador si no existe y si `Authentication:AdminEmail` y `Authentication:AdminPassword` están configuradas.
 4. Crea el catálogo base del odontograma.
 
 Detalles importantes:
 
-- Si `Authentication:AdminPassword` está vacía, **no se crea el administrador** y se registra una advertencia.
+- Si falta `Authentication:AdminEmail` o `Authentication:AdminPassword`, **no se crea el administrador** y se registra una advertencia.
 - Si el administrador ya existe, **no se actualiza su contraseña** al cambiar la variable de entorno. La contraseña se cambia desde la interfaz.
-- El correo predeterminado, si no se configura `Authentication:AdminEmail`, es `admin@sonrisadigital.com`. Configurar siempre un correo real.
+- No hay correo predeterminado. Configurar siempre un correo real.
 - Si la base no existe o no tiene migraciones, el arranque continúa, pero el seeding falla y se registra una advertencia. La aplicación puede responder, pero el login no funcionará hasta corregir la base.
 
 Después del primer acceso:
@@ -200,7 +200,9 @@ Después del primer acceso:
 1. Cambiar la contraseña del administrador.
 2. Crear los usuarios reales de la clínica.
 3. Revisar los permisos por rol.
-4. Retirar el login de demostración antes de la puesta en producción, según la decisión del propietario.
+4. Retirar `Authentication__AdminPassword` del entorno.
+
+El login de demostración fue retirado de la interfaz: `/login` no muestra credenciales de prueba. El producto tampoco genera contraseñas automáticamente para usuarios reales; el administrador asigna la contraseña inicial y puede restablecerla desde **Usuarios**.
 
 Después de crear el administrador y cambiar su contraseña, se puede retirar `Authentication__AdminPassword` del entorno. El seeding seguirá arrancando, registrará una advertencia por la ausencia de la clave y no modificará al administrador existente.
 
@@ -1028,7 +1030,7 @@ Si la migración de base de datos no es compatible con la versión anterior, res
 - [ ] Usuario de SQL Server con permisos mínimos; no `sa`.
 - [ ] `Encrypt=True` y `TrustServerCertificate=False`.
 - [ ] Contraseña del administrador inicial cambiada.
-- [ ] Login de demostración retirado antes de la venta.
+- [x] Login de demostración retirado de la interfaz y sin credenciales por defecto.
 - [ ] `KnownProxies` y `ForwardLimit` correctos.
 - [ ] Health checks monitoreados y, si es posible, restringidos a la red interna.
 - [ ] Certificado y claves de Data Protection respaldados.
@@ -1081,7 +1083,7 @@ Si la migración de base de datos no es compatible con la versión anterior, res
 | Todos los usuarios reciben `429` | Rate limiting detrás de un proxy mal configurado | Corregir `X-Forwarded-For` y `KnownProxies` |
 | PDF responde `403` | El usuario no tiene `Reportes.Ver` o permisos específicos | Revisar permisos del rol |
 | Usuarios pierden la sesión al reciclar | Data Protection no persiste o el pool no carga perfil | Persistir y respaldar el key ring |
-| La aplicación no crea el administrador | Falta `Authentication:AdminPassword` | Configurarla y reiniciar |
+| La aplicación no crea el administrador | Falta `Authentication:AdminEmail` o `Authentication:AdminPassword` | Configurar ambas y reiniciar |
 | El administrador existente no cambia de contraseña | El seeding no actualiza usuarios existentes | Cambiar la contraseña desde la interfaz |
 | Los estilos o Blazor no cargan | Publicación incompleta o assets no servidos | Verificar `wwwroot`, `MapStaticAssets` y la release publicada |
 
