@@ -164,6 +164,10 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# Resultados de pruebas automatizadas
+**/TestResults/
+*.trx
+
 # Visual Studio code coverage results
 *.coverage
 *.coveragexml

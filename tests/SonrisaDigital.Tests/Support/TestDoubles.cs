@@ -1,0 +1,319 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using SonrisaDigital.Data.Common;
+using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Auditoria.DTOs;
+using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.HistoriasClinicas;
+using SonrisaDigital.Services.HistoriasClinicas.DTOs;
+using SonrisaDigital.Services.Pagos;
+
+namespace SonrisaDigital.Tests.Support;
+
+/// <summary>
+/// Autorización de pruebas: permite o niega todos los permisos sin depender
+/// del motor de políticas de ASP.NET Core. Así las pruebas se concentran en
+/// la lógica del servicio y no en la configuración de la aplicación.
+/// </summary>
+internal sealed class FakeAuthorizationService(bool permitir = true) : IAuthorizationService
+{
+    public Task<AuthorizationResult> AuthorizeAsync(
+        ClaimsPrincipal user,
+        object? resource,
+        IEnumerable<IAuthorizationRequirement> requirements) =>
+        Task.FromResult(permitir ? AuthorizationResult.Success() : AuthorizationResult.Failed());
+
+    public Task<AuthorizationResult> AuthorizeAsync(
+        ClaimsPrincipal user,
+        object? resource,
+        string policyName) =>
+        Task.FromResult(permitir ? AuthorizationResult.Success() : AuthorizationResult.Failed());
+}
+
+/// <summary>
+/// Sesión mínima para los servicios que exigen un usuario autenticado.
+/// </summary>
+internal static class TestSession
+{
+    public const string UsuarioId = "usuario-pruebas";
+
+    public static CurrentUserService Crear(string usuarioId = UsuarioId)
+    {
+        var identidad = new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, usuarioId),
+                new Claim(ClaimTypes.Name, "Usuario de pruebas")
+            },
+            "Pruebas");
+
+        var servicio = new CurrentUserService();
+        servicio.Establecer(usuarioId, "Usuario de pruebas", new ClaimsPrincipal(identidad));
+        return servicio;
+    }
+}
+
+/// <summary>
+/// Auditoría de pruebas. Las operaciones auditadas no deben escribir en la base
+/// durante una prueba de concurrencia: lo que se valida es el bloqueo y el
+/// guardado del pago o de la cita.
+/// </summary>
+internal sealed class FakeAuditoriaService : IAuditoriaService
+{
+    public Task RegistrarAsync(
+        string accion,
+        string modulo,
+        string entidad,
+        int? entidadId,
+        string descripcion,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
+
+    public Task<IReadOnlyList<ActividadRecienteDto>> GetRecientesAsync(
+        int cantidad = 20,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<AuditoriaPaginaDto> SearchAsync(
+        AuditoriaFiltroDto filtro,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<AuditoriaOpcionesDto> GetOpcionesAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Historia clínica de pruebas. Las citas programadas no generan consulta;
+/// si una prueba llegara a pedirla, devuelve un identificador ficticio.
+/// </summary>
+internal sealed class FakeHistoriaClinicaService : IHistoriaClinicaService
+{
+    public Task<IReadOnlyList<HistoriaClinicaPacienteDto>> GetPatientsAsync(
+        string? searchTerm = null,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<HistoriaClinicaDto?> GetByPatientAsync(
+        int pacienteId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task SaveAsync(HistoriaClinicaDto model, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<OdontologoOptionDto>> GetOdontologosAsync(
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<int?> GetOdontologoVinculadoAsync(
+        string userId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task CreateConsultaAsync(
+        ConsultaClinicaFormDto model,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task UpdateConsultaAsync(
+        ConsultaClinicaFormDto model,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<int> RegistrarConsultaDeCitaAsync(
+        Cita cita,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(1);
+
+    public Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Repositorio de pagos mínimo para probar cálculos que no tocan la base,
+/// como el saldo pendiente del resumen.
+/// </summary>
+internal sealed class StubPagoRepository(PagoTotales totales) : IPagoRepository
+{
+    public Task<PagoTotales> GetTotalesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(totales);
+
+    public Task<PagedResult<TratamientoRealizado>> SearchTratamientosPagedAsync(
+        string? searchTerm,
+        EstadoFinanciero? estado,
+        int? pacienteId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<TratamientoRealizado?> GetTratamientoAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<TratamientoRealizado?> GetTratamientoParaPagoAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<TratamientoRealizado?> GetDetalleAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<TratamientoRealizado>> GetByPacienteAsync(
+        int pacienteId,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Pago>> GetHistorialAsync(
+        int cantidad,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task AddAsync(Pago pago, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
+/// Barrera asíncrona para que dos operaciones lleguen al mismo punto antes de
+/// continuar. Se usa en las pruebas de concurrencia para provocar la carrera.
+/// </summary>
+internal sealed class AsyncBarrier(int participantes)
+{
+    private int _llegadas;
+    private readonly TaskCompletionSource _liberar =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public async Task EsperarAsync(TimeSpan timeout)
+    {
+        if (Interlocked.Increment(ref _llegadas) == participantes)
+        {
+            _liberar.TrySetResult();
+        }
+
+        await _liberar.Task.WaitAsync(timeout);
+    }
+}
+
+/// <summary>
+/// Envuelve el repositorio de citas y detiene la comprobación de choque hasta
+/// que las dos transacciones hayan leído el horario. Después las deja continuar
+/// para comprobar que el aislamiento Serializable impide duplicar la reserva.
+/// </summary>
+internal sealed class BarrierCitaRepository(ICitaRepository interno, AsyncBarrier barrera)
+    : ICitaRepository
+{
+    public Task<IReadOnlyList<Cita>> SearchAsync(
+        DateOnly? fecha = null,
+        int? pacienteId = null,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        CancellationToken cancellationToken = default) =>
+        interno.SearchAsync(fecha, pacienteId, odontologoId, estado, cancellationToken);
+
+    public Task<PagedResult<Cita>> SearchPagedAsync(
+        DateOnly? fecha,
+        int? pacienteId,
+        int? odontologoId,
+        EstadoCita? estado,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default) =>
+        interno.SearchPagedAsync(fecha, pacienteId, odontologoId, estado, page, pageSize, cancellationToken);
+
+    public Task<Cita?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        interno.GetByIdAsync(id, cancellationToken);
+
+    public async Task<CitaConflicto> BuscarConflictoAsync(
+        int odontologoId,
+        int pacienteId,
+        DateOnly fecha,
+        TimeOnly horaInicio,
+        TimeOnly horaFin,
+        int? excluirCitaId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var conflicto = await interno.BuscarConflictoAsync(
+            odontologoId,
+            pacienteId,
+            fecha,
+            horaInicio,
+            horaFin,
+            excluirCitaId,
+            cancellationToken);
+
+        await barrera.EsperarAsync(TimeSpan.FromSeconds(15));
+        return conflicto;
+    }
+
+    public Task<Cita> AddAsync(Cita cita, CancellationToken cancellationToken = default) =>
+        interno.AddAsync(cita, cancellationToken);
+
+    public Task<Cita> UpdateAsync(Cita cita, CancellationToken cancellationToken = default) =>
+        interno.UpdateAsync(cita, cancellationToken);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        interno.SaveChangesAsync(cancellationToken);
+}
+
+/// <summary>
+/// Envuelve el repositorio de pagos y espera a que las dos cajas estén dentro
+/// de su transacción antes de pedir el bloqueo del tratamiento.
+/// </summary>
+internal sealed class BarrierPagoRepository(IPagoRepository interno, AsyncBarrier barrera)
+    : IPagoRepository
+{
+    public Task<PagedResult<TratamientoRealizado>> SearchTratamientosPagedAsync(
+        string? searchTerm,
+        EstadoFinanciero? estado,
+        int? pacienteId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default) =>
+        interno.SearchTratamientosPagedAsync(searchTerm, estado, pacienteId, page, pageSize, cancellationToken);
+
+    public Task<PagoTotales> GetTotalesAsync(CancellationToken cancellationToken = default) =>
+        interno.GetTotalesAsync(cancellationToken);
+
+    public Task<TratamientoRealizado?> GetTratamientoAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default) =>
+        interno.GetTratamientoAsync(tratamientoRealizadoId, cancellationToken);
+
+    public async Task<TratamientoRealizado?> GetTratamientoParaPagoAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default)
+    {
+        await barrera.EsperarAsync(TimeSpan.FromSeconds(15));
+        return await interno.GetTratamientoParaPagoAsync(tratamientoRealizadoId, cancellationToken);
+    }
+
+    public Task<TratamientoRealizado?> GetDetalleAsync(
+        int tratamientoRealizadoId,
+        CancellationToken cancellationToken = default) =>
+        interno.GetDetalleAsync(tratamientoRealizadoId, cancellationToken);
+
+    public Task<IReadOnlyList<TratamientoRealizado>> GetByPacienteAsync(
+        int pacienteId,
+        CancellationToken cancellationToken = default) =>
+        interno.GetByPacienteAsync(pacienteId, cancellationToken);
+
+    public Task<IReadOnlyList<Pago>> GetHistorialAsync(
+        int cantidad,
+        CancellationToken cancellationToken = default) =>
+        interno.GetHistorialAsync(cantidad, cancellationToken);
+
+    public Task AddAsync(Pago pago, CancellationToken cancellationToken = default) =>
+        interno.AddAsync(pago, cancellationToken);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        interno.SaveChangesAsync(cancellationToken);
+}

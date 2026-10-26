@@ -4,4 +4,7 @@
     <Project Path="src/SonrisaDigital.Services/SonrisaDigital.Services.csproj" />
     <Project Path="src/SonrisaDigital.Data/SonrisaDigital.Data.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SonrisaDigital.Tests/SonrisaDigital.Tests.csproj" />
+  </Folder>
 </Solution>
