@@ -687,15 +687,17 @@ El índice solo afecta a `Citas`; no modifica datos existentes.
 - `dotnet test SonrisaDigital.slnx -c Release --no-build` → 30 pruebas aprobadas, 0 fallidas.
 - E2E local en Release → 1 prueba aprobada; base temporal eliminada al terminar.
 - Búsqueda de `login-demo`, `SonrisaDigitalAdmin123`, `LoginModel` y `admin@sonrisadigital.com` en código y configuración versionados, excluyendo este registro → sin coincidencias.
-- El pipeline del PR valida `build-test` y `e2e`; `publish` se ejecuta en `main`.
+- PR #7: `build-test` y `e2e` en verde; `publish` se omitió porque solo corre en `main`.
+- El PR #7 incluyó el commit `d64dbd1` de ajustes del Centro de Ayuda, equivalente al commit local `58097c2`.
+- Workflow de `main` (commit `02f3db2`, run `40267116217`): `build-test`, `e2e` y `publish` en verde; artefacto `sonrisadigital-publicacion` publicado.
 
 ## Pendiente
 
-- Descargar y revisar el artefacto `sonrisadigital-publicacion`. La primera ejecución del workflow ya confirmó el servicio de SQL Server, el job E2E y la publicación de artefactos.
+- Descargar y revisar el artefacto `sonrisadigital-publicacion` generado por el workflow `40267116217`.
 - Aplicar la migración `20261025015324_AddCitaPacienteFechaIndex` en el servidor de producción.
 - Elevar la cobertura de ramas en los servicios con más flujos de negocio.
 - Ampliar las pruebas E2E a historia clínica, odontograma y administración de permisos.
 - Probar el respaldo y la restauración en el servidor de producción o en una copia aislada.
 - Mantener el login sin credenciales demo en cada publicación.
 - Mantener la documentación actualizada y versionada con cada cambio.
-- Integrar los cambios a `main` mediante Pull Request y pipeline en verde.
+- Mantener la regla de Pull Request y pipeline en verde para los cambios futuros.
