@@ -283,13 +283,20 @@ La carpeta `current` permite cambiar de versión sin reescribir la configuració
 
 ### 4.2. Verificación previa a la publicación
 
-Antes de publicar:
+Antes de publicar, ejecutar la compilación estricta, las pruebas automatizadas y el flujo E2E contra una base temporal:
 
 ```powershell
-dotnet build SonrisaDigital.slnx -c Release
+dotnet restore SonrisaDigital.slnx
+dotnet build SonrisaDigital.slnx -c Release -warnaserror
+dotnet test tests/SonrisaDigital.Tests/SonrisaDigital.Tests.csproj -c Release --no-build
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/ejecutar-e2e-local.ps1 `
+  -Configuration Release
 ```
 
-El proyecto debe compilar con **0 errores y 0 warnings**. Si se cambió código, ejecutar además las pruebas manuales de humo descritas al final de esta guía.
+El proyecto debe compilar con **0 errores y 0 warnings** y las 30 pruebas deben aprobarse. El runner E2E crea una base temporal, aplica las migraciones, arranca la aplicación y recorre login, odontólogo, paciente, cita, tratamiento y pago; al terminar elimina la base y detiene la aplicación. No usa datos de producción.
+
+Si el equipo de publicación no tiene Node.js o SQL Server local, ejecutar el pipeline de GitHub Actions y descargar el artefacto solo cuando `build-test` y `e2e` estén en verde. En cualquier caso, antes de abrir el sistema a los usuarios hay que completar las pruebas manuales de humo descritas al final de esta guía.
 
 ### 4.3. Publicación en IIS
 
@@ -373,6 +380,17 @@ dotnet ef migrations script --idempotent `
 ```
 
 El script idempotente se puede revisar y ejecutar en la base de producción. Es la opción recomendada cuando el DBA controla los cambios de esquema.
+
+La migración `20261025015324_AddCitaPacienteFechaIndex` ya está aplicada en la base local `SonrisaDigital`; en el servidor de producción sigue pendiente. Después de aplicarla, confirmar que el índice quedó creado:
+
+```sql
+SELECT name, type_desc
+FROM sys.indexes
+WHERE object_id = OBJECT_ID('dbo.Citas')
+  AND name = 'IX_Citas_PacienteId_Fecha_HoraInicio';
+```
+
+El resultado debe ser `IX_Citas_PacienteId_Fecha_HoraInicio` con `type_desc = NONCLUSTERED`. Si la migración se aplicó desde otro equipo, ejecutar `dotnet tool restore` para usar la versión de `dotnet-ef` fijada en `.config/dotnet-tools.json`.
 
 ### 5.3. Orden de una puesta en marcha inicial
 
@@ -929,6 +947,36 @@ Usar autenticación de Windows para el job si es posible. Si se usa autenticaci�
 - No enviar backups por correo ni por almacenamiento público.
 - Probar la restauración en un entorno aislado.
 
+### 11.8. Scripts incluidos en el repositorio
+
+El repositorio incluye dos scripts de PowerShell para estandarizar la operación:
+
+**Respaldo completo:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/backup-sonrisadigital.ps1 `
+  -Server ".\SQLEXPRESS" `
+  -Database "SonrisaDigital" `
+  -BackupDirectory "D:\Backups\SonrisaDigital" `
+  -RetentionDays 30
+```
+
+El script ejecuta `BACKUP DATABASE`, `RESTORE VERIFYONLY`, calcula SHA256 y elimina los respaldos fuera de retención. Si no se indica `-BackupDirectory`, usa la carpeta de respaldos de la instancia. Esa carpeta suele estar protegida para la cuenta del operador; en ese caso el respaldo se verifica igualmente, pero el script avisa que no pudo calcular hash ni aplicar retención. Para operación real, usar una carpeta compartida con permisos de escritura para la cuenta de servicio de SQL Server y de lectura para el operador.
+
+**Prueba de restauración:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/probar-restauracion-sonrisadigital.ps1 `
+  -Server ".\SQLEXPRESS" `
+  -BackupFile "D:\Backups\SonrisaDigital\SonrisaDigital_FULL_20261025-211926.bak"
+```
+
+El script restaura el respaldo en una base temporal, ejecuta `DBCC CHECKDB` y elimina la base al terminar. No se debe ejecutar contra la base de producción.
+
+La guía completa de pruebas, cobertura y pipeline está en `docs/07-pruebas-y-ci.md`.
+
 ---
 
 ## 12. Actualización y rollback
@@ -1079,3 +1127,9 @@ curl -i http://127.0.0.1:8080/health/ready
 - Backups automáticos, fuera del servidor y con prueba de restauración.
 - Actualizaciones en carpetas versionadas, con rollback y ventana de mantenimiento.
 - Recicles y mantenimiento fuera del horario de atención.
+
+---
+
+## 16. Plan de puesta en producción
+
+La secuencia de cierre técnico, despliegue, cutover y aceptación con la clínica está en [Puesta en producción y aceptación](08-puesta-en-produccion.md).
