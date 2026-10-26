@@ -85,9 +85,143 @@ jobs:
             tests/SonrisaDigital.Tests/TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
 
+  e2e:
+    name: Pruebas E2E
+    needs: build-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SonrisaDigital_Test123!"
+          MSSQL_PID: "Express"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $MSSQL_SA_PASSWORD -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 20s
+
+    env:
+      MSSQL_SA_PASSWORD: "SonrisaDigital_Test123!"
+      SONRISADIGITAL_E2E_DB_CONNECTION: "Server=localhost,1433;Database=SonrisaDigitalE2E;User Id=sa;Password=SonrisaDigital_Test123!;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      SONRISADIGITAL_E2E_EMAIL: "e2e.admin@sonrisadigital.test"
+      SONRISADIGITAL_E2E_PASSWORD: "E2E_Admin_2026!Segura"
+      SONRISADIGITAL_E2E_BASE_URL: "http://localhost:5175"
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/SonrisaDigital.E2E/package-lock.json
+
+      - name: Restaurar dependencias .NET
+        run: dotnet restore SonrisaDigital.slnx
+
+      - name: Compilar sin warnings
+        run: dotnet build SonrisaDigital.slnx -c Release --no-restore -warnaserror
+
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
+      - name: Aplicar migraciones a la base E2E
+        run: >-
+          dotnet ef database update
+          --project src/SonrisaDigital.Data
+          --startup-project src/SonrisaDigital.UI
+          --configuration Release
+          --no-build
+          --connection "$SONRISADIGITAL_E2E_DB_CONNECTION"
+
+      - name: Instalar dependencias E2E
+        working-directory: tests/SonrisaDigital.E2E
+        run: npm ci
+
+      - name: Instalar Chromium
+        working-directory: tests/SonrisaDigital.E2E
+        run: npx playwright install --with-deps chromium
+
+      - name: Arrancar aplicación para E2E
+        shell: bash
+        run: |
+          export ConnectionStrings__DefaultConnection="$SONRISADIGITAL_E2E_DB_CONNECTION"
+          export Authentication__AdminEmail="$SONRISADIGITAL_E2E_EMAIL"
+          export Authentication__AdminPassword="$SONRISADIGITAL_E2E_PASSWORD"
+          export ASPNETCORE_ENVIRONMENT=Development
+          export ASPNETCORE_URLS="$SONRISADIGITAL_E2E_BASE_URL"
+
+          nohup dotnet run \
+            --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj \
+            -c Release \
+            --no-build \
+            --no-launch-profile \
+            > e2e-app.log 2>&1 &
+          echo $! > e2e-app.pid
+
+          for intento in $(seq 1 60); do
+            if curl -fsS "$SONRISADIGITAL_E2E_BASE_URL/health/ready" > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat e2e-app.log
+          exit 1
+
+      - name: Ejecutar pruebas E2E
+        working-directory: tests/SonrisaDigital.E2E
+        run: npx playwright test
+
+      - name: Detener aplicación
+        if: always()
+        shell: bash
+        run: |
+          if [ -f e2e-app.pid ]; then
+            kill "$(cat e2e-app.pid)" || true
+          fi
+          pkill -f 'SonrisaDigital.UI' || true
+          sleep 2
+
+      - name: Eliminar base E2E
+        if: always()
+        shell: bash
+        run: |
+          /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost \
+            -U sa \
+            -P "$MSSQL_SA_PASSWORD" \
+            -C \
+            -Q "IF DB_ID(N'SonrisaDigitalE2E') IS NOT NULL BEGIN ALTER DATABASE [SonrisaDigitalE2E] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [SonrisaDigitalE2E]; END" || true
+
+      - name: Publicar evidencias E2E
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-e2e
+          path: |
+            tests/SonrisaDigital.E2E/test-results/
+            tests/SonrisaDigital.E2E/playwright-report/
+            e2e-app.log
+          if-no-files-found: warn
+
   publish:
     name: Publicar artefacto
-    needs: build-test
+    needs: [build-test, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15

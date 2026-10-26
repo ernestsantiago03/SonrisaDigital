@@ -138,6 +138,13 @@ ipch/
 # Visual Studio Trace Files
 *.e2e
 
+# El proyecto de pruebas E2E no es un archivo de traza de Visual Studio.
+!tests/SonrisaDigital.E2E/
+!tests/SonrisaDigital.E2E/**
+tests/SonrisaDigital.E2E/node_modules/
+tests/SonrisaDigital.E2E/test-results/
+tests/SonrisaDigital.E2E/playwright-report/
+
 # TFS 2012 Local Workspace
 $tf/
 
@@ -305,6 +312,7 @@ FakesAssemblies/
 # Node.js Tools for Visual Studio
 .ntvs_analysis.dat
 node_modules/
+playwright-report/
 
 # Visual Studio 6 build log
 *.plg
