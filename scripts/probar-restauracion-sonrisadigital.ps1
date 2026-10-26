@@ -1,0 +1,191 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$BackupFile,
+    [string]$Server = ".\SQLEXPRESS",
+    [string]$SqlUser = "",
+    [string]$SqlCmd = "sqlcmd",
+    [string]$DataDirectory = "",
+    [string]$LogDirectory = "",
+    [string]$DatabaseTemporal = ""
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+function ConvertTo-SqlLiteral {
+    param([string]$Value)
+    return $Value.Replace("'", "''")
+}
+
+function Invoke-SqlcmdSeguro {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Query,
+        [switch]$NoHeaders,
+        [string]$Separator = ""
+    )
+
+    $argumentos = @("-S", $Server, "-C", "-b", "-Q", $Query)
+
+    if ($NoHeaders) {
+        $argumentos += @("-h", "-1", "-W")
+    }
+
+    if ($Separator) {
+        $argumentos += @("-s", $Separator)
+    }
+
+    if ($SqlUser) {
+        $argumentos += @("-U", $SqlUser)
+    }
+    else {
+        $argumentos += "-E"
+    }
+
+    $salida = & $SqlCmd @argumentos 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $detalle = ($salida | Out-String).Trim()
+        throw "sqlcmd terminó con código $LASTEXITCODE al ejecutar la operación de restauración.`n$detalle"
+    }
+
+    return $salida
+}
+
+function Obtener-RutaInstancia {
+    param([string]$Propiedad)
+
+    $consulta = "SET NOCOUNT ON; SELECT CAST(SERVERPROPERTY(N'$Propiedad') AS nvarchar(4000));"
+    $salida = Invoke-SqlcmdSeguro -NoHeaders -Query $consulta
+    $linea = $salida | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1
+
+    if ([string]::IsNullOrWhiteSpace($linea) -or $linea.Trim() -eq "NULL") {
+        return ""
+    }
+
+    return $linea.Trim()
+}
+
+if ($SqlUser -and [string]::IsNullOrWhiteSpace($env:SQLCMDPASSWORD)) {
+    throw "Para usar autenticación SQL defina la variable SQLCMDPASSWORD. No pase la contraseña por parámetro."
+}
+
+$BackupFile = (Resolve-Path -LiteralPath $BackupFile).Path
+
+if ([string]::IsNullOrWhiteSpace($DatabaseTemporal)) {
+    $DatabaseTemporal = "SonrisaDigital_RestoreTest_$(Get-Date -Format 'yyyyMMddHHmmss')"
+}
+
+if ([string]::IsNullOrWhiteSpace($DataDirectory)) {
+    $DataDirectory = Obtener-RutaInstancia -Propiedad "InstanceDefaultDataPath"
+}
+
+if ([string]::IsNullOrWhiteSpace($LogDirectory)) {
+    $LogDirectory = Obtener-RutaInstancia -Propiedad "InstanceDefaultLogPath"
+}
+
+if ([string]::IsNullOrWhiteSpace($DataDirectory) -or [string]::IsNullOrWhiteSpace($LogDirectory)) {
+    throw "No se pudo obtener la carpeta de datos de SQL Server. Indique -DataDirectory y -LogDirectory."
+}
+
+$backupSql = ConvertTo-SqlLiteral $BackupFile
+$consultaLista = "RESTORE FILELISTONLY FROM DISK = N'$backupSql';"
+$salidaLista = Invoke-SqlcmdSeguro -NoHeaders -Separator "|" -Query $consultaLista
+
+$archivos = @()
+foreach ($linea in $salidaLista) {
+    if ([string]::IsNullOrWhiteSpace($linea)) {
+        continue
+    }
+
+    $partes = $linea -split "\|"
+    if ($partes.Count -lt 3) {
+        continue
+    }
+
+    $tipo = $partes[2].Trim()
+    if ($tipo -ne "D" -and $tipo -ne "L") {
+        continue
+    }
+
+    $archivos += [pscustomobject]@{
+        Logico = $partes[0].Trim()
+        Tipo = $tipo
+    }
+}
+
+if ($archivos.Count -eq 0) {
+    throw "El respaldo no devolvió archivos de datos o de registro."
+}
+
+$movimientos = @()
+$indiceDatos = 0
+$indiceLogs = 0
+
+foreach ($archivo in $archivos | Where-Object { $_.Tipo -eq "D" }) {
+    $extension = "ndf"
+    if ($indiceDatos -eq 0) {
+        $extension = "mdf"
+    }
+
+    $destino = Join-Path $DataDirectory "$DatabaseTemporal`_$indiceDatos.$extension"
+    $movimientos += "MOVE N'$(ConvertTo-SqlLiteral $archivo.Logico)' TO N'$(ConvertTo-SqlLiteral $destino)'"
+    $indiceDatos++
+}
+
+foreach ($archivo in $archivos | Where-Object { $_.Tipo -eq "L" }) {
+    $destino = Join-Path $LogDirectory "$DatabaseTemporal`_$indiceLogs.ldf"
+    $movimientos += "MOVE N'$(ConvertTo-SqlLiteral $archivo.Logico)' TO N'$(ConvertTo-SqlLiteral $destino)'"
+    $indiceLogs++
+}
+
+if ($movimientos.Count -eq 0) {
+    throw "No se pudieron construir las cláusulas MOVE para la restauración."
+}
+
+$baseSql = $DatabaseTemporal.Replace("]", "]]")
+$movesSql = $movimientos -join ", "
+$consultaRestauracion = @"
+IF DB_ID(N'$baseSql') IS NOT NULL
+BEGIN
+    ALTER DATABASE [$baseSql] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$baseSql];
+END;
+
+RESTORE DATABASE [$baseSql]
+FROM DISK = N'$backupSql'
+WITH REPLACE, RECOVERY, $movesSql, STATS = 10;
+
+ALTER DATABASE [$baseSql] SET MULTI_USER;
+DBCC CHECKDB(N'$baseSql') WITH NO_INFOMSGS;
+"@
+
+$restaurada = $false
+try {
+    Write-Host "Restaurando '$BackupFile' en la base temporal '$DatabaseTemporal'..."
+    Invoke-SqlcmdSeguro -Query $consultaRestauracion | Out-Host
+    $restaurada = $true
+    Write-Host "Restauración completada y DBCC CHECKDB sin errores."
+}
+finally {
+    $consultaLimpieza = @"
+IF DB_ID(N'$baseSql') IS NOT NULL
+BEGIN
+    ALTER DATABASE [$baseSql] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [$baseSql];
+END;
+"@
+
+    try {
+        Invoke-SqlcmdSeguro -Query $consultaLimpieza | Out-Null
+    }
+    catch {
+        Write-Warning "No se pudo eliminar la base temporal '$DatabaseTemporal': $($_.Exception.Message)"
+    }
+}
+
+[pscustomobject]@{
+    Restaurada = $restaurada
+    BaseTemporal = $DatabaseTemporal
+    Archivo = $BackupFile
+}
