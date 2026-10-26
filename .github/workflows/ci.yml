@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
         uses: actions/setup-dotnet@v4
@@ -116,7 +116,7 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
         uses: actions/setup-dotnet@v4
@@ -228,7 +228,7 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
         uses: actions/setup-dotnet@v4
