@@ -505,7 +505,7 @@
                             @foreach (var pago in pagos)
                             {
                                 <tr>
-                                    <td class="mono">@pago.Fecha.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td class="mono">@pago.Fecha.ToString("dd/MM/yyyy HH:mm")   </td>
                                     <td><strong>@pago.Paciente</strong></td>
                                     <td>@pago.Tratamiento</td>
                                     <td>
