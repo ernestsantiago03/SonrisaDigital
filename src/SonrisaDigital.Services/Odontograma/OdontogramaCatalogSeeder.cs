@@ -1,12 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Services.Catalogos;
 
 namespace SonrisaDigital.Services.Odontograma;
 
 public static class OdontogramaCatalogSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext dbContext, CancellationToken cancellationToken = default)
+    public static async Task SeedAsync(
+        ApplicationDbContext dbContext,
+        ICatalogoCache? catalogoCache = null,
+        CancellationToken cancellationToken = default)
     {
         var existingNumbers = await dbContext.PiezasDentales
             .Select(piece => piece.NumeroFDI)
@@ -24,6 +28,10 @@ public static class OdontogramaCatalogSeeder
         if (pieces.Count == 0) return;
         await dbContext.PiezasDentales.AddRangeAsync(pieces, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Si el catálogo dental se sembró después de que alguien ya lo hubiera
+        // consultado, se descarta la copia anterior para incluir las piezas nuevas.
+        catalogoCache?.InvalidarPiezas();
     }
 
     private static IEnumerable<string> GetFdiNumbers()

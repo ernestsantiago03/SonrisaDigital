@@ -5,6 +5,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Catalogos;
 
 namespace SonrisaDigital.Services.Autorizacion;
 
@@ -23,7 +24,8 @@ public sealed class RolService(
     UserManager<Usuario> userManager,
     IAuditoriaService auditoriaService,
     ICurrentUserService currentUserService,
-    IAuthorizationService authorizationService) : IRolService
+    IAuthorizationService authorizationService,
+    ICatalogoCache catalogoCache) : IRolService
 {
     /// <summary>
     /// El rol Administrador nunca pierde estos permisos: si se quitaran, nadie podria
@@ -35,15 +37,43 @@ public sealed class RolService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Roles.Ver", "No tienes permiso para consultar roles y permisos.");
 
-        var roles = await roleManager.Roles.OrderBy(role => role.Name).ToListAsync(cancellationToken);
-        return roles.Select(role => new RolePermissionDto(
-            role.Id,
-            role.Name ?? string.Empty,
-            role.Descripcion,
-            dbContext.RolesPermisos
-                .Where(rolePermission => rolePermission.RolId == role.Id)
-                .Select(rolePermission => rolePermission.Permiso.Nombre)
-                .ToList()))
+        // El catálogo de definiciones ya vive en memoria (PermissionCatalog).
+        // Lo que se consulta en SQL es la asignación de permisos de cada rol;
+        // esa lista se cachea y se invalida al guardar cambios.
+        return await catalogoCache.ObtenerRolesAsync(CargarRolesAsync, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<RolePermissionDto>> CargarRolesAsync(CancellationToken cancellationToken)
+    {
+        var roles = await roleManager.Roles
+            .AsNoTracking()
+            .OrderBy(role => role.Name)
+            .ToListAsync(cancellationToken);
+
+        if (roles.Count == 0)
+        {
+            return [];
+        }
+
+        var roleIds = roles.Select(role => role.Id).ToList();
+        var permisosPorRol = (await dbContext.RolesPermisos
+                .AsNoTracking()
+                .Where(rolePermission => roleIds.Contains(rolePermission.RolId))
+                .Select(rolePermission => new
+                {
+                    rolePermission.RolId,
+                    Permiso = rolePermission.Permiso.Nombre
+                })
+                .OrderBy(item => item.Permiso)
+                .ToListAsync(cancellationToken))
+            .ToLookup(item => item.RolId, item => item.Permiso);
+
+        return roles
+            .Select(role => new RolePermissionDto(
+                role.Id,
+                role.Name ?? string.Empty,
+                role.Descripcion,
+                permisosPorRol[role.Id].ToList()))
             .ToList();
     }
 
@@ -113,6 +143,10 @@ public sealed class RolService(
                 "Modificó", "Roles y Permisos", nameof(Rol), null,
                 $"Actualizó los permisos del rol {role.Name} ({permissions.Count} permiso(s))", cancellationToken);
         }, cancellationToken);
+
+        // La transacción confirmó: la próxima consulta de roles debe reflejar
+        // las casillas recién guardadas.
+        catalogoCache.InvalidarRoles();
     }
 
     private static void EnsureSucceeded(IdentityResult result)

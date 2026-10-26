@@ -3,6 +3,7 @@ using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Odontograma.DTOs;
 
 namespace SonrisaDigital.Services.Odontograma;
@@ -33,7 +34,8 @@ public sealed class OdontogramaService(
     IOdontogramaRepository repository,
     IPacienteRepository pacienteRepository,
     ICurrentUserService currentUserService,
-    IAuthorizationService authorizationService) : IOdontogramaService
+    IAuthorizationService authorizationService,
+    ICatalogoCache catalogoCache) : IOdontogramaService
 {
     // =========================================================================================
     // 1) BUSCAR PACIENTES  →  alimenta el panel de búsqueda de la pantalla del odontograma
@@ -72,7 +74,11 @@ public sealed class OdontogramaService(
         // Paso 1: traer las dos listas por separado.
         //   pieces  = el catálogo de las 32 piezas dentales (siempre las mismas).
         //   records = los registros que ESTE paciente tiene (solo las piezas que se han tocado).
-        var pieces = await repository.GetPiecesAsync(cancellationToken);
+        // El catálogo se comparte en caché; los registros clínicos del paciente
+        // se consultan siempre en la base de datos.
+        var pieces = await catalogoCache.ObtenerPiezasAsync(
+            ct => repository.GetPiecesAsync(ct),
+            cancellationToken);
         var records = (await repository.GetRecordsAsync(pacienteId, cancellationToken)).ToDictionary(record => record.PiezaDentalId);
 
         // Paso 2: cruzar las dos listas. Se recorre el catálogo de las 32 piezas y, para cada
@@ -146,8 +152,13 @@ public sealed class OdontogramaService(
         record.FechaModificacion = DateTime.UtcNow;
 
         // Paso 6: conseguir los nombres para el texto de la auditoría (paciente y pieza).
+        // La pieza sale de la misma caché que usa la pantalla; el paciente es dato
+        // clínico y se consulta directamente.
         var paciente = await pacienteRepository.GetByIdAsync(pacienteId, cancellationToken);
-        var pieza = (await repository.GetPiecesAsync(cancellationToken)).FirstOrDefault(item => item.Id == piezaDentalId);
+        var pieza = (await catalogoCache.ObtenerPiezasAsync(
+                ct => repository.GetPiecesAsync(ct),
+                cancellationToken))
+            .FirstOrDefault(item => item.Id == piezaDentalId);
 
         // Si por alguna razón no se encuentra el nombre, se usa el id para que el texto
         // de auditoría nunca quede vacío.

@@ -13,6 +13,7 @@ using SonrisaDigital.UI.Components;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Odontograma;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Reportes.DTOs;
@@ -109,7 +110,9 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await IdentitySeeder.SeedAsync(scope.ServiceProvider, builder.Configuration, logger);
-        await OdontogramaCatalogSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<SonrisaDigital.Data.ApplicationDbContext>());
+        await OdontogramaCatalogSeeder.SeedAsync(
+            scope.ServiceProvider.GetRequiredService<SonrisaDigital.Data.ApplicationDbContext>(),
+            scope.ServiceProvider.GetRequiredService<ICatalogoCache>());
     }
     catch (Exception exception)
     {

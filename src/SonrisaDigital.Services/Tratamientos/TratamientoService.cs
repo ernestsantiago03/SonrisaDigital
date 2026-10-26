@@ -9,6 +9,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Tratamientos.DTOs;
 
 namespace SonrisaDigital.Services.Tratamientos;
@@ -32,6 +33,7 @@ public sealed class TratamientoService(
     ApplicationDbContext dbContext,
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService,
+    ICatalogoCache catalogoCache,
     ILogger<TratamientoService> logger) : ITratamientoService
 {
     private const int MaxPageSize = 50;
@@ -135,6 +137,10 @@ public sealed class TratamientoService(
                 "No se pudo guardar el tratamiento. Verifique que el nombre no esté repetido.", ex);
         }
 
+        // El catálogo cambió y la transacción ya confirmó: la próxima consulta
+        // de opciones debe leer la base de datos otra vez.
+        catalogoCache.InvalidarTratamientos();
+
         return creado!.Id;
     }
 
@@ -194,6 +200,9 @@ public sealed class TratamientoService(
             throw new InvalidOperationException(
                 "No se pudo guardar el tratamiento. Verifique que el nombre no esté repetido.", ex);
         }
+
+        // Nombre, precio o estado pudieron cambiar; se descarta la copia anterior.
+        catalogoCache.InvalidarTratamientos();
     }
 
     // =====================================================================
@@ -547,9 +556,14 @@ public sealed class TratamientoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
 
-        var tratamientos = soloActivos
-            ? await repository.GetActivosAsync(cancellationToken)
-            : await repository.GetAllAsync(cancellationToken);
+        // Las opciones se comparten entre usuarios; se guardan en la caché global
+        // y se invalidan al crear o editar un tratamiento del catálogo.
+        var tratamientos = await catalogoCache.ObtenerTratamientosAsync(
+            soloActivos,
+            ct => soloActivos
+                ? repository.GetActivosAsync(ct)
+                : repository.GetAllAsync(ct),
+            cancellationToken);
 
         return tratamientos
             .Select(tratamiento => new TratamientoOptionDto(
@@ -595,7 +609,11 @@ public sealed class TratamientoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
 
-        var piezas = await repository.GetPiezasAsync(cancellationToken);
+        // El catálogo dental es fijo durante la operación normal; se reutiliza
+        // entre formularios y se invalida si el sembrador agrega piezas nuevas.
+        var piezas = await catalogoCache.ObtenerPiezasAsync(
+            ct => repository.GetPiezasAsync(ct),
+            cancellationToken);
 
         return piezas
             .Select(pieza => new PiezaDentalOptionDto(pieza.Id, pieza.NumeroFDI, pieza.Nombre))

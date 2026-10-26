@@ -19,6 +19,7 @@ using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.HistoriasClinicas;
 using SonrisaDigital.Services.Usuarios;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Tratamientos;
 
@@ -33,6 +34,11 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("No se configuro DefaultConnection.");
+
+        // La caché de catálogos es única para todo el proceso: los tratamientos,
+        // las piezas dentales y los permisos de los roles son datos globales.
+        services.AddMemoryCache();
+        services.AddSingleton<ICatalogoCache, CatalogoCache>();
 
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(connectionString, sqlServer =>
