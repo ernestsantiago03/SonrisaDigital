@@ -245,6 +245,24 @@ jobs:
           --no-restore
           -o publish
 
+      # La configuración local puede contener credenciales y no debe viajar en
+      # el artefacto que se instala en producción.
+      - name: Verificar publicación sin configuración local
+        shell: pwsh
+        run: |
+          $archivosLocales = @(
+            "publish/appsettings.Development.json",
+            "publish/appsettings.Development.example.json"
+          )
+
+          foreach ($archivo in $archivosLocales) {
+            if (Test-Path -LiteralPath $archivo) {
+              throw "La publicación contiene $archivo. Revisa CopyToPublishDirectory en el csproj."
+            }
+          }
+
+          Write-Host "Publicación sin appsettings de desarrollo."
+
       - name: Guardar artefacto de publicación
         uses: actions/upload-artifact@v4
         with:

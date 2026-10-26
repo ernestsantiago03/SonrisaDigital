@@ -12,6 +12,10 @@ appsettings.Development.json
 appsettings.Local.json
 src/**/appsettings.Development.json
 
+# Artefactos operativos generados (scripts SQL, respaldos de prueba, etc.)
+# Se revisan y se entregan al DBA, pero no se versionan.
+artefactos/
+
 # Estado de sesion / temporales locales
 session-state/
 
