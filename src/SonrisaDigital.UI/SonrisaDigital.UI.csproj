@@ -22,14 +22,6 @@
     <Content Update="appsettings.Development.example.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- La configuracion local y su plantilla no deben viajar en la publicacion.
-         Se conservan en el proyecto para ejecutar en Development, pero el
-         artefacto de produccion solo lleva appsettings.json y Production. -->
-    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
-    <Content Update="appsettings.Development.example.json" CopyToPublishDirectory="Never" />
-  </ItemGroup>
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
