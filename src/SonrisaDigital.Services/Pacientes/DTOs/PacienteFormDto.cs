@@ -1,12 +1,14 @@
-using SonrisaDigital.Data.Entities;
 using System.ComponentModel.DataAnnotations;
 
 namespace SonrisaDigital.Services.Pacientes.DTOs;
 
+/// <summary>
+/// Datos administrativos del paciente. Los datos clínicos y el estado se gestionan
+/// con DTOs y permisos separados para evitar que se modifiquen por esta vía.
+/// </summary>
 public sealed class PacienteFormDto
 {
     public int Id { get; set; }
-    public EstadoRegistro Estado { get; set; } = EstadoRegistro.Activo;
 
     [Required(ErrorMessage = "Los nombres son obligatorios.")]
     [StringLength(100, ErrorMessage = "Los nombres no pueden superar los 100 caracteres.")]
@@ -45,10 +47,4 @@ public sealed class PacienteFormDto
 
     [StringLength(100)]
     public string? ContactoEmergenciaRelacion { get; set; }
-
-    // Dato clínico: no se guarda en Paciente sino en su HistoriaClinica.
-    [StringLength(1000, ErrorMessage = "El detalle de alergias no puede superar los 1000 caracteres.")]
-    public string? Alergias { get; set; }
-
-    public bool NoRefiereAlergias { get; set; }
 }

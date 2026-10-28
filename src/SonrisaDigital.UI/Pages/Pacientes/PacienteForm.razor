@@ -7,16 +7,16 @@
 @using SonrisaDigital.Services.Pacientes.DTOs
 @inject IPacienteService PacienteService
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* ============================================================================
    PÁGINA: Registrar / Editar paciente        Rutas: /pacientes/nuevo y /pacientes/editar/{id}
 
    ¿Qué hace esta pantalla?
      Es el formulario para crear un paciente o editar los datos administrativos de uno que ya
-     existe (nombre, cédula, teléfono, dirección...). Además, dentro de un recuadro que solo
-     ven los roles con permiso "HistoriaClinica.Crear", permite anotar las alergias.
-     Si no hay alergias se marca la casilla "No refiere alergias", que es distinto de dejar
-     el campo vacío ("sin registrar").
+     existe (nombre, cédula, teléfono, dirección...). Las alergias se cargan y guardan aparte,
+     solo para usuarios con permisos de historia clínica. Si no hay alergias se marca la casilla
+     "No refiere alergias", que es distinto de dejar el campo vacío ("sin registrar").
 
    ¿Cómo se lee este archivo?
      - Markup: datos generales del paciente + recuadro de alergias.
@@ -170,7 +170,8 @@
         </div>
     </section>
 
-    <AuthorizeView Policy="HistoriaClinica.Crear" Context="clinica">
+    @if (puedeVerClinico)
+    {
         <section class="form-panel allergy-panel">
             <div class="section-heading">
                 <h2>Alergias</h2>
@@ -179,35 +180,46 @@
 
             <div class="allergy-body">
                 <label class="allergy-check">
-                    <InputCheckbox @bind-Value="NoRefiereAlergias" />
+                    <InputCheckbox @bind-Value="NoRefiereAlergias" disabled="@(!puedeGuardarClinico)" />
                     <span>El paciente no refiere alergias</span>
                 </label>
 
-                @if (!model.NoRefiereAlergias)
+                @if (!modelClinico.NoRefiereAlergias)
                 {
                     <div class="allergy-chips">
                         <span class="chips-label">Agregar rápido</span>
-                        @foreach (var alergia in AlergiasFrecuentes)
+                        @if (puedeGuardarClinico)
                         {
-                            <button type="button" class="allergy-chip" @onclick="() => AddAlergia(alergia)">+ @alergia</button>
+                            foreach (var alergia in AlergiasFrecuentes)
+                            {
+                                <button type="button" class="allergy-chip" @onclick="() => AddAlergia(alergia)">+ @alergia</button>
+                            }
                         }
                     </div>
                 }
 
                 <div class="field field-wide">
                     <label for="allergies">Detalle</label>
-                    <InputTextArea id="allergies" @bind-Value="model.Alergias"
-                                   disabled="@model.NoRefiereAlergias" rows="3"
+                    <InputTextArea id="allergies" @bind-Value="modelClinico.Alergias"
+                                   disabled="@(!puedeGuardarClinico || modelClinico.NoRefiereAlergias)" rows="3"
                                    placeholder="Ej.: Penicilina: sarpullido; Látex: irritación de la piel" />
-                    <ValidationMessage For="@(() => model.Alergias)" />
                 </div>
 
-                <p class="allergy-hint">
-                    Si todavía no le preguntaste al paciente, dejá la casilla y el detalle vacíos: así se distingue "sin registrar" de "no refiere alergias".
-                </p>
+                @if (!puedeGuardarClinico)
+                {
+                    <p class="allergy-hint">
+                        Solo lectura: tu usuario puede consultar la información clínica, pero no modificarla.
+                    </p>
+                }
+                else
+                {
+                    <p class="allergy-hint">
+                        Si todavía no le preguntaste al paciente, dejá la casilla y el detalle vacíos: así se distingue "sin registrar" de "no refiere alergias".
+                    </p>
+                }
             </div>
         </section>
-    </AuthorizeView>
+    }
 
     <div class="form-actions">
         <a class="cancel-action" href="/pacientes">Cancelar</a>
@@ -230,11 +242,20 @@
     // El id del paciente que llega por la URL al editar; si es null, se está creando uno nuevo.
     [Parameter] public int? Id { get; set; }
 
-    private PacienteFormDto model = new();   // los datos del formulario
-    private bool loading;                    // ¿cargando el paciente a editar?
-    private bool saving;                     // ¿guardando?
-    private bool notFound;                   // ¿el paciente de la URL no existe?
-    private string? errorMessage;            // mensaje rojo (error)
+    private PacienteFormDto model = new();          // datos administrativos del formulario
+    private PacienteClinicoDto modelClinico = new(); // datos clínicos, con permisos aparte
+    private bool puedeVerClinico;                   // ¿puede consultar la historia clínica?
+    private bool puedeCrearClinico;                 // ¿puede registrar información clínica?
+    private bool puedeEditarClinico;                // ¿puede modificar información clínica?
+    private bool loading;                           // ¿cargando el paciente a editar?
+    private bool saving;                            // ¿guardando?
+    private bool notFound;                          // ¿el paciente de la URL no existe?
+    private string? errorMessage;                   // mensaje rojo (error)
+
+    // Para guardar también hace falta poder ver el bloque clínico: así nunca se envía
+    // un DTO vacío que pudiera borrar alergias existentes.
+    private bool puedeGuardarClinico =>
+        puedeVerClinico && (IsEditing ? puedeEditarClinico : puedeCrearClinico);
 
     /// <summary>
     /// Lista de alergias más comunes que el formulario ofrece como botones rápidos
@@ -256,11 +277,11 @@
     /// </summary>
     private bool NoRefiereAlergias
     {
-        get => model.NoRefiereAlergias;
+        get => modelClinico.NoRefiereAlergias;
         set
         {
-            model.NoRefiereAlergias = value;
-            if (value) model.Alergias = null;
+            modelClinico.NoRefiereAlergias = value;
+            if (value) modelClinico.Alergias = null;
         }
     }
 
@@ -270,17 +291,21 @@
     /// </summary>
     private void AddAlergia(string alergia)
     {
+        // Los botones rápidos solo existen en modo editable; esta guarda protege
+        // una llamada directa desde el componente.
+        if (!puedeGuardarClinico) return;
+
         // Al agregar una alergia concreta se desmarca "No refiere alergias"
         // (sería contradictorio).
-        model.NoRefiereAlergias = false;
+        modelClinico.NoRefiereAlergias = false;
 
         // Paso 1: leer lo que ya había escrito, sin espacios sobrantes.
-        var actual = model.Alergias?.Trim();
+        var actual = modelClinico.Alergias?.Trim();
 
         // Paso 2: si no había nada, esta pasa a ser la primera alergia.
         if (string.IsNullOrEmpty(actual))
         {
-            model.Alergias = alergia;
+            modelClinico.Alergias = alergia;
             return;
         }
 
@@ -288,14 +313,21 @@
         if (actual.Contains(alergia, StringComparison.OrdinalIgnoreCase)) return;
 
         // Paso 4: si no estaba, se agrega al final separada por "; ".
-        model.Alergias = $"{actual.TrimEnd(';', ',', ' ')}; {alergia}";
+        modelClinico.Alergias = $"{actual.TrimEnd(';', ',', ' ')}; {alergia}";
     }
 
     private bool IsEditing => Id.HasValue;
-    private bool IsPatientActive
+
+    protected override async Task OnInitializedAsync()
     {
-        get => model.Estado == EstadoRegistro.Activo;
-        set => model.Estado = value ? EstadoRegistro.Activo : EstadoRegistro.Inactivo;
+        // Los permisos clínicos se leen de la misma identidad que usa AuthorizeView.
+        // Así la pantalla no muestra ni envía datos que el servicio rechazaría.
+        var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var usuario = estadoAutenticacion.User;
+
+        puedeVerClinico = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Ver");
+        puedeCrearClinico = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Crear");
+        puedeEditarClinico = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Editar");
     }
 
     protected override async Task OnParametersSetAsync()
@@ -303,16 +335,41 @@
         // Si no hay id en la URL, es un paciente nuevo: no hay nada que cargar.
         if (!Id.HasValue) return;
 
-        // Paso 1: encender el "Cargando..." y pedir los datos del paciente.
+        // Paso 1: encender el "Cargando..." y pedir los datos administrativos.
         loading = true;
-        var loaded = await PacienteService.GetFormAsync(Id.Value);
+        try
+        {
+            var loaded = await PacienteService.GetFormAsync(Id.Value);
 
-        // Paso 2: si no existe, se marca notFound (el markup muestra "no encontrado");
-        // si existe, se llena el formulario con sus datos.
-        if (loaded is null) notFound = true;
-        else model = loaded;
+            // Paso 2: si no existe, se marca notFound (el markup muestra "no encontrado").
+            if (loaded is null)
+            {
+                notFound = true;
+                return;
+            }
 
-        loading = false;
+            model = loaded;
+            modelClinico = new PacienteClinicoDto { PacienteId = Id.Value };
+
+            // Paso 3: las alergias se cargan solo con el permiso clínico correspondiente.
+            if (puedeVerClinico)
+            {
+                try
+                {
+                    modelClinico = await PacienteService.GetClinicoAsync(Id.Value)
+                        ?? new PacienteClinicoDto { PacienteId = Id.Value };
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Si los claims quedaron viejos, se oculta el bloque clínico.
+                    puedeVerClinico = false;
+                }
+            }
+        }
+        finally
+        {
+            loading = false;
+        }
     }
 
     private async Task SaveAsync()
@@ -322,20 +379,35 @@
         errorMessage = null;
         try
         {
-            // Paso 2: decidir qué hacer según el caso.
+            // Paso 2: validar el dato clínico que no forma parte del EditForm administrativo.
+            if (puedeGuardarClinico && modelClinico.Alergias?.Length > 1000)
+            {
+                errorMessage = "El detalle de alergias no puede superar los 1000 caracteres.";
+                return;
+            }
+
+            // Paso 3: enviar el bloque clínico solo si el usuario puede modificarlo.
+            var clinico = puedeGuardarClinico ? modelClinico : null;
+
             if (IsEditing)
             {
-                // Ya existe: se actualizan sus datos.
-                await PacienteService.UpdateAsync(model);
+                // Ya existe: se actualizan sus datos administrativos y, si corresponde, los clínicos.
+                await PacienteService.UpdateAsync(model, clinico);
             }
             else
             {
                 // Es nuevo: se crea y el servicio devuelve el id que le tocó.
-                model.Id = await PacienteService.CreateAsync(model);
+                model.Id = await PacienteService.CreateAsync(model, clinico);
+                modelClinico.PacienteId = model.Id;
             }
 
-            // Paso 3: ir a la ficha del paciente (así el usuario ve el resultado).
+            // Paso 4: ir a la ficha del paciente (así el usuario ve el resultado).
             Navigation.NavigateTo($"/pacientes/{model.Id}");
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            // La UI ya oculta las acciones sin permiso; esto cubre una sesión con claims viejos.
+            errorMessage = exception.Message;
         }
         catch (InvalidOperationException exception)
         {

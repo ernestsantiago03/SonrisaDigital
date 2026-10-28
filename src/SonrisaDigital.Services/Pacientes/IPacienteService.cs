@@ -21,7 +21,24 @@ public interface IPacienteService
 
     Task<PacienteDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<PacienteFormDto?> GetFormAsync(int id, CancellationToken cancellationToken = default);
-    Task<int> CreateAsync(PacienteFormDto model, CancellationToken cancellationToken = default);
-    Task UpdateAsync(PacienteFormDto model, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Devuelve solo los datos clínicos editables desde la ficha del paciente.
+    /// Requiere el permiso de consulta de historia clínica.
+    /// </summary>
+    Task<PacienteClinicoDto?> GetClinicoAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Crea el paciente y, si se recibe el bloque clínico, guarda también sus alergias
+    /// dentro de la misma operación.
+    /// </summary>
+    Task<int> CreateAsync(PacienteFormDto model, PacienteClinicoDto? clinico = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Actualiza los datos administrativos y, si se recibe el bloque clínico, sus alergias.
+    /// El estado del paciente no se modifica por esta vía.
+    /// </summary>
+    Task UpdateAsync(PacienteFormDto model, PacienteClinicoDto? clinico = null, CancellationToken cancellationToken = default);
+
     Task SetStatusAsync(int id, EstadoRegistro estado, CancellationToken cancellationToken = default);
 }
