@@ -50,15 +50,19 @@ internal static class TestSession
 {
     public const string UsuarioId = "usuario-pruebas";
 
-    public static CurrentUserService Crear(string usuarioId = UsuarioId)
+    public static CurrentUserService Crear(string usuarioId = UsuarioId, params string[] roles)
     {
-        var identidad = new ClaimsIdentity(
-            new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, usuarioId),
-                new Claim(ClaimTypes.Name, "Usuario de pruebas")
-            },
-            "Pruebas");
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, usuarioId),
+            new(ClaimTypes.Name, "Usuario de pruebas")
+        };
+
+        // Las pruebas pueden simular un rol concreto (por ejemplo, Recepcionista)
+        // sin tener que montar todo el sistema de identidad.
+        claims.AddRange(roles.Select(rol => new Claim(ClaimTypes.Role, rol)));
+
+        var identidad = new ClaimsIdentity(claims, "Pruebas");
 
         var servicio = new CurrentUserService();
         servicio.Establecer(usuarioId, "Usuario de pruebas", new ClaimsPrincipal(identidad));
@@ -102,6 +106,14 @@ internal sealed class FakeAuditoriaService : IAuditoriaService
 /// </summary>
 internal sealed class FakeHistoriaClinicaService : IHistoriaClinicaService
 {
+    /// <summary>
+    /// Permite simular que el usuario no tiene permiso clínico al marcar una cita
+    /// como atendida y comprobar que la transacción revierte el cambio de estado.
+    /// </summary>
+    public bool FallarAlRegistrarConsulta { get; set; }
+
+    public int ConsultasRegistradas { get; private set; }
+
     public Task<IReadOnlyList<HistoriaClinicaPacienteDto>> GetPatientsAsync(
         string? searchTerm = null,
         CancellationToken cancellationToken = default) =>
@@ -136,8 +148,17 @@ internal sealed class FakeHistoriaClinicaService : IHistoriaClinicaService
 
     public Task<int> RegistrarConsultaDeCitaAsync(
         Cita cita,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(1);
+        CancellationToken cancellationToken = default)
+    {
+        ConsultasRegistradas++;
+
+        if (FallarAlRegistrarConsulta)
+        {
+            throw new UnauthorizedAccessException("No tienes permiso para crear información clínica.");
+        }
+
+        return Task.FromResult(1);
+    }
 
     public Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();

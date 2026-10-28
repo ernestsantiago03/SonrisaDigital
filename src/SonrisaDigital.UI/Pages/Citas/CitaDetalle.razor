@@ -30,13 +30,13 @@
                 <div class="title-line">
                     <h1>Cita #@cita.Id 📅</h1>
                     <span class="status-badge @GetEstadoClass(cita.Estado)">
-                        @NombreEstado(cita.Estado)
+                        @CitaStateMachine.NombreEstado(cita.Estado)
                     </span>
                 </div>
                 <p>Programada para @cita.Fecha.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-DO")) a las @cita.HoraInicio.ToString("HH:mm")</p>
             </div>
             <div class="header-actions">
-                @if (!EsEstadoFinal(cita.Estado))
+                @if (!CitaStateMachine.EsEstadoFinal(cita.Estado))
                 {
                     @if (PuedeEditarCita(cita.Estado))
                     {
@@ -85,9 +85,9 @@
         @if (Bloqueada)
         {
             <div class="feedback error">
-                @if (EsEstadoFinal(cita.Estado))
+                @if (CitaStateMachine.EsEstadoFinal(cita.Estado))
                 {
-                    <text>Esta cita ya no puede editarse porque se encuentra en estado final (@NombreEstado(cita.Estado)). Solo puede consultarse o reprogramarse.</text>
+                    <text>Esta cita ya no puede editarse porque se encuentra en estado final (@CitaStateMachine.NombreEstado(cita.Estado)). Solo puede consultarse o reprogramarse.</text>
                 }
                 else
                 {
@@ -95,10 +95,10 @@
                 }
             </div>
         }
-        else if (EsEstadoFinal(cita.Estado))
+        else if (CitaStateMachine.EsEstadoFinal(cita.Estado))
         {
             <div class="feedback info">
-                Esta cita está cerrada (@NombreEstado(cita.Estado)). Solo puede consultarse; usa "Reprogramar" para agendar una cita nueva.
+                Esta cita está cerrada (@CitaStateMachine.NombreEstado(cita.Estado)). Solo puede consultarse; usa "Reprogramar" para agendar una cita nueva.
             </div>
         }
         else if (!PuedeEditarCita(cita.Estado) && !PuedeAtender)
@@ -127,7 +127,7 @@
                 </div>
                 <div>
                     <dt>Estado</dt>
-                    <dd><span class="status @GetEstadoClass(cita.Estado)">@NombreEstado(cita.Estado)</span></dd>
+                    <dd><span class="status @GetEstadoClass(cita.Estado)">@CitaStateMachine.NombreEstado(cita.Estado)</span></dd>
                 </div>
                 @* Si la cita ya fue atendida tiene una consulta clínica: se enlaza a la historia. *@
                 @if (cita.ConsultaId.HasValue)
@@ -218,11 +218,11 @@
         {
             // Cancelar y No asistió cierran la cita de forma irreversible, por eso se confirman.
             // Marcar como atendida es la acción cotidiana del odontólogo: no pide confirmación.
-            if (EsEstadoFinal(nuevoEstado) && nuevoEstado != EstadoCita.Atendida)
+            if (CitaStateMachine.EsEstadoFinal(nuevoEstado) && nuevoEstado != EstadoCita.Atendida)
             {
                 var confirmado = await JS.InvokeAsync<bool>(
                     "confirm",
-                    $"¿Confirmar cambiar la cita a '{NombreEstado(nuevoEstado)}'? Esta acción no se puede deshacer.");
+                    $"¿Confirmar cambiar la cita a '{CitaStateMachine.NombreEstado(nuevoEstado)}'? Esta acción no se puede deshacer.");
                 if (!confirmado)
                 {
                     return;
@@ -239,6 +239,10 @@
                 successMessage = "Cita marcada como atendida. Se registró su consulta clínica (queda Abierta para que la completes).";
             }
         }
+        catch (UnauthorizedAccessException exception)
+        {
+            errorMessage = exception.Message;
+        }
         catch (InvalidOperationException exception)
         {
             errorMessage = exception.Message;
@@ -248,27 +252,12 @@
     // Al reprogramar se abre el formulario de citas para generar una cita nueva.
     private void Reprogramar() => Navigation.NavigateTo("/cita/nuevo");
 
-    // Una cita solo puede editarse mientras esté Programada o Confirmada.
-    // Atendida, Cancelada y No asistió son estados finales: solo se pueden ver.
-    private static bool EsEstadoFinal(EstadoCita estado) =>
-        estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio;
-
     private bool EsRecepcionista => currentUser.IsInRole(RolesSonrisaDigital.Recepcionista);
 
     // El recepcionista deja de poder editar la cita una vez confirmada.
     private bool PuedeEditarCita(EstadoCita estado) =>
-        PuedeEditar && !EsEstadoFinal(estado) &&
+        PuedeEditar && !CitaStateMachine.EsEstadoFinal(estado) &&
         !(estado == EstadoCita.Confirmada && EsRecepcionista);
-
-    private static string NombreEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Programada => "Programada",
-        EstadoCita.Confirmada => "Confirmada",
-        EstadoCita.Atendida => "Atendida",
-        EstadoCita.Cancelada => "Cancelada",
-        EstadoCita.NoAsistio => "No asistió",
-        _ => estado.ToString()
-    };
 
     private static string GetEstadoClass(EstadoCita estado) => estado switch
     {

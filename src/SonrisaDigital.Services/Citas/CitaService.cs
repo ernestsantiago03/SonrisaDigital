@@ -186,10 +186,36 @@ public sealed class CitaService(
                 var cita = await repository.GetByIdAsync(model.Id, cancellationToken)
                     ?? throw new InvalidOperationException("La cita no existe.");
 
-                if (cita.Estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio)
+                if (CitaStateMachine.EsEstadoFinal(cita.Estado))
                     throw new InvalidOperationException("Esta cita ya está cerrada y no se puede editar.");
 
-                var paciente = await pacienteRepository.GetByIdAsync(model.PacienteId, cancellationToken)
+                // El recepcionista solo puede editar mientras la cita está Programada.
+                // El servicio repite esta regla para que no dependa de la pantalla.
+                if (cita.Estado == EstadoCita.Confirmada &&
+                    currentUserService.Principal?.IsInRole(RolesSonrisaDigital.Recepcionista) == true)
+                {
+                    throw new InvalidOperationException(
+                        "Esta cita ya está confirmada y no puede editarse. El odontólogo es quien la marca como atendida.");
+                }
+
+                // Una cita no cambia de paciente, fecha ni motivo después de crearse.
+                // Para reprogramarla se crea una cita nueva desde el detalle.
+                if (model.PacienteId != cita.PacienteId)
+                    throw new InvalidOperationException("El paciente de una cita no se puede cambiar.");
+
+                if (model.Fecha != cita.Fecha)
+                    throw new InvalidOperationException(
+                        "La fecha de una cita no se puede cambiar. Crea una cita nueva para reprogramarla.");
+
+                if (!string.Equals(
+                        NormalizarTexto(model.Motivo),
+                        NormalizarTexto(cita.Motivo),
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("El motivo de una cita no se puede cambiar.");
+                }
+
+                var paciente = await pacienteRepository.GetByIdAsync(cita.PacienteId, cancellationToken)
                     ?? throw new InvalidOperationException("El paciente seleccionado no existe.");
 
                 if (paciente.Estado != EstadoRegistro.Activo)
@@ -201,33 +227,22 @@ public sealed class CitaService(
                 if (odontologo.Estado != EstadoRegistro.Activo)
                     throw new InvalidOperationException("El odontólogo debe estar activo para agendar citas.");
 
-                // Cancelar o marcar una inasistencia libera el horario; en esos casos no se
-                // bloquea la edición por un choque con otra cita.
-                if (model.Estado is not (EstadoCita.Cancelada or EstadoCita.NoAsistio))
-                {
-                    var conflicto = await repository.BuscarConflictoAsync(
-                        model.OdontologoId,
-                        model.PacienteId,
-                        model.Fecha,
-                        model.HoraInicio,
-                        model.HoraFin,
-                        model.Id,
-                        cancellationToken);
+                var conflicto = await repository.BuscarConflictoAsync(
+                    model.OdontologoId,
+                    cita.PacienteId,
+                    cita.Fecha,
+                    model.HoraInicio,
+                    model.HoraFin,
+                    model.Id,
+                    cancellationToken);
 
-                    ValidarConflicto(conflicto);
-                }
+                ValidarConflicto(conflicto);
 
-                cita.PacienteId = model.PacienteId;
+                // Solo se modifican los datos que la pantalla permite cambiar.
+                // El estado se cambia exclusivamente con SetEstadoAsync.
                 cita.OdontologoId = model.OdontologoId;
-                cita.Fecha = model.Fecha;
                 cita.HoraInicio = model.HoraInicio;
                 cita.HoraFin = model.HoraFin;
-                cita.Motivo = NormalizarTexto(model.Motivo);
-                cita.Estado = model.Estado;
-
-                // Si al editar la cita se la deja en estado Atendida, también se registra su
-                // consulta clínica, igual que al pulsar "Marcar como atendida".
-                await AsegurarConsultaDeAtencionAsync(cita, cancellationToken);
 
                 await repository.UpdateAsync(cita, cancellationToken);
 
@@ -250,21 +265,30 @@ public sealed class CitaService(
 
     public async Task SetEstadoAsync(int id, EstadoCita estado, CancellationToken cancellationToken = default)
     {
-        // Permiso según la acción que representa el nuevo estado.
-        var permiso = estado switch
-        {
-            EstadoCita.Cancelada => "Citas.Cancelar",
-            EstadoCita.Atendida => "Citas.Atender",
-            _ => "Citas.Editar"
-        };
-        await authorizationService.AsegurarPermisoAsync(currentUserService, permiso, "No tienes permiso para cambiar el estado de la cita.");
-
         try
         {
             await dbContext.ExecuteInTransactionAsync(async () =>
             {
                 var cita = await repository.GetByIdAsync(id, cancellationToken)
                     ?? throw new InvalidOperationException("La cita no existe.");
+
+                // Si la cita ya está en ese estado no hay nada que guardar ni auditar.
+                if (cita.Estado == estado)
+                {
+                    return;
+                }
+
+                // La transición se valida contra el estado real de la base, no contra
+                // el estado que la pantalla tenía cargado.
+                CitaStateMachine.ValidarTransicion(cita.Estado, estado);
+
+                var permiso = CitaStateMachine.PermisoRequerido(cita.Estado, estado)
+                    ?? throw new InvalidOperationException("La transición de estado no es válida.");
+
+                await authorizationService.AsegurarPermisoAsync(
+                    currentUserService,
+                    permiso,
+                    "No tienes permiso para cambiar el estado de la cita.");
 
                 cita.Estado = estado;
 
@@ -276,9 +300,15 @@ public sealed class CitaService(
 
                 await auditoriaService.RegistrarAsync(
                     "Cambió", "Citas", nameof(Cita), cita.Id,
-                    $"Cambió la cita de {cita.Paciente.Nombres} {cita.Paciente.Apellidos} a estado '{NombreEstado(estado)}'",
+                    $"Cambió la cita de {cita.Paciente.Nombres} {cita.Paciente.Apellidos} a estado '{CitaStateMachine.NombreEstado(estado)}'",
                     cancellationToken);
             }, cancellationToken);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Los permisos se comprueban dentro de la transacción para conocer el estado
+            // actual; se reenvía el mensaje tal cual para que la pantalla lo muestre.
+            throw;
         }
         catch (InvalidOperationException)
         {
@@ -358,16 +388,6 @@ public sealed class CitaService(
         await historiaClinicaService.RegistrarConsultaDeCitaAsync(cita, cancellationToken);
     }
 
-    private static string NombreEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Programada => "Programada",
-        EstadoCita.Confirmada => "Confirmada",
-        EstadoCita.Atendida => "Atendida",
-        EstadoCita.Cancelada => "Cancelada",
-        EstadoCita.NoAsistio => "No asistió",
-        _ => estado.ToString()
-    };
-
     // Convierte la entidad de base de datos en la fila que muestra la tabla.
     private static CitaListItemDto ToListItem(Cita cita) => new(
         cita.Id,
@@ -409,6 +429,6 @@ public sealed class CitaService(
             HoraInicio = cita.HoraInicio,
             HoraFin = cita.HoraFin,
             Motivo = cita.Motivo,
-            Estado = cita.Estado
+            EstadoActual = cita.Estado
         };
 }

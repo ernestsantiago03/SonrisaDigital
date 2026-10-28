@@ -84,7 +84,7 @@
                                 <td><a class="appointment-name" href="/cita/@cita.Id">@cita.PacienteNombre</a></td>
                                 <td>@cita.OdontologoNombre</td>
                                 <td>@(cita.Motivo ?? "-")</td>
-                                <td><span class="status-badge @GetEstadoClass(cita.Estado)">@NombreEstado(cita.Estado)</span></td>
+                                <td><span class="status-badge @GetEstadoClass(cita.Estado)">@CitaStateMachine.NombreEstado(cita.Estado)</span></td>
                                 <td class="row-actions">
                                     <a href="/cita/@cita.Id">Ver</a>
                                     @if (PuedeEditarCita(cita.Estado))
@@ -196,27 +196,12 @@
         await LoadCitasAsync();
     }
 
-    // Una cita solo puede editarse mientras esté Programada o Confirmada.
-    // Atendida, Cancelada y No asistió son estados finales: solo se pueden ver.
-    private static bool EsEstadoFinal(EstadoCita estado) =>
-        estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio;
-
     private bool EsRecepcionista => currentUser.IsInRole(RolesSonrisaDigital.Recepcionista);
 
     // El recepcionista deja de poder editar la cita una vez confirmada.
     private bool PuedeEditarCita(EstadoCita estado) =>
-        PuedeEditar && !EsEstadoFinal(estado) &&
+        PuedeEditar && !CitaStateMachine.EsEstadoFinal(estado) &&
         !(estado == EstadoCita.Confirmada && EsRecepcionista);
-
-    private static string NombreEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Programada => "Programada",
-        EstadoCita.Confirmada => "Confirmada",
-        EstadoCita.Atendida => "Atendida",
-        EstadoCita.Cancelada => "Cancelada",
-        EstadoCita.NoAsistio => "No asistió",
-        _ => estado.ToString()
-    };
 
     private string GetEstadoClass(EstadoCita estado) => estado switch
     {
