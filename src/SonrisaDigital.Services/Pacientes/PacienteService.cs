@@ -69,16 +69,42 @@ public sealed class PacienteService(
         return patient is null ? null : ToForm(patient);
     }
 
-    public async Task<int> CreateAsync(PacienteFormDto model, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Los datos clínicos se leen aparte del formulario administrativo. Así un usuario
+    /// con acceso a pacientes no recibe alergias si no tiene permiso de historia clínica.
+    /// </summary>
+    public async Task<PacienteClinicoDto?> GetClinicoAsync(int id, CancellationToken cancellationToken = default)
     {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar información clínica.");
+
+        var patient = await repository.GetByIdAsync(id, cancellationToken);
+        return patient is null ? null : ToClinico(patient);
+    }
+
+    public async Task<int> CreateAsync(
+        PacienteFormDto model,
+        PacienteClinicoDto? clinico = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Crear", "No tienes permiso para registrar pacientes.");
+
+        // El bloque clínico solo exige permiso clínico cuando realmente trae un dato.
+        // Un formulario administrativo sin alergias no crea una historia vacía.
+        if (TieneDatosClinicos(clinico))
+        {
+            await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Crear", "No tienes permiso para registrar información clínica.");
+        }
+
+        ValidarDatosClinicos(clinico);
 
         var normalizedIdentification = Normalize(model.Identificacion);
         await EnsureIdentificationIsAvailableAsync(normalizedIdentification, null, cancellationToken);
 
         var patient = new Paciente();
         ApplyForm(patient, model, normalizedIdentification);
-        var alergiasRegistradas = ApplyAlergias(patient, model);
+        var alergiasRegistradas = ApplyAlergias(patient, clinico);
         patient.FechaRegistro = DateTime.UtcNow;
         patient.Estado = EstadoRegistro.Activo;
 
@@ -92,19 +118,33 @@ public sealed class PacienteService(
         return patient.Id;
     }
 
-    public async Task UpdateAsync(PacienteFormDto model, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(
+        PacienteFormDto model,
+        PacienteClinicoDto? clinico = null,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(model);
+
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Editar", "No tienes permiso para editar pacientes.");
 
         var patient = await repository.GetByIdAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
 
+        ValidarDatosClinicos(clinico);
+
         var normalizedIdentification = Normalize(model.Identificacion);
         await EnsureIdentificationIsAvailableAsync(normalizedIdentification, model.Id, cancellationToken);
 
+        // Solo se pide el permiso clínico si el bloque recibido cambia las alergias.
+        // El estado del paciente no se toca aquí: se cambia únicamente con SetStatusAsync.
+        var alergiasRegistradas = false;
+        if (clinico is not null && CambianAlergias(patient, clinico))
+        {
+            await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
+            alergiasRegistradas = ApplyAlergias(patient, clinico);
+        }
+
         ApplyForm(patient, model, normalizedIdentification);
-        var alergiasRegistradas = ApplyAlergias(patient, model);
-        patient.Estado = model.Estado;
         await repository.SaveChangesAsync(cancellationToken);
 
         await auditoriaService.RegistrarAsync(
@@ -162,9 +202,11 @@ public sealed class PacienteService(
     /// Guarda las alergias en la HistoriaClinica del paciente (creandola solo cuando hay un dato
     /// clinico que registrar). Devuelve true si el dato clinico cambio.
     /// </summary>
-    private static bool ApplyAlergias(Paciente patient, PacienteFormDto model)
+    private static bool ApplyAlergias(Paciente patient, PacienteClinicoDto? model)
     {
-        var valor = model.NoRefiereAlergias ? NoRefiereAlergiasTexto : Normalize(model.Alergias);
+        if (model is null) return false;
+
+        var valor = ObtenerValorAlergias(model);
 
         if (patient.HistoriaClinica is null)
         {
@@ -180,26 +222,53 @@ public sealed class PacienteService(
         return true;
     }
 
+    /// <summary>
+    /// Indica si el bloque clínico recibido cambiaría las alergias actuales del paciente.
+    /// Se usa para no exigir permisos clínicos cuando el dato no cambia.
+    /// </summary>
+    private static bool CambianAlergias(Paciente patient, PacienteClinicoDto model) =>
+        patient.HistoriaClinica?.Alergias != ObtenerValorAlergias(model);
+
+    private static string? ObtenerValorAlergias(PacienteClinicoDto model) =>
+        model.NoRefiereAlergias ? NoRefiereAlergiasTexto : Normalize(model.Alergias);
+
+    private static bool TieneDatosClinicos(PacienteClinicoDto? model) =>
+        model is not null && (model.NoRefiereAlergias || !string.IsNullOrWhiteSpace(model.Alergias));
+
+    private static void ValidarDatosClinicos(PacienteClinicoDto? model)
+    {
+        if (model?.Alergias?.Length > 1000)
+        {
+            throw new InvalidOperationException("El detalle de alergias no puede superar los 1000 caracteres.");
+        }
+    }
+
     private static string SufijoAlergias(bool registradas) => registradas ? " (registró alergias)" : string.Empty;
 
     private static PacienteFormDto ToForm(Paciente patient) => new()
     {
         Id = patient.Id,
-        Estado = patient.Estado,
         Nombres = patient.Nombres,
         Apellidos = patient.Apellidos,
         Identificacion = patient.Identificacion,
         FechaNacimiento = patient.FechaNacimiento,
         Sexo = patient.Sexo,
         TipoSangre = patient.TipoSangre,
-        Alergias = patient.HistoriaClinica?.Alergias == NoRefiereAlergiasTexto ? null : patient.HistoriaClinica?.Alergias,
-        NoRefiereAlergias = patient.HistoriaClinica?.Alergias == NoRefiereAlergiasTexto,
         Telefono = patient.Telefono,
         Correo = patient.Correo,
         Direccion = patient.Direccion,
         ContactoEmergenciaNombre = patient.ContactoEmergenciaNombre,
         ContactoEmergenciaTelefono = patient.ContactoEmergenciaTelefono,
         ContactoEmergenciaRelacion = patient.ContactoEmergenciaRelacion
+    };
+
+    private static PacienteClinicoDto ToClinico(Paciente patient) => new()
+    {
+        PacienteId = patient.Id,
+        Alergias = patient.HistoriaClinica?.Alergias == NoRefiereAlergiasTexto
+            ? null
+            : patient.HistoriaClinica?.Alergias,
+        NoRefiereAlergias = patient.HistoriaClinica?.Alergias == NoRefiereAlergiasTexto
     };
 
     // Convierte la entidad de base de datos en la fila que muestra la tabla.

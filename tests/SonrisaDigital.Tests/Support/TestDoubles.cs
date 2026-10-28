@@ -13,23 +13,34 @@ using SonrisaDigital.Services.Pagos;
 namespace SonrisaDigital.Tests.Support;
 
 /// <summary>
-/// Autorización de pruebas: permite o niega todos los permisos sin depender
-/// del motor de políticas de ASP.NET Core. Así las pruebas se concentran en
-/// la lógica del servicio y no en la configuración de la aplicación.
+/// Autorización de pruebas: permite o niega permisos sin depender del motor de
+/// políticas de ASP.NET Core. Además de permitir/negar todo, permite denegar
+/// políticas concretas para probar flujos con permisos separados.
 /// </summary>
-internal sealed class FakeAuthorizationService(bool permitir = true) : IAuthorizationService
+internal sealed class FakeAuthorizationService : IAuthorizationService
 {
+    private readonly bool permitirTodo;
+    private readonly HashSet<string> denegadas;
+
+    public FakeAuthorizationService(bool permitir = true, params string[] denegadas)
+    {
+        permitirTodo = permitir;
+        this.denegadas = new HashSet<string>(denegadas, StringComparer.Ordinal);
+    }
+
     public Task<AuthorizationResult> AuthorizeAsync(
         ClaimsPrincipal user,
         object? resource,
         IEnumerable<IAuthorizationRequirement> requirements) =>
-        Task.FromResult(permitir ? AuthorizationResult.Success() : AuthorizationResult.Failed());
+        Task.FromResult(permitirTodo ? AuthorizationResult.Success() : AuthorizationResult.Failed());
 
     public Task<AuthorizationResult> AuthorizeAsync(
         ClaimsPrincipal user,
         object? resource,
         string policyName) =>
-        Task.FromResult(permitir ? AuthorizationResult.Success() : AuthorizationResult.Failed());
+        Task.FromResult(permitirTodo && !denegadas.Contains(policyName)
+            ? AuthorizationResult.Success()
+            : AuthorizationResult.Failed());
 }
 
 /// <summary>
@@ -130,6 +141,63 @@ internal sealed class FakeHistoriaClinicaService : IHistoriaClinicaService
 
     public Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+}
+
+/// <summary>
+/// Repositorio de pacientes en memoria para probar permisos y reglas del servicio
+/// sin depender de SQL Server. Mantiene las entidades tal como las recibe el servicio.
+/// </summary>
+internal sealed class StubPacienteRepository : IPacienteRepository
+{
+    private int siguienteId = 1;
+
+    public List<Paciente> Pacientes { get; } = [];
+
+    public Task<IReadOnlyList<Paciente>> SearchAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Paciente>>(Pacientes);
+
+    public Task<PagedResult<Paciente>> SearchPagedAsync(
+        string? searchTerm,
+        EstadoRegistro? estado,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new PagedResult<Paciente>(Pacientes, Pacientes.Count, page, pageSize));
+
+    public Task<int> CountAsync(
+        EstadoRegistro? estado = null,
+        DateTime? registradosDesdeUtc = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(Pacientes.Count);
+
+    public Task<Paciente?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Pacientes.FirstOrDefault(paciente => paciente.Id == id));
+
+    public Task<bool> ExistsWithIdentificationAsync(
+        string identification,
+        int? excludedId = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(Pacientes.Any(paciente =>
+            paciente.Identificacion == identification &&
+            (!excludedId.HasValue || paciente.Id != excludedId.Value)));
+
+    public Task AddAsync(Paciente paciente, CancellationToken cancellationToken = default)
+    {
+        paciente.Id = siguienteId++;
+        if (paciente.HistoriaClinica is not null)
+        {
+            paciente.HistoriaClinica.PacienteId = paciente.Id;
+        }
+
+        Pacientes.Add(paciente);
+        return Task.CompletedTask;
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }
 
 /// <summary>
