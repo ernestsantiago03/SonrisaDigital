@@ -46,8 +46,8 @@
             @if (IsEditing)
             {
                 <div class="feedback info">
-                    Después de crear la cita solo puedes cambiar el odontólogo, la hora y el estado.
-                    El paciente, la fecha y el motivo no se pueden modificar.
+                    Después de crear la cita solo puedes cambiar el odontólogo y la hora.
+                    El paciente, la fecha, el motivo y el estado no se modifican desde este formulario.
                 </div>
             }
 
@@ -180,26 +180,6 @@
                 </div>
             </section>
 
-            @if (IsEditing)
-            {
-                <section class="form-panel">
-                    <div class="section-heading">
-                        <h2>Estado</h2>
-                    </div>
-                    <div class="form-grid">
-                        <div class="field">
-                            <label for="status-select">Estado de la cita</label>
-                            <InputSelect id="status-select" @bind-Value="model.Estado">
-                                @foreach (var opcion in OpcionesDeEstado())
-                                {
-                                    <option value="@opcion">@NombreEstado(opcion)</option>
-                                }
-                            </InputSelect>
-                        </div>
-                    </div>
-                </section>
-            }
-
             <div class="form-actions">
                 <a class="cancel-action" href="/cita">Cancelar</a>
                 <button class="primary-action" type="submit" disabled="@saving">
@@ -231,20 +211,12 @@
     private bool IsEditing => Id.HasValue;
 
     private ClaimsPrincipal currentUser = new();
-    private EstadoCita estadoOriginal = EstadoCita.Programada;
 
     private bool PuedeCrear => TienePermiso("Citas.Crear");
     private bool PuedeEditar => TienePermiso("Citas.Editar");
-    private bool PuedeCancelar => TienePermiso("Citas.Cancelar");
-    private bool PuedeAtender => TienePermiso("Citas.Atender");
 
     private bool TienePermiso(string permiso) =>
         currentUser.HasClaim(PermissionCatalog.ClaimType, permiso);
-
-    // Una cita solo puede editarse mientras esté Programada o Confirmada.
-    // Atendida, Cancelada y No asistió son estados finales: solo se pueden ver.
-    private static bool EsEstadoFinal(EstadoCita estado) =>
-        estado is EstadoCita.Atendida or EstadoCita.Cancelada or EstadoCita.NoAsistio;
 
     private bool EsRecepcionista => currentUser.IsInRole(RolesSonrisaDigital.Recepcionista);
 
@@ -252,42 +224,8 @@
     // poder modificarla (a partir de ahí es el odontólogo quien la marca como atendida).
     // El administrador conserva la edición mientras no sea un estado final.
     private bool PuedeEditarCita(EstadoCita estado) =>
-        PuedeEditar && !EsEstadoFinal(estado) &&
+        PuedeEditar && !CitaStateMachine.EsEstadoFinal(estado) &&
         !(estado == EstadoCita.Confirmada && EsRecepcionista);
-
-    // Estados a los que el usuario actual puede mover la cita, según su permiso y el estado guardado.
-    // Programada -> Confirmada (editar) / Cancelada o No asistió (cancelar).
-    // Confirmada -> Atendida (atender).
-    private List<EstadoCita> OpcionesDeEstado()
-    {
-        var opciones = new List<EstadoCita> { estadoOriginal };
-
-        if (estadoOriginal == EstadoCita.Programada)
-        {
-            if (PuedeEditar) opciones.Add(EstadoCita.Confirmada);
-            if (PuedeCancelar)
-            {
-                opciones.Add(EstadoCita.Cancelada);
-                opciones.Add(EstadoCita.NoAsistio);
-            }
-        }
-        else if (estadoOriginal == EstadoCita.Confirmada && PuedeAtender)
-        {
-            opciones.Add(EstadoCita.Atendida);
-        }
-
-        return opciones;
-    }
-
-    private static string NombreEstado(EstadoCita estado) => estado switch
-    {
-        EstadoCita.Programada => "Programada",
-        EstadoCita.Confirmada => "Confirmada",
-        EstadoCita.Atendida => "Atendida",
-        EstadoCita.Cancelada => "Cancelada",
-        EstadoCita.NoAsistio => "No asistió",
-        _ => estado.ToString()
-    };
 
     // Propiedad para enlazar la Fecha y validar si es fin de semana en tiempo real
     private DateOnly FechaSeleccionada
@@ -374,14 +312,13 @@
                     // Una cita en estado final (Atendida, Cancelada o No asistió) no puede editarse,
                     // y el recepcionista tampoco puede editar una cita ya confirmada.
                     // Si se intenta abrir el formulario por URL directa, se redirige al detalle.
-                    if (!PuedeEditarCita(loaded.Estado))
+                    if (!PuedeEditarCita(loaded.EstadoActual))
                     {
                         Navigation.NavigateTo($"/cita/{loaded.Id}?bloqueada=1");
                         return;
                     }
 
                     model = loaded;
-                    estadoOriginal = loaded.Estado; // Estado guardado: define las transiciones permitidas
                     // Verificar si la fecha cargada es fin de semana
                     isWeekendError = model.Fecha.DayOfWeek == DayOfWeek.Saturday || model.Fecha.DayOfWeek == DayOfWeek.Sunday;
                 }
@@ -397,8 +334,7 @@
                 {
                     Fecha = defaultDate,
                     HoraInicio = new TimeOnly(8, 0),
-                    HoraFin = new TimeOnly(8, 30),
-                    Estado = EstadoCita.Programada
+                    HoraFin = new TimeOnly(8, 30)
                 };
             }
 

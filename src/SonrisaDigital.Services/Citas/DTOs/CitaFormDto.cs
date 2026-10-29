@@ -25,5 +25,10 @@ public sealed class CitaFormDto
     [StringLength(500, ErrorMessage = "El motivo no puede superar los 500 caracteres.")]
     public string? Motivo { get; set; }
 
-    public EstadoCita Estado { get; set; } = EstadoCita.Programada;
+    /// <summary>
+    /// Estado guardado de la cita. Es solo informativo para que la pantalla decida
+    /// si puede abrir el formulario; los cambios de estado se hacen únicamente
+    /// con CitaService.SetEstadoAsync.
+    /// </summary>
+    public EstadoCita EstadoActual { get; init; } = EstadoCita.Programada;
 }
