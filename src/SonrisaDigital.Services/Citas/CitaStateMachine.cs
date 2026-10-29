@@ -41,6 +41,18 @@ public static class CitaStateMachine
         _ => null
     };
 
+    /// <summary>
+    /// Permiso que representa la acción solicitada. Se usa antes de leer la cita
+    /// para no revelar su existencia a un usuario sin permiso; la transición real
+    /// se sigue validando después con el estado guardado.
+    /// </summary>
+    public static string PermisoRequeridoParaEstado(EstadoCita nuevo) => nuevo switch
+    {
+        EstadoCita.Cancelada or EstadoCita.NoAsistio => "Citas.Cancelar",
+        EstadoCita.Atendida => "Citas.Atender",
+        _ => "Citas.Editar"
+    };
+
     public static bool EsTransicionPermitida(EstadoCita actual, EstadoCita nuevo) =>
         actual == nuevo || PermisoRequerido(actual, nuevo) is not null;
 

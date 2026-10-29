@@ -265,6 +265,14 @@ public sealed class CitaService(
 
     public async Task SetEstadoAsync(int id, EstadoCita estado, CancellationToken cancellationToken = default)
     {
+        // El permiso se comprueba antes de leer la cita para no revelar si existe.
+        // La transición concreta se valida después contra el estado guardado.
+        var permiso = CitaStateMachine.PermisoRequeridoParaEstado(estado);
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService,
+            permiso,
+            "No tienes permiso para cambiar el estado de la cita.");
+
         try
         {
             await dbContext.ExecuteInTransactionAsync(async () =>
@@ -282,14 +290,6 @@ public sealed class CitaService(
                 // el estado que la pantalla tenía cargado.
                 CitaStateMachine.ValidarTransicion(cita.Estado, estado);
 
-                var permiso = CitaStateMachine.PermisoRequerido(cita.Estado, estado)
-                    ?? throw new InvalidOperationException("La transición de estado no es válida.");
-
-                await authorizationService.AsegurarPermisoAsync(
-                    currentUserService,
-                    permiso,
-                    "No tienes permiso para cambiar el estado de la cita.");
-
                 cita.Estado = estado;
 
                 // Si la cita queda Atendida, la consulta clínica y el cambio de estado se
@@ -306,8 +306,8 @@ public sealed class CitaService(
         }
         catch (UnauthorizedAccessException)
         {
-            // Los permisos se comprueban dentro de la transacción para conocer el estado
-            // actual; se reenvía el mensaje tal cual para que la pantalla lo muestre.
+            // La Historia Clínica también puede negar el permiso al registrar la
+            // consulta de una cita atendida; se reenvía el mensaje tal cual.
             throw;
         }
         catch (InvalidOperationException)

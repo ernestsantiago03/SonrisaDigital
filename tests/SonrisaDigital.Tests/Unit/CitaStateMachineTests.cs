@@ -23,6 +23,19 @@ public sealed class CitaStateMachineTests
     }
 
     [Theory]
+    [InlineData(EstadoCita.Programada, "Citas.Editar")]
+    [InlineData(EstadoCita.Confirmada, "Citas.Editar")]
+    [InlineData(EstadoCita.Atendida, "Citas.Atender")]
+    [InlineData(EstadoCita.Cancelada, "Citas.Cancelar")]
+    [InlineData(EstadoCita.NoAsistio, "Citas.Cancelar")]
+    public void DevuelveElPermisoDeLaAccionSolicitada(
+        EstadoCita nuevo,
+        string permisoEsperado)
+    {
+        Assert.Equal(permisoEsperado, CitaStateMachine.PermisoRequeridoParaEstado(nuevo));
+    }
+
+    [Theory]
     [InlineData(EstadoCita.Programada, EstadoCita.Atendida)]
     [InlineData(EstadoCita.Confirmada, EstadoCita.Programada)]
     [InlineData(EstadoCita.Confirmada, EstadoCita.Cancelada)]
