@@ -1,3 +1,5 @@
+using SonrisaDigital.Data.Tenancy;
+using SonrisaDigital.Tests.Support;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
@@ -64,11 +66,21 @@ public sealed class SqlServerFixture : IAsyncLifetime
             .UseSqlServer(constructor.ConnectionString)
             .Options;
 
-        await using var db = CreateContext();
+        await using var db = new ApplicationDbContext(Options, SinClinica.Instancia);
         await db.Database.MigrateAsync();
+
+        // La migración crea la clínica demo; todas las pruebas trabajan dentro de ella.
+        ClinicaId = await db.Clinicas
+            .AsNoTracking()
+            .Where(clinic => clinic.Codigo == "clinica-demo")
+            .Select(clinic => clinic.Id)
+            .SingleAsync();
     }
 
-    public ApplicationDbContext CreateContext() => new(Options);
+    /// <summary>Clínica en la que trabajan las pruebas de integración.</summary>
+    public int ClinicaId { get; private set; }
+
+    public ApplicationDbContext CreateContext() => new(Options, new TenantFijo(ClinicaId));
 
     public async Task DisposeAsync()
     {

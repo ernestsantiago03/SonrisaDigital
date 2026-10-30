@@ -1,7 +1,11 @@
+using SonrisaDigital.Data.Tenancy;
 namespace SonrisaDigital.Data.Entities;
 
-public class Pago
+public class Pago : IPerteneceAClinica
 {
+    public int ClinicaId { get; set; }
+    public Clinica? Clinica { get; set; }
+
     public int Id { get; set; }
     public int TratamientoRealizadoId { get; set; }
     public DateTime Fecha { get; set; } = DateTime.UtcNow;

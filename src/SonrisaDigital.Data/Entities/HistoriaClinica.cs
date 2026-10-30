@@ -1,7 +1,11 @@
+using SonrisaDigital.Data.Tenancy;
 namespace SonrisaDigital.Data.Entities;
 
-public class HistoriaClinica
+public class HistoriaClinica : IPerteneceAClinica
 {
+    public int ClinicaId { get; set; }
+    public Clinica? Clinica { get; set; }
+
     public int Id { get; set; }
     public int PacienteId { get; set; }
     public string? Alergias { get; set; }
