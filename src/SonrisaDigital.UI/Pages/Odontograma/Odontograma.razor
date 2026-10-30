@@ -65,31 +65,34 @@
 
     @if (buscandoResultados)
     {
-        <section class="search-results" aria-label="Resultados de la búsqueda">
+        <section class="resultados-panel" aria-label="Resultados de la búsqueda">
             @if (resultados.Total == 0)
             {
-                <div class="search-empty">
+                <div class="resultados-vacio">
                     @(string.IsNullOrWhiteSpace(searchTerm)
-                        ? "Todavía no hay pacientes activos registrados."
+                        ? "No hay pacientes activos registrados."
                         : "No se encontró ningún paciente activo con ese nombre o apellido.")
                 </div>
             }
             else
             {
-                <div class="search-results-head">
-                    @resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")
+                <div class="resultados-resumen">@resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")</div>
+                <div class="resultados-scroll">
+                    <table class="resultados-tabla">
+                        <thead>
+                            <tr><th>Nombre completo</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var patient in resultados.Items)
+                            {
+                                var paciente = patient;
+                                <tr>
+                                    <td><button type="button" class="resultados-nombre" @onclick="() => SeleccionarPacienteAsync(paciente)">@patient.NombreCompleto</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <ul class="search-results-list">
-                    @foreach (var patient in resultados.Items)
-                    {
-                        var paciente = patient;
-                        <li>
-                            <button type="button" class="search-result" @onclick="() => SeleccionarPacienteAsync(paciente)">
-                                <span class="search-result-name">@patient.NombreCompleto</span>
-                            </button>
-                        </li>
-                    }
-                </ul>
                 <PaginationFooter Page="resultados.Page"
                                   TotalPages="resultados.TotalPages"
                                   Total="resultados.Total"
@@ -118,10 +121,7 @@
     }
     else if (selectedPatientId <= 0)
     {
-        <div class="odontogram-state">
-            <strong>Selecciona un paciente</strong>
-            <span>Usa el panel de búsqueda de arriba para encontrar al paciente y ver su odontograma.</span>
-        </div>
+        @* Sin paciente elegido no se muestra nada debajo del buscador. *@
     }
     else if (pieces.Count == 0)
     {

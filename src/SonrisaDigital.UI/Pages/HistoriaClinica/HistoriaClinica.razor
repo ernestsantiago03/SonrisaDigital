@@ -73,36 +73,41 @@
 
     @if (buscandoResultados)
     {
-        <section class="search-results" aria-label="Resultados de la búsqueda">
+        <section class="resultados-panel" aria-label="Resultados de la búsqueda">
             @if (resultados.Total == 0)
             {
-                <div class="search-empty">
+                <div class="resultados-vacio">
                     @(string.IsNullOrWhiteSpace(searchTerm)
-                        ? "Todavía no hay pacientes registrados."
+                        ? "No hay pacientes registrados."
                         : "No se encontró ningún paciente con ese nombre o apellido.")
                 </div>
             }
             else
             {
-                <div class="search-results-head">
-                    @resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")
+                <div class="resultados-resumen">@resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")</div>
+                <div class="resultados-scroll">
+                    <table class="resultados-tabla">
+                        <thead>
+                            <tr><th>Nombre completo</th><th>Identificación</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var patient in resultados.Items)
+                            {
+                                var pacienteId = patient.Id;
+                                <tr>
+                                    <td>
+                                        <button type="button" class="resultados-nombre" @onclick="() => SeleccionarPacienteAsync(pacienteId)">@patient.NombreCompleto</button>
+                                        @if (!patient.Activo)
+                                        {
+                                            <span class="resultados-badge">Inactivo</span>
+                                        }
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "-" : patient.Identificacion)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <ul class="search-results-list">
-                    @foreach (var patient in resultados.Items)
-                    {
-                        var pacienteId = patient.Id;
-                        <li>
-                            <button type="button" class="search-result" @onclick="() => SeleccionarPacienteAsync(pacienteId)">
-                                <span class="search-result-name">@patient.NombreCompleto</span>
-                                <span class="search-result-meta">@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "Sin cédula" : patient.Identificacion)</span>
-                                @if (!patient.Activo)
-                                {
-                                    <span class="status-badge inactive">Inactivo</span>
-                                }
-                            </button>
-                        </li>
-                    }
-                </ul>
                 <PaginationFooter Page="resultados.Page"
                                   TotalPages="resultados.TotalPages"
                                   Total="resultados.Total"
@@ -120,20 +125,15 @@
     }
     else if (model is null)
     {
-        <section class="detail-panel">
-            <div class="table-state empty-state">
-                @if (selectedPatientId > 0)
-                {
+        @if (selectedPatientId > 0)
+        {
+            <section class="detail-panel">
+                <div class="table-state empty-state">
                     <strong>No se pudo cargar la historia clínica</strong>
                     <span>Vuelve a intentarlo o busca otro paciente.</span>
-                }
-                else
-                {
-                    <strong>Selecciona un paciente</strong>
-                    <span>Usa la búsqueda de arriba para encontrar al paciente y ver su historia clínica.</span>
-                }
-            </div>
-        </section>
+                </div>
+            </section>
+        }
     }
     else
     {
