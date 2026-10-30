@@ -21,7 +21,8 @@ namespace SonrisaDigital.Data.Repositories;
 ///
 /// Orden de lectura del archivo:
 ///  1) Búsqueda y consultas  → GetActivePatientsAsync, GetPiecesAsync, GetRecordsAsync,
-///                             GetOdontologoIdByUserAsync, GetRecordAsync
+///                             GetOdontologoIdByUserAsync, GetActiveOdontologosAsync,
+///                             GetOdontologoAsync, GetRecordAsync
 ///  2) Escritura             → AddAsync, SaveChangesWithAuditAsync
 /// </summary>
 public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdontogramaRepository
@@ -95,6 +96,25 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
             // de 0 (así se distingue "no es odontólogo" de "odontólogo con id 0").
             .Select(dentist => (int?)dentist.Id)
             .SingleOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Odontólogos ACTIVOS que pueden quedar como responsables del odontograma. Se ordenan
+    /// por apellidos y luego por nombres para que la lista salga alfabética.
+    /// </summary>
+    public async Task<IReadOnlyList<Odontologo>> GetActiveOdontologosAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.Odontologos.AsNoTracking()
+            .Where(dentist => dentist.Estado == EstadoRegistro.Activo)
+            .OrderBy(dentist => dentist.Apellidos)
+            .ThenBy(dentist => dentist.Nombres)
+            .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// Un odontólogo por su id (solo lectura). El Service lo usa para comprobar que la
+    /// firma exista y siga activa antes de guardar el odontograma.
+    /// </summary>
+    public Task<Odontologo?> GetOdontologoAsync(int odontologoId, CancellationToken cancellationToken = default) =>
+        dbContext.Odontologos.AsNoTracking()
+            .FirstOrDefaultAsync(dentist => dentist.Id == odontologoId, cancellationToken);
 
     /// <summary>
     /// Busca el registro de UNA pieza concreta de un paciente. Devuelve null si esa pieza

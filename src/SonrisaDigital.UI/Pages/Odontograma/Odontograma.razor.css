@@ -755,6 +755,12 @@
             cursor: not-allowed;
         }
 
+.field-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
 .last-change {
     background: var(--surface-soft);
     border: 1px solid var(--line-soft);
