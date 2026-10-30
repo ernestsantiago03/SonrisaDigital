@@ -1,5 +1,10 @@
 ﻿@inherits LayoutComponentBase
+@using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Autenticacion
+@using SonrisaDigital.Services.Autorizacion
+@using SonrisaDigital.Services.Auditoria
+@using SonrisaDigital.Services.Clinicas
+@using SonrisaDigital.Services.Clinicas.DTOs
 
 <div class="app-shell">
     <aside class="app-sidebar @(sidebarOpen ? "is-open" : "")">
@@ -13,6 +18,24 @@
                 <span>Sistema de gestión</span>
             </div>
         </div>
+
+        @if (EsDueno)
+        {
+            <div class="clinica-selector">
+                <label for="clinica-activa">Clínica activa</label>
+                <select id="clinica-activa" class="form-control" @onchange="CambiarClinicaAsync">
+                    <option value="">— Selecciona una clínica —</option>
+                    @foreach (var clinica in clinicas)
+                    {
+                        <option value="@clinica.Id" selected="@(clinica.Id == CurrentUserService.ClinicaSeleccionada)">@clinica.Nombre</option>
+                    }
+                </select>
+                @if (CurrentUserService.ClinicaSeleccionada is null)
+                {
+                    <span class="clinica-selector-aviso">Selecciona una clínica para ver sus datos.</span>
+                }
+            </div>
+        }
 
         <nav class="sidebar-nav" aria-label="Navegación principal">
             <span class="nav-section">General</span>
@@ -90,6 +113,10 @@
 
             @* --- SECCIÓN DE CONFIGURACIÓN  --- *@
             <span class="nav-section">Información</span>
+            @if (HasPermission("Clinicas.Ver"))
+            {
+                <NavLink href="/clinicas" class="nav-item"><span class="nav-icon">▥</span>Clínicas</NavLink>
+            }
             <NavLink href="/acercaDe" class="nav-item">
                 <span class="nav-icon">⌸</span>
                 Acerca De
@@ -168,6 +195,42 @@
     [Inject]
     private ICurrentUserService CurrentUserService { get; set; } = null!;
 
+    [Inject]
+    private IClinicaService ClinicaService { get; set; } = null!;
+
+    [Inject]
+    private IAuditoriaService AuditoriaService { get; set; } = null!;
+
+    private IReadOnlyList<ClinicaListItemDto> clinicas = [];
+
+    private bool EsDueno => CurrentUser.IsInRole(RolesSonrisaDigital.Dueno);
+
+    private async Task CambiarClinicaAsync(ChangeEventArgs args)
+    {
+        var seleccion = int.TryParse(args.Value?.ToString(), out var id) ? id : (int?)null;
+        CurrentUserService.SeleccionarClinica(seleccion);
+
+        if (seleccion is int clinicaId)
+        {
+            var nombre = clinicas.FirstOrDefault(item => item.Id == clinicaId)?.Nombre ?? clinicaId.ToString();
+            await AuditoriaService.RegistrarAsync("Seleccionó", "Clínicas", nameof(Clinica), clinicaId, $"Abrió la clínica {nombre} desde el selector.", default, clinicaId);
+        }
+
+        Navigation.NavigateTo("/");
+    }
+
+    private async Task<IReadOnlyList<ClinicaListItemDto>> CargarClinicasAsync()
+    {
+        try
+        {
+            return await ClinicaService.ListarAsync();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (AuthenticationStateTask is null)
@@ -205,6 +268,8 @@
         // nombre (auditoría), se guarda el principal completo para que los servicios
         // puedan evaluar las mismas políticas de autorización que la interfaz.
         CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName, user);
+
+        clinicas = EsDueno ? await CargarClinicasAsync() : [];
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;

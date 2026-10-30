@@ -21,7 +21,8 @@ public sealed class AuditoriaService(
         string entidad,
         int? entidadId,
         string descripcion,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? clinicaId = null)
     {
         // Se intenta obtener el id desde el servicio de sesión y, como respaldo,
         // desde el principal. Así la auditoría no depende de que MainLayout haya
@@ -45,6 +46,8 @@ public sealed class AuditoriaService(
             Modulo = modulo,
             Entidad = entidad,
             EntidadId = entidadId,
+            // Sin clínica explícita, el registro toma la clínica activa al guardarse.
+            ClinicaId = clinicaId ?? 0,
             Descripcion = descripcion
         }, cancellationToken);
     }

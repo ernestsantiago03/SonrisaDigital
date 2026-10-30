@@ -50,16 +50,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             if (entrada.State == EntityState.Added)
             {
-                if (ClinicaActual is null)
-                {
-                    throw new InvalidOperationException("No hay clínica en la sesión; no se puede guardar el registro.");
-                }
-
                 if (entrada.Entity.ClinicaId == 0)
                 {
+                    if (ClinicaActual is null)
+                    {
+                        throw new InvalidOperationException("No hay clínica en la sesión; no se puede guardar el registro.");
+                    }
+
                     entrada.Entity.ClinicaId = ClinicaActual.Value;
                 }
-                else if (entrada.Entity.ClinicaId != ClinicaActual.Value)
+                else if (!_tenant.EsAdministradorGlobal && entrada.Entity.ClinicaId != ClinicaActual)
                 {
                     throw new InvalidOperationException("No se puede guardar un registro de otra clínica.");
                 }

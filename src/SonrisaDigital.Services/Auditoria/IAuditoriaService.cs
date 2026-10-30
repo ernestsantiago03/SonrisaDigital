@@ -14,7 +14,8 @@ public interface IAuditoriaService
         string entidad,
         int? entidadId,
         string descripcion,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? clinicaId = null);
 
     /// <summary>
     /// Obtiene los movimientos más recientes para el resumen del Dashboard.

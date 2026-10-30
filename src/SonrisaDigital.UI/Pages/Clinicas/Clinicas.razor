@@ -1,0 +1,93 @@
+@page "/clinicas"
+@attribute [Authorize(Policy = "Clinicas.Ver")]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Clinicas
+@using SonrisaDigital.Services.Clinicas.DTOs
+@inject IClinicaService ClinicaService
+
+<PageTitle>Clínicas · Sonrisa Digital</PageTitle>
+
+<div class="clinicas-page">
+    <div class="page-header">
+        <div>
+            <h1>Clínicas</h1>
+            <p>Clínicas que usan Sonrisa Digital. Solo visible para el Dueño del sistema.</p>
+        </div>
+        <AuthorizeView Policy="Clinicas.Crear">
+            <Authorized>
+                <a class="primary-action" href="/clinicas/nueva">+ Nueva clínica</a>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="feedback error">@mensaje</div>
+    }
+
+    <section class="clinicas-panel">
+        <div class="clinicas-resumen">@clinicas.Count clínica(s)</div>
+        <table class="clinicas-tabla">
+            <thead>
+                <tr><th>Nombre</th><th>Código</th><th>Estado</th><th>Alta</th><th>Opciones</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var clinica in clinicas)
+                {
+                    <tr>
+                        <td>@clinica.Nombre</td>
+                        <td>@clinica.Codigo</td>
+                        <td>@clinica.Estado</td>
+                        <td>@clinica.FechaAlta.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td class="clinicas-acciones">
+                            <AuthorizeView Policy="Clinicas.Editar">
+                                <Authorized><a href="/clinicas/editar/@clinica.Id">Editar</a></Authorized>
+                            </AuthorizeView>
+                            <AuthorizeView Policy="Clinicas.Suspender">
+                                <Authorized>
+                                    <button type="button" class="enlace-accion" @onclick="() => CambiarEstadoAsync(clinica)">
+                                        @(clinica.Estado == EstadoClinica.Activa ? "Suspender" : "Reactivar")
+                                    </button>
+                                </Authorized>
+                            </AuthorizeView>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<ClinicaListItemDto> clinicas = [];
+    private string? mensaje;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            clinicas = await ClinicaService.ListarAsync();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            mensaje = ex.Message;
+        }
+    }
+
+    private async Task CambiarEstadoAsync(ClinicaListItemDto clinica)
+    {
+        var nuevo = clinica.Estado == EstadoClinica.Activa ? EstadoClinica.Suspendida : EstadoClinica.Activa;
+        try
+        {
+            await ClinicaService.CambiarEstadoAsync(clinica.Id, nuevo);
+            mensaje = null;
+            await CargarAsync();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            mensaje = ex.Message;
+        }
+    }
+}

@@ -6,4 +6,6 @@ namespace SonrisaDigital.Tests.Support;
 internal sealed class TenantMutable : ITenantProvider
 {
     public int? ClinicaId { get; set; }
+
+    public bool EsAdministradorGlobal => false;
 }

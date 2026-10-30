@@ -100,3 +100,9 @@
     .sidebar-overlay { display: block; position: fixed; inset: 0; z-index: 30; border: 0; background: rgba(15, 23, 42, .3); }
     .header-user-copy { display: none; }
 }
+
+/* Selector de clínica activa (solo Dueño). */
+.clinica-selector { padding: 10px 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); }
+.clinica-selector label { display: block; color: #94a3b8; font-size: 11px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.clinica-selector select { width: 100%; font-size: 12px; }
+.clinica-selector-aviso { display: block; margin-top: 6px; color: #fbbf24; font-size: 11px; }
