@@ -385,6 +385,9 @@
             editContext = await OdontogramaService.GetEditContextAsync();
             canEdit = editContext.PuedeEditar;
 
+            // La primera página de pacientes aparece desde que se entra al módulo, sin tener que buscar.
+            await CargarResultadosAsync(1);
+
             // Paso 2: si la URL trae un paciente, abrirlo directo.
             if (PacienteDesdeUrl.HasValue)
             {

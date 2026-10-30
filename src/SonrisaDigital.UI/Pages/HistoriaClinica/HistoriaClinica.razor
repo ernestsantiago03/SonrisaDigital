@@ -762,6 +762,9 @@
         {
             datosInicialesCargados = true;
 
+            // La primera página de pacientes aparece desde que se entra al módulo, sin tener que buscar.
+            await CargarResultadosAsync(1);
+
             try
             {
                 // Se le pregunta al sistema quién está conectado y qué permisos tiene su rol:
