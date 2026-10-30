@@ -225,6 +225,9 @@ El formulario permitirá introducir:
 
 Opcionalmente podrá asociarse un usuario existente al odontólogo.
 
+El estado del odontólogo no se modifica al editar sus datos: se cambia únicamente con la acción de
+activar o desactivar, que exige el permiso `Odontologos.Desactivar`.
+
 ## 5.4. Consulta
 
 La vista detallada podrá mostrar:
@@ -700,7 +703,7 @@ El Administrador podrá crear usuarios indicando:
 * Nombre.
 * Correo.
 * Contraseña inicial.
-* Estado.
+* Estado inicial (el alta crea la cuenta activa).
 * Rol o roles.
 
 Si el usuario será odontólogo, podrá asociarse posteriormente con su registro de odontólogo.
@@ -711,8 +714,19 @@ El Administrador podrá:
 
 * Cambiar información básica.
 * Cambiar roles.
-* Activar o desactivar usuarios.
 * Restablecer credenciales mediante el mecanismo de autenticación implementado.
+
+La activación o desactivación es una acción separada y exige el permiso `Usuarios.Desactivar`.
+Editar los datos de la cuenta solo requiere `Usuarios.Editar`; si el formulario se envía con un estado
+distinto, el servicio rechaza el cambio.
+
+Al quitar el rol Odontólogo, el perfil profesional se desvincula y queda inactivo, conservando su
+licencia y su historial. Si se vuelve a asignar el rol con la misma licencia, se reutiliza el perfil
+en lugar de crear uno nuevo.
+
+El sistema impide desactivar al último administrador activo o quitarle el rol Administrador. La
+comprobación y el guardado se ejecutan en una transacción serializable para que dos operaciones
+simultáneas no puedan dejar el sistema sin administrador.
 
 ## 11.5. Desactivación
 
@@ -920,6 +934,9 @@ Se utilizará preferentemente un mecanismo de activación/desactivación para en
 * Odontólogos.
 * Tratamientos del catálogo.
 * Usuarios.
+
+Los perfiles de odontólogo que quedan sin usuario se conservan inactivos para no perder su historial
+y pueden reutilizarse si se vuelve a asignar el rol con la misma licencia.
 
 Las entidades transaccionales o históricas, como:
 

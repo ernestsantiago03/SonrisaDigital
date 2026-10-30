@@ -102,8 +102,9 @@ public sealed class OdontologoService(
         var odontologo = await repository.GetByIdAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("El odontólogo no existe.");
 
+        // Editar el perfil no cambia el estado. Activar o desactivar es una
+        // operación aparte y exige el permiso Odontologos.Desactivar.
         ApplyForm(odontologo, model);
-        odontologo.Estado = model.Estado;
         await repository.SaveChangesAsync(cancellationToken);
 
         await auditoriaService.RegistrarAsync(

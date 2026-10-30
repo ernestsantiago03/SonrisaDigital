@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -169,17 +170,33 @@ public sealed class UsuarioService(
         if (string.IsNullOrWhiteSpace(model.Id)) throw new InvalidOperationException("El usuario no existe.");
         ValidateOdontologoProfile(model);
 
+        // Serializable evita que dos ediciones simultáneas puedan dejar al
+        // sistema sin administrador activo al comprobar y guardar a la vez.
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
             var user = await userManager.FindByIdAsync(model.Id);
             if (user is null) throw new InvalidOperationException("El usuario no existe.");
+
+            // Cambiar el estado es una operación sensible. Ocultar el control en
+            // la UI no basta: una llamada directa también debe exigir el permiso.
+            if (model.Estado != user.Estado)
+            {
+                await authorizationService.AsegurarPermisoAsync(
+                    currentUserService,
+                    "Usuarios.Desactivar",
+                    "No tienes permiso para activar o desactivar usuarios.");
+            }
+
             await EnsureNotLastActiveAdminAsync(user, model.Estado, model.Roles, cancellationToken);
 
             var estadoAnterior = user.Estado;
             var emailAnterior = user.Email;
             var email = model.Email.Trim();
             user.Nombre = model.Nombre.Trim();
-            user.Estado = model.Estado;
+            if (model.Estado != user.Estado)
+            {
+                user.Estado = model.Estado;
+            }
             user.Email = email;
             user.UserName = email;
 
@@ -210,13 +227,15 @@ public sealed class UsuarioService(
             await auditoriaService.RegistrarAsync(
                 "Modificó", "Usuarios", nameof(Usuario), null,
                 $"Modificó el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
-        }, cancellationToken);
+        }, IsolationLevel.Serializable, cancellationToken);
     }
 
     public async Task SetStatusAsync(string id, EstadoRegistro estado, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Desactivar", "No tienes permiso para activar o desactivar usuarios.");
 
+        // La comprobación del último administrador y el cambio de estado deben
+        // formar una sola operación serializable para soportar concurrencia.
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
             var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
@@ -233,7 +252,7 @@ public sealed class UsuarioService(
             await auditoriaService.RegistrarAsync(
                 verbo, "Usuarios", nameof(Usuario), null,
                 $"{verbo} el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
-        }, cancellationToken);
+        }, IsolationLevel.Serializable, cancellationToken);
     }
 
     public async Task ResetPasswordAsync(string id, string password, CancellationToken cancellationToken = default)
@@ -297,27 +316,58 @@ public sealed class UsuarioService(
 
         if (!isDentist)
         {
-            if (existing is not null) existing.UsuarioId = null;
+            if (existing is not null)
+            {
+                // Al quitar el rol se conserva la licencia y el historial, pero el
+                // perfil queda huérfano e inactivo para que no siga disponible.
+                existing.UsuarioId = null;
+                existing.Estado = EstadoRegistro.Inactivo;
+            }
             return;
         }
 
         var profile = model.PerfilOdontologo!;
-        var licenseInUse = await dbContext.Odontologos.AnyAsync(item => item.NumeroLicencia == profile.NumeroLicencia && item.UsuarioId != userId, cancellationToken);
+        var numeroLicencia = profile.NumeroLicencia.Trim();
+
+        // Los perfiles huérfanos no bloquean su licencia: al recuperar el rol se
+        // reutiliza el mismo perfil para conservar el historial clínico.
+        var licenseInUse = await dbContext.Odontologos.AnyAsync(item =>
+            item.NumeroLicencia == numeroLicencia
+            && item.UsuarioId != null
+            && item.UsuarioId != userId, cancellationToken);
         if (licenseInUse) throw new InvalidOperationException("El número de licencia ya está asociado a otro odontólogo.");
 
         if (existing is null)
         {
-            existing = new Odontologo { UsuarioId = userId };
+            // Si existe un perfil huérfano con la misma licencia, se reutiliza en
+            // lugar de crear otro y se reactiva al recuperar el rol.
+            existing = await dbContext.Odontologos.FirstOrDefaultAsync(
+                item => item.UsuarioId == null && item.NumeroLicencia == numeroLicencia,
+                cancellationToken);
+            if (existing is not null)
+            {
+                existing.Estado = EstadoRegistro.Activo;
+            }
+        }
+
+        if (existing is null)
+        {
+            existing = new Odontologo { UsuarioId = userId, Estado = EstadoRegistro.Activo };
             dbContext.Odontologos.Add(existing);
+        }
+        else
+        {
+            existing.UsuarioId = userId;
         }
 
         existing.Nombres = profile.Nombres.Trim();
         existing.Apellidos = profile.Apellidos.Trim();
-        existing.NumeroLicencia = profile.NumeroLicencia.Trim();
+        existing.NumeroLicencia = numeroLicencia;
         existing.Especialidad = Normalize(profile.Especialidad);
         existing.Telefono = Normalize(profile.Telefono);
         existing.Correo = Normalize(profile.Correo);
-        existing.Estado = profile.Estado;
+        // No se copia profile.Estado: el estado del perfil solo cambia con
+        // Odontologos.Desactivar, no al editar el usuario.
     }
 
     private async Task<string> ObtenerNombreCompletoAsync(Usuario user, CancellationToken cancellationToken)

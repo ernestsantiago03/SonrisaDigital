@@ -2,7 +2,6 @@
 @page "/odontologo/editar/{Id:int}"
 @attribute [Authorize(Policy = "Odontologos.Editar")]
 @attribute [Authorize]
-@using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Odontologos
 @using SonrisaDigital.Services.Odontologos.DTOs
 @inject IOdontologoService OdontologoService
@@ -125,12 +124,6 @@
     private string? errorMessage;
 
     private bool IsEditing => Id.HasValue;
-
-    private bool IsOdontologoActive
-    {
-        get => model.Estado == EstadoRegistro.Activo;
-        set => model.Estado = value ? EstadoRegistro.Activo : EstadoRegistro.Inactivo;
-    }
 
     protected override async Task OnParametersSetAsync()
     {
