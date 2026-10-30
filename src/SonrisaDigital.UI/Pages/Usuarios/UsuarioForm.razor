@@ -101,13 +101,25 @@
                     }
                     @if (IsEditing)
                     {
-                        <div class="field">
-                            <span class="field-label">Estado de la cuenta</span>
-                            <label class="checkbox-line">
-                                <input type="checkbox" @bind="IsUserActive" />
-                                <span>Activo</span>
-                            </label>
-                        </div>
+                        @* El estado solo se edita con el permiso específico; sin él
+                           se muestra como dato de solo lectura. *@
+                        <AuthorizeView Policy="Usuarios.Desactivar">
+                            <Authorized Context="estadoAutorizado">
+                                <div class="field">
+                                    <span class="field-label">Estado de la cuenta</span>
+                                    <label class="checkbox-line">
+                                        <input type="checkbox" @bind="IsUserActive" />
+                                        <span>Activo</span>
+                                    </label>
+                                </div>
+                            </Authorized>
+                            <NotAuthorized Context="estadoNoAutorizado">
+                                <div class="field">
+                                    <span class="field-label">Estado de la cuenta</span>
+                                    <span class="field-help">@(IsUserActive ? "Activo" : "Inactivo")</span>
+                                </div>
+                            </NotAuthorized>
+                        </AuthorizeView>
                     }
                 </div>
             </section>
@@ -419,6 +431,12 @@
             }
 
             Navigation.NavigateTo("/usuarios");
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            // Una llamada directa o una sesión sin el permiso de desactivar
+            // debe mostrar la denegación sin romper el formulario.
+            errorMessage = exception.Message;
         }
         catch (InvalidOperationException exception)
         {
