@@ -11,4 +11,6 @@ public static class RolesSonrisaDigital
     public const string Administrador = "Administrador";
     public const string Recepcionista = "Recepcionista";
     public const string Odontologo = "Odontólogo";
+    /// <summary>Dueño del sistema: administra todas las clínicas. Solo lo crea el sistema.</summary>
+    public const string Dueno = "Dueño";
 }

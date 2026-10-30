@@ -98,6 +98,18 @@ public sealed class RolService(
                 ?? throw new InvalidOperationException("El rol no existe.");
             var names = requestedNames.ToHashSet(StringComparer.Ordinal);
 
+            // El rol Dueño no se modifica desde la aplicación: su alcance lo define el sistema.
+            if (string.Equals(role.Name, RolesSonrisaDigital.Dueno, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("El rol Dueño no se puede modificar.");
+            }
+
+            // Los permisos del panel de clínicas solo puede tenerlos el rol Dueño.
+            if (names.Any(PermissionCatalog.EsPermisoDeClinicas))
+            {
+                throw new InvalidOperationException("Solo el rol Dueño puede tener permisos del panel de clínicas.");
+            }
+
             if (string.Equals(role.Name, RolesSonrisaDigital.Administrador, StringComparison.Ordinal))
             {
                 names.UnionWith(PermisosQueAdministradorConserva);

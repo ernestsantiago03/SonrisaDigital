@@ -131,8 +131,7 @@ public sealed class UsuarioService(
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
 
         return await roleManager.Roles
-            .Where(role => role.Estado == EstadoRegistro.Activo)
-            .OrderBy(role => role.Name)
+            .Where(role => role.Estado == EstadoRegistro.Activo && role.Name != RolesSonrisaDigital.Dueno)
             .Select(role => role.Name!)
             .ToListAsync(cancellationToken);
     }
@@ -299,6 +298,11 @@ public sealed class UsuarioService(
     private async Task<bool> ReplaceRolesAsync(Usuario user, IEnumerable<string> roleNames, CancellationToken cancellationToken)
     {
         var requestedRoles = roleNames.Where(role => !string.IsNullOrWhiteSpace(role)).Distinct().ToArray();
+        // El rol Dueño lo crea el sistema; ninguna pantalla ni petición puede asignarlo.
+        if (requestedRoles.Contains(RolesSonrisaDigital.Dueno, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("El rol Dueño solo lo asigna el sistema.");
+        }
         foreach (var role in requestedRoles)
         {
             if (!await roleManager.RoleExistsAsync(role)) throw new InvalidOperationException($"El rol '{role}' no existe.");

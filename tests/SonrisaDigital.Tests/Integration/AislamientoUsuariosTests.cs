@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,6 +64,36 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
         var error = await Assert.ThrowsAsync<InvalidOperationException>(
             () => servicio.SetStatusAsync(idAdminA, EstadoRegistro.Inactivo));
         Assert.Contains("al menos un administrador", error.Message);
+    }
+
+    [Fact]
+    public async Task NadieMasPuedeAsignarElRolDueno()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var servicio = provider.GetRequiredService<IUsuarioService>();
+        provider.GetRequiredService<TenantMutable>().ClinicaId = fixture.ClinicaId;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.CreateAsync(ModeloUsuario($"Intento dueno {Guid.NewGuid():N}", RolesSonrisaDigital.Dueno)));
+    }
+
+    [Fact]
+    public async Task ElSeederCreaLaCuentaDelDuenoSinClinica()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var correo = $"dueno-{Guid.NewGuid():N}@sonrisadigital.local"[..40];
+        var configuracion = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Dueno:Email"] = correo, ["Dueno:Password"] = "Prueba123" })
+            .Build();
+
+        await IdentitySeeder.SeedAsync(provider, configuracion, NullLogger.Instance);
+
+        using var scope = provider.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+        var dueno = await userManager.FindByEmailAsync(correo);
+        Assert.NotNull(dueno);
+        Assert.Null(dueno.ClinicaId);
+        Assert.True(await userManager.IsInRoleAsync(dueno, RolesSonrisaDigital.Dueno));
     }
 
     private static UsuarioFormDto ModeloUsuario(string nombre, params string[] roles)
