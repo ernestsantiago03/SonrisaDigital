@@ -17,7 +17,7 @@ public static class IdentitySeeder
         var userManager = services.GetRequiredService<UserManager<Usuario>>();
 
         var createdRoles = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var roleName in new[] { RolesSonrisaDigital.Administrador, RolesSonrisaDigital.Recepcionista, RolesSonrisaDigital.Odontologo })
+        foreach (var roleName in new[] { RolesSonrisaDigital.Administrador, RolesSonrisaDigital.Recepcionista, RolesSonrisaDigital.Odontologo, RolesSonrisaDigital.Dueno })
         {
             if (!await roleManager.RoleExistsAsync(roleName))
             {
@@ -71,6 +71,8 @@ public static class IdentitySeeder
 
         // No se usan credenciales por defecto: el administrador inicial solo se crea
         // cuando el operador configura explicitamente un correo y una contrasena.
+        await SeedDuenoAsync(services, configuration, logger);
+
         var email = configuration["Authentication:AdminEmail"]?.Trim();
         var password = configuration["Authentication:AdminPassword"];
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
@@ -95,6 +97,34 @@ public static class IdentitySeeder
         {
             var result = await userManager.AddToRoleAsync(admin, RolesSonrisaDigital.Administrador);
             EnsureSucceeded(result, "asignar el rol Administrador");
+        }
+    }
+
+    /// <summary>
+    /// Crea la cuenta del Dueño del sistema si no existe. Es global: no pertenece a ninguna clínica.
+    /// Las credenciales vienen de Dueno:Email y Dueno:Password (secretos de usuario o variables de entorno).
+    /// </summary>
+    private static async Task SeedDuenoAsync(IServiceProvider services, IConfiguration configuration, ILogger logger)
+    {
+        var email = configuration["Dueno:Email"]?.Trim();
+        var password = configuration["Dueno:Password"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            logger.LogWarning("Dueno:Email y Dueno:Password no estan configuradas; no se creo la cuenta del Dueno.");
+            return;
+        }
+
+        var userManager = services.GetRequiredService<UserManager<Usuario>>();
+        var dueno = await userManager.FindByEmailAsync(email);
+        if (dueno is null)
+        {
+            dueno = new Usuario { UserName = email, Email = email, Nombre = "Dueno del sistema", Estado = EstadoRegistro.Activo, EmailConfirmed = true, ClinicaId = null };
+            EnsureSucceeded(await userManager.CreateAsync(dueno, password), "crear la cuenta del Dueno");
+        }
+
+        if (!await userManager.IsInRoleAsync(dueno, RolesSonrisaDigital.Dueno))
+        {
+            EnsureSucceeded(await userManager.AddToRoleAsync(dueno, RolesSonrisaDigital.Dueno), "asignar el rol Dueno");
         }
     }
 

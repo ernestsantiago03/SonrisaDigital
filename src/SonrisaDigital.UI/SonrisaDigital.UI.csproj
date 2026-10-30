@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\SonrisaDigital.Services\SonrisaDigital.Services.csproj" />
@@ -26,6 +26,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>6f469143-aeb1-4689-9e59-bb5e36144248</UserSecretsId>
   </PropertyGroup>
 
 </Project>

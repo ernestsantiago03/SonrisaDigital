@@ -37,13 +37,22 @@ public static class PermissionCatalog
         new("Roles.Ver", "Roles y Permisos", "Consultar roles y permisos"),
         new("Roles.Editar", "Roles y Permisos", "Asignar permisos a roles"),
         new("Auditoria.Ver", "Auditoría", "Consultar auditoría"),
-        new("Reportes.Ver", "Reportes", "Consultar reportes")
+        new("Reportes.Ver", "Reportes", "Consultar reportes"),
+        new("Clinicas.Ver", "Clínicas", "Consultar clínicas (solo Dueño)"),
+        new("Clinicas.Crear", "Clínicas", "Crear clínicas (solo Dueño)"),
+        new("Clinicas.Editar", "Clínicas", "Editar clínicas (solo Dueño)"),
+        new("Clinicas.Suspender", "Clínicas", "Suspender o reactivar clínicas (solo Dueño)")
     ];
+
+    /// <summary>Permisos del panel de clínicas. Solo los tiene el rol Dueño.</summary>
+    public static bool EsPermisoDeClinicas(string nombre) => nombre.StartsWith("Clinicas.", StringComparison.Ordinal);
 
     public static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> DefaultRolePermissions =
         new Dictionary<string, IReadOnlySet<string>>
         {
-            [RolesSonrisaDigital.Administrador] = All.Select(permission => permission.Nombre).ToHashSet(),
+            // El Administrador de clínica gestiona su clínica, nunca el panel de clínicas.
+            [RolesSonrisaDigital.Administrador] = All.Where(permission => !EsPermisoDeClinicas(permission.Nombre)).Select(permission => permission.Nombre).ToHashSet(),
+            [RolesSonrisaDigital.Dueno] = All.Select(permission => permission.Nombre).ToHashSet(),
             [RolesSonrisaDigital.Recepcionista] = new HashSet<string>(StringComparer.Ordinal)
             {
                 "Pacientes.Ver", "Pacientes.Crear", "Pacientes.Editar", "Pacientes.Desactivar",
