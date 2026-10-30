@@ -5,6 +5,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Odontologos.DTOs;
 
 namespace SonrisaDigital.Services.Odontologos;
@@ -77,6 +78,8 @@ public sealed class OdontologoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontologos.Crear", "No tienes permiso para registrar odontólogos.");
 
+        ValidadorDto.PrepararYValidar(model);
+
         var odontologo = new Odontologo();
         ApplyForm(odontologo, model);
         odontologo.Estado = EstadoRegistro.Activo;
@@ -98,6 +101,8 @@ public sealed class OdontologoService(
         await AsegurarPermisoAsync(
             "Odontologos.Editar",
             "No tienes permiso para editar odontólogos.");
+
+        ValidadorDto.PrepararYValidar(model);
 
         var odontologo = await repository.GetByIdAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("El odontólogo no existe.");

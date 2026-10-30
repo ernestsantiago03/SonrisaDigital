@@ -23,28 +23,28 @@ public sealed class PacienteFormDto
 
     public DateOnly? FechaNacimiento { get; set; }
 
-    [StringLength(20)]
+    [StringLength(20, ErrorMessage = "El sexo no puede superar los 20 caracteres.")]
     public string? Sexo { get; set; }
 
-    [StringLength(10)]
+    [StringLength(10, ErrorMessage = "El tipo de sangre no puede superar los 10 caracteres.")]
     public string? TipoSangre { get; set; }
 
-    [StringLength(30)]
+    [StringLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres.")]
     public string? Telefono { get; set; }
 
     [EmailAddress(ErrorMessage = "Introduzca un correo válido.")]
-    [StringLength(256)]
+    [StringLength(256, ErrorMessage = "El correo no puede superar los 256 caracteres.")]
     public string? Correo { get; set; }
 
-    [StringLength(300)]
+    [StringLength(300, ErrorMessage = "La dirección no puede superar los 300 caracteres.")]
     public string? Direccion { get; set; }
 
-    [StringLength(200)]
+    [StringLength(200, ErrorMessage = "El nombre del contacto de emergencia no puede superar los 200 caracteres.")]
     public string? ContactoEmergenciaNombre { get; set; }
 
-    [StringLength(30)]
+    [StringLength(30, ErrorMessage = "El teléfono del contacto de emergencia no puede superar los 30 caracteres.")]
     public string? ContactoEmergenciaTelefono { get; set; }
 
-    [StringLength(100)]
+    [StringLength(100, ErrorMessage = "La relación con el contacto de emergencia no puede superar los 100 caracteres.")]
     public string? ContactoEmergenciaRelacion { get; set; }
 }

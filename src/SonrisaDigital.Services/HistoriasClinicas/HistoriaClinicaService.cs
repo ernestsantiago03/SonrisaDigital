@@ -4,6 +4,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.HistoriasClinicas.DTOs;
 
 namespace SonrisaDigital.Services.HistoriasClinicas;
@@ -158,6 +159,8 @@ public sealed class HistoriaClinicaService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar historias clínicas.");
 
+        ValidadorDto.PrepararYValidar(model);
+
         // Paso 1: verificar que el paciente existe. Si no, se corta aquí con un mensaje claro.
         var patient = await repository.GetPatientAsync(model.PacienteId, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
@@ -282,6 +285,7 @@ public sealed class HistoriaClinicaService(
             cancellationToken);
 
         // Paso 3: validar los datos (por si llegan saltándose el formulario).
+        ValidadorDto.PrepararYValidar(model);
         ValidarConsulta(model);
 
         // Paso 4: conseguir la historia clínica del paciente. Si no tiene, se crea ahora,
@@ -330,6 +334,8 @@ public sealed class HistoriaClinicaService(
         CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
+
+        ValidadorDto.PrepararYValidar(model);
 
         // Paso 1: buscar la consulta que se quiere modificar. Si no existe, se avisa.
         var consulta = await repository.GetConsultaAsync(model.Id, cancellationToken)

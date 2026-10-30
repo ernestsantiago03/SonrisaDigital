@@ -8,6 +8,7 @@ using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Odontologos.DTOs;
 using SonrisaDigital.Services.Usuarios.DTOs;
 
@@ -131,6 +132,7 @@ public sealed class UsuarioService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Crear", "No tienes permiso para crear usuarios.");
 
+        ValidadorDto.PrepararYValidar(model);
         ValidateOdontologoProfile(model);
         var email = model.Email.Trim();
 
@@ -166,6 +168,8 @@ public sealed class UsuarioService(
     public async Task UpdateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Editar", "No tienes permiso para editar usuarios.");
+
+        ValidadorDto.PrepararYValidar(model);
 
         if (string.IsNullOrWhiteSpace(model.Id)) throw new InvalidOperationException("El usuario no existe.");
         ValidateOdontologoProfile(model);

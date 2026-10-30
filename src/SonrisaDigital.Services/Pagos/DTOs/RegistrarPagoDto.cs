@@ -13,7 +13,7 @@ public sealed class RegistrarPagoDto
 
     public DateTime Fecha { get; set; } = DateTime.Now;
 
-    [Range(0.01, 999999999.99, ErrorMessage = "El monto debe ser mayor que cero.")]
+    [Range(0.01, 999999999.99, ErrorMessage = "El monto del pago debe ser mayor que cero.")]
     public decimal? Monto { get; set; }
 
     public MetodoPago MetodoPago { get; set; } = MetodoPago.Efectivo;
