@@ -93,14 +93,14 @@ test.describe('Flujo operativo principal', () => {
     await page.getByRole('button', { name: 'Registrar tratamiento' }).click();
     await expect(page.locator('#realizado-paciente')).toBeVisible();
 
-    // La base temporal solo contiene los datos creados por esta prueba.
-    await expect(page.locator('#realizado-paciente option')).toHaveCount(2);
-    await expect(page.locator('#realizado-odontologo option')).toHaveCount(2);
-    await expect(page.locator('#realizado-tratamiento option')).toHaveCount(2);
-
-    await page.locator('#realizado-paciente').selectOption({ index: 1 });
-    await page.locator('#realizado-odontologo').selectOption({ index: 1 });
-    await page.locator('#realizado-tratamiento').selectOption({ index: 1 });
+    // La base puede tener pacientes creados por otras pruebas; se elige por nombre el que crea esta prueba.
+    await page.locator('#realizado-paciente').selectOption({ label: `${nombrePaciente} ${apellidoPaciente}` });
+    await page.locator('#realizado-odontologo').selectOption({ label: nombreOdontologo });
+    // La opción muestra el nombre con el precio, por eso se busca por texto y se selecciona por valor.
+    const valorTratamiento = await page
+      .locator('#realizado-tratamiento option', { hasText: nombreTratamiento })
+      .getAttribute('value');
+    await page.locator('#realizado-tratamiento').selectOption(valorTratamiento!);
     await page.locator('#realizado-fecha').fill(fechaTratamiento);
     await page.locator('#realizado-precio').fill('1500');
     await page.locator('.modal-card').getByRole('button', { name: 'Guardar', exact: true }).click();
