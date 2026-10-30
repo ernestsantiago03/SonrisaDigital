@@ -289,12 +289,16 @@
                 citasNoAsistio = citasHoy.Count(c => c.Estado == EstadoCita.NoAsistio);
             }
 
-            // 2. MÉTRICAS DE PACIENTES Y ODONTÓLOGOS
+            // 2. MÉTRICAS DE PACIENTES Y ODONTÓLOGOS (solo con permiso de lectura de ambos)
             // El servicio hace los conteos en SQL; la pantalla ya no carga las listas completas.
-            var stats = await DashboardService.GetStatsAsync();
-            pacientesActivos = stats.TotalPacientesActivos;
-            odontologosActivos = stats.TotalOdontologosActivos;
-            pacientesNuevosSemana = stats.PacientesRegistradosEstaSemana;
+            if (usuario.HasClaim(PermissionCatalog.ClaimType, "Pacientes.Ver")
+                && usuario.HasClaim(PermissionCatalog.ClaimType, "Odontologos.Ver"))
+            {
+                var stats = await DashboardService.GetStatsAsync();
+                pacientesActivos = stats.TotalPacientesActivos;
+                odontologosActivos = stats.TotalOdontologosActivos;
+                pacientesNuevosSemana = stats.PacientesRegistradosEstaSemana;
+            }
 
             // 3. ACTIVIDAD RECIENTE (solo con permiso de auditoría)
             if (puedeVerAuditoria)

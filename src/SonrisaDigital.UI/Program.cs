@@ -139,16 +139,20 @@ builder.Services.AddRazorComponents()
         options.DetailedErrors = builder.Environment.IsDevelopment();
     });
 
-// Rate limiting : limita intentos de login por IP.
+// Rate limiting: limita intentos de login por IP. Cada IP tiene su propio contador;
+// un limitador global dejaría a toda la clínica sin poder entrar tras 5 intentos fallidos.
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("login", limiterOptions =>
-    {
-        limiterOptions.PermitLimit = 5;
-        limiterOptions.Window = TimeSpan.FromMinutes(1);
-        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        limiterOptions.QueueLimit = 0;
-    });
+    options.AddPolicy("login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -301,6 +305,10 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// El limitador va antes de UseStatusCodePagesWithReExecute: si estuviera dentro, la
+// respuesta 429 se re-ejecutaba como página de error y el cliente recibía otro código.
+app.UseRateLimiter();
+
 // Si alguien pide una direccion que no existe, el servidor responde 404 pero
 // SIN cuerpo: el navegador mostraba una pantalla en blanco.
 // UseStatusCodePagesWithReExecute vuelve a ejecutar el pipeline apuntando a /404,
@@ -315,7 +323,6 @@ app.UseStatusCodePagesWithReExecute("/404");
 // de entornos la pagina quedaba sin estilos y sin Blazor.
 app.MapStaticAssets().AllowAnonymous();
 app.UseAntiforgery();
-app.UseRateLimiter();
 
 app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforgery, SignInManager<Usuario> signInManager, UserManager<Usuario> userManager) =>
 {
