@@ -83,7 +83,8 @@ internal sealed class FakeAuditoriaService : IAuditoriaService
         string entidad,
         int? entidadId,
         string descripcion,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default,
+        int? clinicaId = null) =>
         Task.CompletedTask;
 
     public Task<IReadOnlyList<ActividadRecienteDto>> GetRecientesAsync(

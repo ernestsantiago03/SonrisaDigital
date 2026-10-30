@@ -10,6 +10,7 @@ using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Clinicas;
 using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Odontograma;
 using SonrisaDigital.Services.Citas;
@@ -124,6 +125,7 @@ public static class DependencyInjection
         // La clínica activa sale de la sesión; el DbContext la usa para filtrar y para guardar.
         services.AddScoped<ITenantProvider, TenantDesdeSesion>();
         services.AddScoped<IRolService, RolService>();
+        services.AddScoped<IClinicaService, ClinicaService>();
 
         services.AddAuthorization(options =>
         {

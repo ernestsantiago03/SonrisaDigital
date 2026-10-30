@@ -6,4 +6,6 @@ namespace SonrisaDigital.Tests.Support;
 internal sealed class TenantFijo(int? clinicaId) : ITenantProvider
 {
     public int? ClinicaId => clinicaId;
+
+    public bool EsAdministradorGlobal => false;
 }

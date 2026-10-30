@@ -23,6 +23,11 @@ public interface ICurrentUserService
     /// romper llamadas que solo necesitan el identificador o el nombre.
     /// </summary>
     void Establecer(string? usuarioId, string? nombre, ClaimsPrincipal? principal = null);
+
+    /// <summary>Clínica que el Dueño eligió en el selector de esta sesión. Nula si no ha elegido ninguna.</summary>
+    int? ClinicaSeleccionada { get; }
+
+    void SeleccionarClinica(int? clinicaId);
 }
 
 public sealed class CurrentUserService : ICurrentUserService
@@ -32,6 +37,12 @@ public sealed class CurrentUserService : ICurrentUserService
 
     /// <inheritdoc />
     public ClaimsPrincipal? Principal { get; private set; }
+
+    /// <inheritdoc />
+    public int? ClinicaSeleccionada { get; private set; }
+
+    /// <inheritdoc />
+    public void SeleccionarClinica(int? clinicaId) => ClinicaSeleccionada = clinicaId;
 
     public void Establecer(string? usuarioId, string? nombre, ClaimsPrincipal? principal = null)
     {

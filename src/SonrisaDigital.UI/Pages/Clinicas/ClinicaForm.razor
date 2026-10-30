@@ -1,0 +1,174 @@
+@page "/clinicas/nueva"
+@page "/clinicas/editar/{Id:int}"
+@attribute [Authorize(Policy = "Clinicas.Ver")]
+@using SonrisaDigital.Services.Clinicas
+@using SonrisaDigital.Services.Clinicas.DTOs
+@inject IClinicaService ClinicaService
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsEditing ? "Editar clínica" : "Nueva clínica") · Sonrisa Digital</PageTitle>
+
+<div class="clinicas-page">
+    <div class="page-header">
+        <div>
+            <a class="back-link" href="/clinicas">← Clínicas</a>
+            <h1>@(IsEditing ? "Editar clínica" : "Nueva clínica")</h1>
+        </div>
+    </div>
+
+    @if (notFound)
+    {
+        <div class="feedback error">La clínica solicitada no existe.</div>
+    }
+    else
+    {
+        <EditForm Model="model" OnValidSubmit="GuardarAsync">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="feedback error">@errorMessage</div>
+            }
+
+            <section class="clinicas-panel" style="padding: 16px;">
+                <h2 style="font-size: 15px; margin: 0 0 4px;">Identidad de la clínica</h2>
+                <p style="color: #64748b; font-size: 12px; margin: 0 0 12px;">Estos datos aparecen en la página Acerca De de la clínica.</p>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="clinica-nombre">Nombre</label>
+                        <InputText id="clinica-nombre" class="form-control" @bind-Value="model.Nombre" />
+                        <ValidationMessage For="@(() => model.Nombre)" />
+                    </div>
+                    <div class="field">
+                        <label for="clinica-codigo">Código</label>
+                        <InputText id="clinica-codigo" class="form-control" @bind-Value="model.Codigo" disabled="@IsEditing" />
+                        <ValidationMessage For="@(() => model.Codigo)" />
+                    </div>
+                    <div class="field">
+                        <label for="clinica-rnc">RNC</label>
+                        <InputText id="clinica-rnc" class="form-control" @bind-Value="model.Rnc" />
+                        <ValidationMessage For="@(() => model.Rnc)" />
+                    </div>
+                    <div class="field">
+                        <label for="clinica-telefono">Teléfono</label>
+                        <InputText id="clinica-telefono" class="form-control" @bind-Value="model.Telefono" />
+                        <ValidationMessage For="@(() => model.Telefono)" />
+                    </div>
+                    <div class="field">
+                        <label for="clinica-correo">Correo</label>
+                        <InputText id="clinica-correo" class="form-control" @bind-Value="model.Correo" />
+                        <ValidationMessage For="@(() => model.Correo)" />
+                    </div>
+                    <div class="field">
+                        <label for="clinica-horario">Horario</label>
+                        <InputText id="clinica-horario" class="form-control" @bind-Value="model.Horario" />
+                        <ValidationMessage For="@(() => model.Horario)" />
+                    </div>
+                    <div class="field field-wide">
+                        <label for="clinica-direccion">Dirección</label>
+                        <InputText id="clinica-direccion" class="form-control" @bind-Value="model.Direccion" />
+                        <ValidationMessage For="@(() => model.Direccion)" />
+                    </div>
+                    <div class="field field-wide">
+                        <label for="clinica-eslogan">Eslogan</label>
+                        <InputText id="clinica-eslogan" class="form-control" @bind-Value="model.Eslogan" />
+                        <ValidationMessage For="@(() => model.Eslogan)" />
+                    </div>
+                </div>
+            </section>
+
+            @if (!IsEditing)
+            {
+                <section class="clinicas-panel" style="padding: 16px; margin-top: 16px;">
+                    <h2 style="font-size: 15px; margin: 0 0 4px;">Primer administrador</h2>
+                    <p style="color: #64748b; font-size: 12px; margin: 0 0 12px;">Administrará esta clínica. Después puede cambiar su contraseña.</p>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="admin-nombre">Nombre</label>
+                            <InputText id="admin-nombre" class="form-control" @bind-Value="admin.Nombre" />
+                        </div>
+                        <div class="field">
+                            <label for="admin-correo">Correo</label>
+                            <InputText id="admin-correo" class="form-control" @bind-Value="admin.Email" />
+                        </div>
+                        <div class="field">
+                            <label for="admin-clave">Contraseña inicial</label>
+                            <InputText id="admin-clave" type="password" class="form-control" @bind-Value="admin.Password" />
+                        </div>
+                    </div>
+                </section>
+            }
+
+            <div style="margin-top: 16px;">
+                <button type="submit" class="primary-action">@(IsEditing ? "Guardar cambios" : "Crear clínica")</button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool IsEditing => Id.HasValue;
+    private bool notFound;
+    private string? errorMessage;
+    private ClinicaFormDto model = new();
+    private AdministradorClinicaFormDto admin = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsEditing)
+        {
+            return;
+        }
+
+        try
+        {
+            var cargada = await ClinicaService.ObtenerFormularioAsync(Id!.Value);
+            if (cargada is null)
+            {
+                notFound = true;
+                return;
+            }
+
+            model = cargada;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        errorMessage = null;
+        try
+        {
+            if (IsEditing)
+            {
+                await ClinicaService.ActualizarAsync(model);
+            }
+            else
+            {
+                var clinicaId = await ClinicaService.CrearAsync(model);
+                try
+                {
+                    await ClinicaService.CrearAdministradorAsync(clinicaId, admin);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // La clínica ya quedó creada: se avisa para no volver a enviar el formulario.
+                    errorMessage = $"La clínica se creó, pero no se pudo crear el administrador: {ex.Message}";
+                    return;
+                }
+            }
+
+            Navigation.NavigateTo("/clinicas");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+}
