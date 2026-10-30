@@ -36,7 +36,9 @@ namespace SonrisaDigital.Services.HistoriasClinicas;
 ///  4) Manejar las consultas      → GetOdontologosAsync, GetOdontologoVinculadoAsync,
 ///                                  CreateConsultaAsync, UpdateConsultaAsync,
 ///                                  RegistrarConsultaDeCitaAsync (puente con Citas), CerrarConsultaAsync
-///  5) Ayudantes privados         → ObtenerOCrearHistoriaAsync, EstaVacia, Apply, Normalize, ValidarConsulta
+///  5) Ayudantes privados         → ObtenerOCrearHistoriaAsync, EstaVacia, Apply, Normalize,
+///                                   ValidarConsulta, ResolverOdontologoFirmanteAsync,
+///                                   ValidarFirmanteDeConsultaAsync
 /// </summary>
 public sealed class HistoriaClinicaService(
     IHistoriaClinicaRepository repository,
@@ -255,7 +257,8 @@ public sealed class HistoriaClinicaService(
 
     /// <summary>
     /// Registra una consulta clínica del paciente (fecha, motivo, diagnóstico, plan de
-    /// tratamiento y observaciones). La firma el odontólogo dueño de la sesión.
+    /// tratamiento y observaciones). La firma el odontólogo vinculado al usuario; un
+    /// administrador sin perfil puede elegir un odontólogo activo.
     ///
     /// Detalle importante: la tabla de consultas necesita una historia clínica a la que
     /// pertenecer (su columna HistoriaClinicaId es obligatoria). Por eso, si el paciente
@@ -272,16 +275,11 @@ public sealed class HistoriaClinicaService(
         var paciente = await repository.GetPatientAsync(model.PacienteId, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");
 
-        // Paso 2: comprobar el odontólogo elegido como tratante. El permiso del rol es lo que da
-        // acceso a registrar consultas; el profesional se elige en la ventana (la consulta queda
-        // firmada por él), así que aquí solo se valida que exista y siga activo.
-        var odontologo = await repository.GetOdontologoAsync(model.OdontologoId, cancellationToken)
-            ?? throw new InvalidOperationException("El odontólogo seleccionado no existe.");
-
-        if (odontologo.Estado != EstadoRegistro.Activo)
-        {
-            throw new InvalidOperationException("El odontólogo seleccionado está inactivo.");
-        }
+        // Paso 2: resolver el odontólogo que firma la consulta. Un odontólogo vinculado
+        // solo puede firmar como él mismo; un administrador sin perfil puede elegir.
+        var odontologoId = await ResolverOdontologoFirmanteAsync(
+            model.OdontologoId,
+            cancellationToken);
 
         // Paso 3: validar los datos (por si llegan saltándose el formulario).
         ValidarConsulta(model);
@@ -295,7 +293,7 @@ public sealed class HistoriaClinicaService(
         {
             PacienteId = model.PacienteId,
             HistoriaClinicaId = historia.Id,
-            OdontologoId = odontologo.Id,
+            OdontologoId = odontologoId,
             // La fecha de una consulta es un día de calendario, no una hora exacta.
             Fecha = model.Fecha.Date,
             Motivo = Normalize(model.Motivo),
@@ -323,8 +321,9 @@ public sealed class HistoriaClinicaService(
     /// <summary>
     /// Completa o corrige una consulta que todavía está Abierta (por ejemplo, la que se creó
     /// automáticamente al atender una cita y a la que le falta el diagnóstico).
-    /// Una consulta cerrada ya es de solo lectura y el servicio la rechaza. Deja el cambio
-    /// anotado en la auditoría.
+    /// Un odontólogo solo puede modificar sus propias consultas; un administrador sin perfil
+    /// puede corregir cualquiera. Una consulta cerrada ya es de solo lectura y el servicio la
+    /// rechaza. Deja el cambio anotado en la auditoría.
     /// </summary>
     public async Task UpdateConsultaAsync(
         ConsultaClinicaFormDto model,
@@ -343,30 +342,30 @@ public sealed class HistoriaClinicaService(
             throw new InvalidOperationException("Una consulta cerrada ya no se puede modificar.");
         }
 
-        // Paso 3: comprobar el odontólogo elegido como tratante (puede corregirse).
-        var odontologo = await repository.GetOdontologoAsync(model.OdontologoId, cancellationToken)
-            ?? throw new InvalidOperationException("El odontólogo seleccionado no existe.");
+        // Paso 3: un odontólogo solo puede modificar las consultas que firmó él mismo.
+        await ValidarFirmanteDeConsultaAsync(consulta, cancellationToken);
 
-        if (odontologo.Estado != EstadoRegistro.Activo)
-        {
-            throw new InvalidOperationException("El odontólogo seleccionado está inactivo.");
-        }
+        // Paso 4: resolver el firmante que quedará en la consulta. Un administrador sin
+        // perfil puede corregirlo; un odontólogo vinculado mantiene su propia firma.
+        var odontologoId = await ResolverOdontologoFirmanteAsync(
+            model.OdontologoId,
+            cancellationToken);
 
-        // Paso 4: validar los datos (por si llegan saltándose el formulario).
+        // Paso 5: validar los datos (por si llegan saltándose el formulario).
         ValidarConsulta(model);
 
-        // Paso 5: copiar los datos limpios a la fila que Entity Framework ya está vigilando.
-        consulta.OdontologoId = odontologo.Id;
+        // Paso 6: copiar los datos limpios a la fila que Entity Framework ya está vigilando.
+        consulta.OdontologoId = odontologoId;
         consulta.Fecha = model.Fecha.Date;
         consulta.Motivo = Normalize(model.Motivo);
         consulta.Diagnostico = Normalize(model.Diagnostico);
         consulta.PlanTratamiento = Normalize(model.PlanTratamiento);
         consulta.Observaciones = Normalize(model.Observaciones);
 
-        // Paso 6: guardar.
+        // Paso 7: guardar.
         await repository.SaveChangesAsync(cancellationToken);
 
-        // Paso 7: dejar el rastro en la auditoría.
+        // Paso 8: dejar el rastro en la auditoría.
         var paciente = await repository.GetPatientAsync(consulta.PacienteId, cancellationToken);
         var nombrePaciente = paciente is null
             ? "paciente"
@@ -443,11 +442,13 @@ public sealed class HistoriaClinicaService(
     }
 
     /// <summary>
-    /// Cierra una consulta clínica: pasa de Abierta a Cerrada y a partir de ahí queda de solo
-    /// lectura (así lo pide el diseño del módulo). Deja el cambio anotado en la auditoría.
+    /// Cierra una consulta clínica: exige que tenga diagnóstico y plan de tratamiento, y que
+    /// el usuario sea el firmante o un administrador sin perfil. Pasa de Abierta a Cerrada y
+    /// a partir de ahí queda de solo lectura. Deja el cambio anotado en la auditoría.
     /// </summary>
     public async Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default)
     {
+        // Cerrar es una edición clínica: exige el mismo permiso que completar la consulta.
         await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
 
         // Paso 1: buscar la consulta. Si no existe, se avisa.
@@ -460,11 +461,28 @@ public sealed class HistoriaClinicaService(
             return;
         }
 
-        // Paso 3: cambiar el estado y guardar.
+        // Paso 3: un odontólogo solo puede cerrar las consultas que firmó él mismo.
+        await ValidarFirmanteDeConsultaAsync(consulta, cancellationToken);
+
+        // Paso 4: no se puede cerrar una consulta incompleta. El diagnóstico y el plan
+        // son la firma clínica de la atención; sin ellos, la consulta debe seguir abierta.
+        if (string.IsNullOrWhiteSpace(consulta.Diagnostico))
+        {
+            throw new InvalidOperationException(
+                "Completa el diagnóstico antes de cerrar la consulta.");
+        }
+
+        if (string.IsNullOrWhiteSpace(consulta.PlanTratamiento))
+        {
+            throw new InvalidOperationException(
+                "Completa el plan de tratamiento antes de cerrar la consulta.");
+        }
+
+        // Paso 5: cambiar el estado y guardar.
         consulta.Estado = EstadoConsulta.Cerrada;
         await repository.SaveChangesAsync(cancellationToken);
 
-        // Paso 4: dejar el rastro en la auditoría.
+        // Paso 6: dejar el rastro en la auditoría.
         await auditoriaService.RegistrarAsync(
             "Modificó",
             "Historia Clínica",
@@ -591,4 +609,103 @@ public sealed class HistoriaClinicaService(
             throw new InvalidOperationException("La fecha de la consulta no puede ser futura.");
         }
     }
+
+    /// <summary>
+    /// Resuelve qué odontólogo puede firmar una consulta. El perfil vinculado al usuario
+    /// manda; solo un administrador sin perfil puede elegir otro odontólogo activo.
+    /// </summary>
+    private async Task<int> ResolverOdontologoFirmanteAsync(
+        int odontologoId,
+        CancellationToken cancellationToken)
+    {
+        // El vínculo usuario → odontólogo es la firma de la sesión. Si existe, no se
+        // permite firmar como otro profesional.
+        var vinculadoId = await ObtenerOdontologoVinculadoAsync(cancellationToken);
+        if (vinculadoId.HasValue)
+        {
+            if (vinculadoId.Value != odontologoId)
+            {
+                throw new InvalidOperationException(
+                    "Solo puedes firmar consultas con el odontólogo vinculado a tu usuario.");
+            }
+
+            var vinculado = await repository.GetOdontologoAsync(vinculadoId.Value, cancellationToken)
+                ?? throw new InvalidOperationException("El odontólogo vinculado a tu usuario no existe.");
+
+            if (vinculado.Estado != EstadoRegistro.Activo)
+            {
+                throw new InvalidOperationException("El odontólogo vinculado a tu usuario está inactivo.");
+            }
+
+            return vinculado.Id;
+        }
+
+        // Un administrador sin perfil de odontólogo puede actuar como supervisor y
+        // elegir un firmante activo de la lista.
+        if (!EsAdministrador())
+        {
+            throw new InvalidOperationException(
+                "Tu usuario no tiene un perfil de odontólogo vinculado. Un administrador debe asignarte uno.");
+        }
+
+        var seleccionado = await repository.GetOdontologoAsync(odontologoId, cancellationToken)
+            ?? throw new InvalidOperationException("El odontólogo seleccionado no existe.");
+
+        if (seleccionado.Estado != EstadoRegistro.Activo)
+        {
+            throw new InvalidOperationException("El odontólogo seleccionado está inactivo.");
+        }
+
+        return seleccionado.Id;
+    }
+
+    /// <summary>
+    /// Comprueba que el usuario pueda modificar o cerrar una consulta ya firmada.
+    /// Un odontólogo vinculado solo trabaja sobre sus propias consultas; un administrador
+    /// sin perfil puede corregir cualquiera.
+    /// </summary>
+    private async Task ValidarFirmanteDeConsultaAsync(
+        ConsultaClinica consulta,
+        CancellationToken cancellationToken)
+    {
+        var vinculadoId = await ObtenerOdontologoVinculadoAsync(cancellationToken);
+        if (vinculadoId.HasValue)
+        {
+            if (consulta.OdontologoId != vinculadoId.Value)
+            {
+                throw new InvalidOperationException(
+                    "No puedes modificar ni cerrar una consulta firmada por otro odontólogo.");
+            }
+
+            return;
+        }
+
+        if (!EsAdministrador())
+        {
+            throw new InvalidOperationException(
+                "Tu usuario no tiene un perfil de odontólogo vinculado. Un administrador debe asignarte uno.");
+        }
+    }
+
+    /// <summary>
+    /// Id del odontólogo vinculado al usuario de la sesión, o null si no tiene perfil.
+    /// </summary>
+    private async Task<int?> ObtenerOdontologoVinculadoAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserService.UsuarioId))
+        {
+            return null;
+        }
+
+        return await repository.GetOdontologoIdByUserAsync(
+            currentUserService.UsuarioId,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Indica si la sesión tiene el rol administrador, que puede supervisar consultas
+    /// aunque no tenga un perfil de odontólogo vinculado.
+    /// </summary>
+    private bool EsAdministrador() =>
+        currentUserService.Principal?.IsInRole(RolesSonrisaDigital.Administrador) == true;
 }

@@ -398,23 +398,24 @@ permiso del rol, igual que en el resto de los módulos.
 
 La ventana solicita: odontólogo tratante, fecha, motivo, diagnóstico, plan de tratamiento y
 observaciones. El odontólogo, el motivo y el diagnóstico son obligatorios, y la fecha no puede ser
-futura. La lista de odontólogos trae solo los activos y deja preseleccionado al odontólogo vinculado
-al usuario de la sesión, cuando ese usuario es odontólogo (el vínculo se crea al asignarle el rol
-Odontólogo a un usuario, desde el módulo de Usuarios).
+futura. La firma se toma del odontólogo vinculado al usuario de la sesión (el vínculo se crea al
+asignarle el rol Odontólogo a un usuario, desde el módulo de Usuarios). Solo un administrador sin
+perfil de odontólogo puede elegir un odontólogo activo de la lista.
 
 La primera consulta de un paciente crea su historia clínica (la tabla de consultas necesita una
 historia a la que pertenecer); esto no contradice la regla de "no crear historias vacías", porque
 la consulta ya es un dato clínico.
 
-Cada consulta nace en estado `Abierta` y puede cerrarse con el botón **"Cerrar consulta"**. Una vez
-cerrada queda de solo lectura. Tanto el registro como el cierre quedan anotados en la auditoría.
+Cada consulta nace en estado `Abierta` y puede cerrarse con el botón **"Cerrar consulta"** cuando
+tenga diagnóstico y plan de tratamiento. Solo puede cerrarla el odontólogo que la firmó o un
+administrador sin perfil de odontólogo. Una vez cerrada queda de solo lectura. Tanto el registro
+como el cierre quedan anotados en la auditoría.
 
 ### 7.4.2. Puente cita → consulta (implementado)
 
-Cuando una cita se marca como `Atendida` (desde el detalle de la cita con el botón **"Marcar como
-atendida"**, o al dejar la cita en ese estado desde su formulario de edición), el sistema registra
-automáticamente la **consulta clínica de esa cita**. Esto une el flujo `Cita → Atención → Historia
-Clínica` descrito en el apartado 18.
+Cuando una cita se marca como `Atendida` desde el detalle de la cita con el botón **"Marcar como
+atendida"**, el sistema registra automáticamente la **consulta clínica de esa cita**. Esto une el
+flujo `Cita → Atención → Historia Clínica` descrito en el apartado 18.
 
 La consulta así creada:
 
@@ -429,14 +430,15 @@ pestaña **Consultas** de la Historia Clínica con el botón **"Completar consul
 
 ### 7.4.3. Completar una consulta abierta (implementado)
 
-Mientras una consulta siga `Abierta`, el odontólogo puede modificarla con el botón **"Completar
-consulta"** (por ejemplo para terminarle el diagnóstico a la consulta que nació de una cita). Se
-abre la misma ventana del registro, con los datos que ya tenía la consulta cargados, y se puede
-corregir también el odontólogo tratante.
+Mientras una consulta siga `Abierta`, el odontólogo que la firmó puede modificarla con el botón
+**"Completar consulta"** (por ejemplo para terminarle el diagnóstico a la consulta que nació de una
+cita). Se abre la misma ventana del registro, con los datos que ya tenía la consulta cargados. Un
+administrador sin perfil de odontólogo puede corregir también el odontólogo tratante; un odontólogo
+vinculado conserva su propia firma.
 
-El botón se muestra con el permiso `HistoriaClinica.Editar` (modificar información clínica), mientras
-que **"+ Nueva consulta"** y **"Cerrar consulta"** se muestran con `HistoriaClinica.Crear` (registrar
-la consulta), tal como se definió en 7.4.1.
+El botón **"Completar consulta"** y el botón **"Cerrar consulta"** se muestran con el permiso
+`HistoriaClinica.Editar` (modificar información clínica), mientras que **"+ Nueva consulta"** se
+muestra con `HistoriaClinica.Crear` (registrar la consulta), tal como se definió en 7.4.1.
 
 Una consulta `Cerrada` es de solo lectura: el servicio rechaza cualquier intento de modificarla. Cada
 consulta completada queda anotada en la auditoría.
