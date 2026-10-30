@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -33,10 +34,15 @@ public sealed class HistoriaClinicaRepository(ApplicationDbContext dbContext) : 
     /// nombre y después por apellido. Si se recibe un texto, filtra por nombre o apellido.
     /// Se incluyen los pacientes inactivos: su historia clínica debe seguir consultable.
     /// </summary>
-    public async Task<IReadOnlyList<Paciente>> GetPatientsAsync(
-        string? searchTerm = null,
+    public async Task<PagedResult<Paciente>> SearchPatientsPagedAsync(
+        string? searchTerm,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
         // Paso 1: empezar con la tabla de pacientes, en modo "solo lectura".
         // La variable "query" todavía NO es una consulta ejecutada: es la pregunta armada,
         // que se va completando con los pasos siguientes.
@@ -52,12 +58,21 @@ public sealed class HistoriaClinicaRepository(ApplicationDbContext dbContext) : 
                 patient.Apellidos.Contains(term));
         }
 
-        // Paso 3: ordenar alfabéticamente (primero por nombre y, a igual nombre, por apellido)
-        // y ejecutar la consulta en la base de datos con ToListAsync.
-        return await query
+        // Paso 3: contar en SQL y ajustar la página si el filtro dejó menos resultados.
+        var total = await query.CountAsync(cancellationToken);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
+        // Paso 4: ordenar alfabéticamente (el Id desempata) y traer solo la página pedida.
+        var items = await query
             .OrderBy(patient => patient.Nombres)
             .ThenBy(patient => patient.Apellidos)
+            .ThenBy(patient => patient.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<Paciente>(items, total, page, pageSize);
     }
 
     /// <summary>

@@ -1,6 +1,7 @@
 @page "/historia-clinica"
 @page "/historia-clinica/{PacienteId:int}"
 @attribute [Authorize(Policy = "HistoriaClinica.Ver")]
+@using SonrisaDigital.Data.Common
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.HistoriasClinicas
 @using SonrisaDigital.Services.HistoriasClinicas.DTOs
@@ -72,36 +73,46 @@
 
     @if (buscandoResultados)
     {
-        <section class="search-results" aria-label="Resultados de la búsqueda">
-            @if (resultados.Count == 0)
+        <section class="resultados-panel" aria-label="Resultados de la búsqueda">
+            @if (resultados.Total == 0)
             {
-                <div class="search-empty">
+                <div class="resultados-vacio">
                     @(string.IsNullOrWhiteSpace(searchTerm)
-                        ? "Todavía no hay pacientes registrados."
+                        ? "No hay pacientes registrados."
                         : "No se encontró ningún paciente con ese nombre o apellido.")
                 </div>
             }
             else
             {
-                <div class="search-results-head">
-                    @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
+                <div class="resultados-resumen">@resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")</div>
+                <div class="resultados-scroll">
+                    <table class="resultados-tabla">
+                        <thead>
+                            <tr><th>Nombre completo</th><th>Identificación</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var patient in resultados.Items)
+                            {
+                                var pacienteId = patient.Id;
+                                <tr>
+                                    <td>
+                                        <button type="button" class="resultados-nombre" @onclick="() => SeleccionarPacienteAsync(pacienteId)">@patient.NombreCompleto</button>
+                                        @if (!patient.Activo)
+                                        {
+                                            <span class="resultados-badge">Inactivo</span>
+                                        }
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "-" : patient.Identificacion)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <ul class="search-results-list">
-                    @foreach (var patient in resultados)
-                    {
-                        var pacienteId = patient.Id;
-                        <li>
-                            <button type="button" class="search-result" @onclick="() => SeleccionarPacienteAsync(pacienteId)">
-                                <span class="search-result-name">@patient.NombreCompleto</span>
-                                <span class="search-result-meta">@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "Sin cédula" : patient.Identificacion)</span>
-                                @if (!patient.Activo)
-                                {
-                                    <span class="status-badge inactive">Inactivo</span>
-                                }
-                            </button>
-                        </li>
-                    }
-                </ul>
+                <PaginationFooter Page="resultados.Page"
+                                  TotalPages="resultados.TotalPages"
+                                  Total="resultados.Total"
+                                  ItemLabel="paciente(s) encontrado(s)"
+                                  OnPageChange="IrAPaginaResultadosAsync" />
             }
         </section>
     }
@@ -114,20 +125,15 @@
     }
     else if (model is null)
     {
-        <section class="detail-panel">
-            <div class="table-state empty-state">
-                @if (selectedPatientId > 0)
-                {
+        @if (selectedPatientId > 0)
+        {
+            <section class="detail-panel">
+                <div class="table-state empty-state">
                     <strong>No se pudo cargar la historia clínica</strong>
                     <span>Vuelve a intentarlo o busca otro paciente.</span>
-                }
-                else
-                {
-                    <strong>Selecciona un paciente</strong>
-                    <span>Usa la búsqueda de arriba para encontrar al paciente y ver su historia clínica.</span>
-                }
-            </div>
-        </section>
+                </div>
+            </section>
+        }
     }
     else
     {
@@ -652,7 +658,8 @@
     // El id del paciente que llega por la URL al abrir /historia-clinica/12.
     [Parameter] public int? PacienteId { get; set; }
 
-    private readonly List<HistoriaClinicaPacienteDto> resultados = [];   // filas del panel de búsqueda
+    private const int PageSize = 10;                                      // pacientes por página en el panel de búsqueda
+    private PagedResult<HistoriaClinicaPacienteDto> resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
     private readonly HashSet<int> consultasAbiertas = [];                 // qué consultas están desplegadas
     private HistoriaClinicaDto? model;                                    // la historia que se está viendo
     private int selectedPatientId;                                        // paciente elegido (0 = ninguno)
@@ -755,6 +762,9 @@
         {
             datosInicialesCargados = true;
 
+            // La primera página de pacientes aparece desde que se entra al módulo, sin tener que buscar.
+            await CargarResultadosAsync(1);
+
             try
             {
                 // Se le pregunta al sistema quién está conectado y qué permisos tiene su rol:
@@ -814,7 +824,12 @@
     /// Si la caja está vacía, el servicio devuelve todos los pacientes activos en orden alfabético.
     /// El resultado se guarda en <c>resultados</c> para dibujarlo como lista en pantalla.
     /// </summary>
-    private async Task BuscarAsync()
+    private Task BuscarAsync() => CargarResultadosAsync(1);
+
+    private Task IrAPaginaResultadosAsync(int page) =>
+        page < 1 || page > resultados.TotalPages ? Task.CompletedTask : CargarResultadosAsync(page);
+
+    private async Task CargarResultadosAsync(int page)
     {
         // Paso 1: marcar que la búsqueda empezó y limpiar mensajes anteriores.
         buscandoResultados = true;
@@ -825,16 +840,13 @@
         {
             // Paso 2: pedirle al servicio los pacientes que coincidan con lo escrito.
             // Si la caja está vacía, devuelve todos (en orden alfabético).
-            var encontrados = await HistoriaService.GetPatientsAsync(searchTerm);
-
-            // Paso 3: reemplazar la lista vieja por los resultados nuevos.
-            resultados.Clear();
-            resultados.AddRange(encontrados);
+            // Paso 3: reemplazar la página anterior por la pedida y su total.
+            resultados = await HistoriaService.SearchPatientsPagedAsync(searchTerm, page, PageSize);
         }
         catch (Exception)
         {
             // Si algo falla: lista vacía + mensaje de error (nunca se deja la pantalla a medias).
-            resultados.Clear();
+            resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
             errorMessage = "No fue posible buscar los pacientes.";
         }
 
@@ -863,7 +875,7 @@
         // Paso 2: limpiar la búsqueda (caja, lista y mensajes) porque ya se eligió a alguien.
         searchTerm = string.Empty;
         buscandoResultados = false;
-        resultados.Clear();
+        resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
         successMessage = null;
         errorMessage = null;
 

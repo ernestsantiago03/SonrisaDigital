@@ -1,6 +1,7 @@
 @page "/cita/nuevo"
 @page "/cita/editar/{Id:int}"
 @attribute [Authorize(Policy = "Citas.Ver")]
+@using SonrisaDigital.Data.Common
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Citas
 @using SonrisaDigital.Services.Citas.DTOs
@@ -59,6 +60,12 @@
                 <div class="form-grid">
                     <div class="field">
                         <label for="patient-select">Paciente</label>
+                        @if (!IsEditing)
+                        {
+                            <input type="search" class="patient-search" style="width: 100%; margin-bottom: 6px;"
+                                   placeholder="Buscar paciente por nombre o apellido…"
+                                   aria-label="Buscar paciente" value="@busquedaPaciente" @oninput="OnBusquedaPacienteCambiada" />
+                        }
                         <InputSelect id="patient-select" @bind-Value="model.PacienteId" disabled="@(IsEditing ? "disabled" : null)">
                             <option value="0">-- Seleccionar paciente --</option>
                             @foreach (var paciente in pacientes)
@@ -66,6 +73,10 @@
                                 <option value="@paciente.Id">@paciente.NombreCompleto</option>
                             }
                         </InputSelect>
+                        @if (pacientesTotal > LimitesBusqueda.PacientesResultados)
+                        {
+                            <span style="color: #64748b; font-size: 12px; margin-top: 4px;">Hay @pacientesTotal pacientes que coinciden. Se muestran los primeros @LimitesBusqueda.PacientesResultados; escribe más letras para afinar la búsqueda.</span>
+                        }
                         <ValidationMessage For="@(() => model.PacienteId)" />
                     </div>
 
@@ -196,6 +207,28 @@
 
     private CitaFormDto model = new();
     private List<PacienteListItemDto> pacientes = [];
+    private string busquedaPaciente = string.Empty;
+    private int pacientesTotal;
+
+    /// <summary>
+    /// Carga los pacientes activos que coinciden con lo escrito, con tope de 50. El paciente
+    /// ya asignado a la cita se conserva aunque no coincida con la búsqueda.
+    /// </summary>
+    private async Task BuscarPacientesAsync()
+    {
+        var resultado = await PacienteService.BuscarActivosParaSeleccionAsync(
+            string.IsNullOrWhiteSpace(busquedaPaciente) ? null : busquedaPaciente.Trim(),
+            model.PacienteId > 0 ? model.PacienteId : null);
+
+        pacientes = resultado.Items.OrderBy(p => p.NombreCompleto).ToList();
+        pacientesTotal = resultado.Total;
+    }
+
+    private async Task OnBusquedaPacienteCambiada(ChangeEventArgs args)
+    {
+        busquedaPaciente = args.Value?.ToString() ?? string.Empty;
+        await BuscarPacientesAsync();
+    }
     private List<OdontologoListItemDto> odontologos = [];
 
     // Variables para manejar las listas de horarios
@@ -293,10 +326,8 @@
 
         try
         {
-            // Carga de catálogos ordenada alfabéticamente (A-Z)
-            var pacientesResultado = await PacienteService.SearchAsync(null, EstadoRegistro.Activo);
-            pacientes = pacientesResultado.OrderBy(p => p.NombreCompleto).ToList();
-
+            // Carga de catálogos ordenada alfabéticamente (A-Z). Los pacientes se cargan
+            // después, cuando ya se conoce la cita, para incluir el paciente que tiene asignado.
             var odontologosResultado = await OdontologoService.SearchAsync(null, EstadoRegistro.Activo);
             odontologos = odontologosResultado.OrderBy(o => o.NombreCompleto).ToList();
 
@@ -337,6 +368,8 @@
                     HoraFin = new TimeOnly(8, 30)
                 };
             }
+
+            await BuscarPacientesAsync();
 
             // 2. Actualizar las horas de fin según la hora de inicio cargada
             UpdateEndTimes();

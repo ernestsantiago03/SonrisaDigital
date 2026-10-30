@@ -114,8 +114,10 @@ internal sealed class FakeHistoriaClinicaService : IHistoriaClinicaService
 
     public int ConsultasRegistradas { get; private set; }
 
-    public Task<IReadOnlyList<HistoriaClinicaPacienteDto>> GetPatientsAsync(
-        string? searchTerm = null,
+    public Task<PagedResult<HistoriaClinicaPacienteDto>> SearchPatientsPagedAsync(
+        string? searchTerm,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 

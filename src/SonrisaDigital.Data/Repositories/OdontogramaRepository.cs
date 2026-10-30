@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -36,10 +37,15 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
     /// después por apellido. Si se recibe un texto, filtra por nombre o apellido.
     /// Solo se ofrecen pacientes activos: el odontograma es una herramienta de trabajo clínico.
     /// </summary>
-    public async Task<IReadOnlyList<Paciente>> GetActivePatientsAsync(
-        string? searchTerm = null,
+    public async Task<PagedResult<Paciente>> SearchActivePatientsPagedAsync(
+        string? searchTerm,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
         // Paso 1: partir de la tabla de pacientes, ya filtrada a los que están ACTIVOS.
         var query = dbContext.Pacientes.AsNoTracking()
             .Where(patient => patient.Estado == EstadoRegistro.Activo);
@@ -53,12 +59,30 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
                 patient.Apellidos.Contains(term));
         }
 
-        // Paso 3: ordenar alfabéticamente y ejecutar la consulta.
-        return await query
+        // Paso 3: contar en SQL y ajustar la página si el filtro dejó menos resultados.
+        var total = await query.CountAsync(cancellationToken);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+        page = Math.Min(page, totalPages);
+
+        // Paso 4: ordenar alfabéticamente (el Id desempata) y traer solo la página pedida.
+        var items = await query
             .OrderBy(patient => patient.Nombres)
             .ThenBy(patient => patient.Apellidos)
+            .ThenBy(patient => patient.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<Paciente>(items, total, page, pageSize);
     }
+
+    /// <summary>
+    /// Un paciente activo por Id, sin el límite de la búsqueda. Se usa cuando la pantalla
+    /// abre un paciente desde un enlace y no debe depender de que aparezca en los primeros resultados.
+    /// </summary>
+    public Task<Paciente?> GetActivePatientByIdAsync(int pacienteId, CancellationToken cancellationToken = default) =>
+        dbContext.Pacientes.AsNoTracking()
+            .FirstOrDefaultAsync(patient => patient.Id == pacienteId && patient.Estado == EstadoRegistro.Activo, cancellationToken);
 
     /// <summary>
     /// El catálogo completo de piezas dentales (las 32), ordenado por su número FDI.

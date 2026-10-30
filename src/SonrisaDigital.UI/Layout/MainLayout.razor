@@ -145,7 +145,7 @@
     private string CurrentTitle => Navigation.Uri.ToLowerInvariant() switch
     {
         var uri when uri.Contains("pacientes") => "Pacientes",
-        var uri when uri.Contains("odontologos") => "Odontólogos",
+        var uri when uri.Contains("odontologo") => "Odontólogos", // Las rutas usan singular: /odontologo
         var uri when uri.Contains("cita") => "Citas", // Se ajustó "citas" por "cita" para coincidir con tus rutas
         var uri when uri.Contains("historia") => "Historia clínica",
         var uri when uri.Contains("odontograma") => "Odontograma",

@@ -1,6 +1,7 @@
 @page "/odontograma"
 @attribute [Authorize(Policy = "Odontograma.Ver")]
 @using System.Globalization
+@using SonrisaDigital.Data.Common
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Odontograma
 @using SonrisaDigital.Services.Odontograma.DTOs
@@ -64,31 +65,39 @@
 
     @if (buscandoResultados)
     {
-        <section class="search-results" aria-label="Resultados de la búsqueda">
-            @if (resultados.Count == 0)
+        <section class="resultados-panel" aria-label="Resultados de la búsqueda">
+            @if (resultados.Total == 0)
             {
-                <div class="search-empty">
+                <div class="resultados-vacio">
                     @(string.IsNullOrWhiteSpace(searchTerm)
-                        ? "Todavía no hay pacientes activos registrados."
+                        ? "No hay pacientes activos registrados."
                         : "No se encontró ningún paciente activo con ese nombre o apellido.")
                 </div>
             }
             else
             {
-                <div class="search-results-head">
-                    @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
+                <div class="resultados-resumen">@resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")</div>
+                <div class="resultados-scroll">
+                    <table class="resultados-tabla">
+                        <thead>
+                            <tr><th>Nombre completo</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var patient in resultados.Items)
+                            {
+                                var paciente = patient;
+                                <tr>
+                                    <td><button type="button" class="resultados-nombre" @onclick="() => SeleccionarPacienteAsync(paciente)">@patient.NombreCompleto</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <ul class="search-results-list">
-                    @foreach (var patient in resultados)
-                    {
-                        var paciente = patient;
-                        <li>
-                            <button type="button" class="search-result" @onclick="() => SeleccionarPacienteAsync(paciente)">
-                                <span class="search-result-name">@patient.NombreCompleto</span>
-                            </button>
-                        </li>
-                    }
-                </ul>
+                <PaginationFooter Page="resultados.Page"
+                                  TotalPages="resultados.TotalPages"
+                                  Total="resultados.Total"
+                                  ItemLabel="paciente(s) encontrado(s)"
+                                  OnPageChange="IrAPaginaResultadosAsync" />
             }
         </section>
     }
@@ -112,10 +121,7 @@
     }
     else if (selectedPatientId <= 0)
     {
-        <div class="odontogram-state">
-            <strong>Selecciona un paciente</strong>
-            <span>Usa el panel de búsqueda de arriba para encontrar al paciente y ver su odontograma.</span>
-        </div>
+        @* Sin paciente elegido no se muestra nada debajo del buscador. *@
     }
     else if (pieces.Count == 0)
     {
@@ -300,7 +306,8 @@
     // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
     // =========================================================================================
 
-    private readonly List<OdontogramaPacienteDto> resultados = [];  // filas del panel de búsqueda
+    private const int PageSize = 10;                                 // pacientes por página en el panel de búsqueda
+    private PagedResult<OdontogramaPacienteDto> resultados = PagedResult<OdontogramaPacienteDto>.Empty(PageSize);
     private List<OdontogramaPiezaDto> pieces = [];                  // las 32 piezas del paciente
     private OdontogramaPiezaDto? selectedPiece;                     // la pieza que se está editando
     private int selectedPatientId;                                  // paciente elegido (0 = ninguno)
@@ -378,12 +385,15 @@
             editContext = await OdontogramaService.GetEditContextAsync();
             canEdit = editContext.PuedeEditar;
 
+            // La primera página de pacientes aparece desde que se entra al módulo, sin tener que buscar.
+            await CargarResultadosAsync(1);
+
             // Paso 2: si la URL trae un paciente, abrirlo directo.
             if (PacienteDesdeUrl.HasValue)
             {
                 // Se busca dentro de los pacientes ACTIVOS: el odontograma es clínico.
-                var pacientes = await OdontogramaService.GetActivePatientsAsync();
-                var paciente = pacientes.FirstOrDefault(item => item.Id == PacienteDesdeUrl.Value);
+                // La búsqueda directa por Id evita depender del límite de la lista de resultados.
+                var paciente = await OdontogramaService.GetActivePatientAsync(PacienteDesdeUrl.Value);
 
                 if (paciente is null)
                 {
@@ -413,7 +423,12 @@
     /// Si la caja está vacía, el servicio devuelve todos los activos en orden alfabético.
     /// Los resultados se guardan en <c>resultados</c> para dibujarlos como lista.
     /// </summary>
-    private async Task BuscarAsync()
+    private Task BuscarAsync() => CargarResultadosAsync(1);
+
+    private Task IrAPaginaResultadosAsync(int page) =>
+        page < 1 || page > resultados.TotalPages ? Task.CompletedTask : CargarResultadosAsync(page);
+
+    private async Task CargarResultadosAsync(int page)
     {
         // Paso 1: marcar que la búsqueda empezó y limpiar mensajes anteriores.
         buscandoResultados = true;
@@ -424,15 +439,12 @@
         {
             // Paso 2: pedir los pacientes activos que coincidan con lo escrito.
             // Si la caja está vacía, devuelve todos en orden alfabético.
-            var encontrados = await OdontogramaService.GetActivePatientsAsync(searchTerm);
-
-            // Paso 3: reemplazar la lista vieja por los resultados nuevos.
-            resultados.Clear();
-            resultados.AddRange(encontrados);
+            // Paso 3: reemplazar la página anterior por la pedida y su total.
+            resultados = await OdontogramaService.SearchActivePatientsPagedAsync(searchTerm, page, PageSize);
         }
         catch (Exception)
         {
-            resultados.Clear();
+            resultados = PagedResult<OdontogramaPacienteDto>.Empty(PageSize);
             errorMessage = "No fue posible buscar los pacientes.";
         }
 
@@ -459,7 +471,7 @@
         // Paso 2: limpiar la búsqueda y los mensajes, porque ya se eligió a alguien.
         searchTerm = string.Empty;
         buscandoResultados = false;
-        resultados.Clear();
+        resultados = PagedResult<OdontogramaPacienteDto>.Empty(PageSize);
         errorMessage = null;
         successMessage = null;
 

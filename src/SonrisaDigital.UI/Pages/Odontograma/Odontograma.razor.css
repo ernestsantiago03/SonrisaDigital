@@ -889,3 +889,16 @@
         animation: none;
     }
 }
+
+/* Resultados de búsqueda con el mismo formato visual que la tabla de Pacientes. */
+.resultados-panel { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 4px; background: white; margin-bottom: 16px; }
+.resultados-resumen { padding: 11px 13px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 11px; }
+.resultados-scroll { max-height: 420px; overflow-y: auto; }
+.resultados-tabla { width: 100%; border-collapse: collapse; font-size: 12px; }
+.resultados-tabla th { padding: 9px 12px; background: #f8fafc; color: #64748b; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.resultados-tabla td { padding: 10px 12px; border-top: 1px solid #f1f5f9; color: #64748b; white-space: nowrap; }
+.resultados-tabla tbody tr:hover { background: #f8fafc; }
+.resultados-nombre { background: none; border: none; padding: 0; color: #2563eb; font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; }
+.resultados-nombre:hover { text-decoration: underline; }
+.resultados-badge { display: inline-flex; margin-left: 8px; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: #f1f5f9; color: #64748b; }
+.resultados-vacio { padding: 40px 20px; color: #334155; text-align: center; font-size: 12px; font-weight: 600; }

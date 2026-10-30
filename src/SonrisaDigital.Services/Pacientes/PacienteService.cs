@@ -54,6 +54,35 @@ public sealed class PacienteService(
             result.PageSize);
     }
 
+    /// <summary>
+    /// Pacientes activos para un selector (desplegable o buscador de formulario). Devuelve como
+    /// máximo <see cref="LimitesBusqueda.PacientesResultados"/> filas. El total permite avisar
+    /// cuando hay más coincidencias. Si se indica un paciente ya elegido, se incluye aunque no
+    /// coincida con la búsqueda o esté fuera del límite, para que el formulario no pierda su valor.
+    /// </summary>
+    public async Task<PagedResult<PacienteListItemDto>> BuscarActivosParaSeleccionAsync(
+        string? termino,
+        int? pacienteIdSeleccionado = null,
+        CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Ver", "No tienes permiso para consultar pacientes.");
+
+        const int limite = LimitesBusqueda.PacientesResultados;
+        var resultado = await repository.SearchPagedAsync(termino, EstadoRegistro.Activo, 1, limite, cancellationToken);
+        var items = resultado.Items.Select(ToListItem).ToList();
+
+        if (pacienteIdSeleccionado is int seleccionado && items.All(item => item.Id != seleccionado))
+        {
+            var paciente = await repository.GetByIdAsync(seleccionado, cancellationToken);
+            if (paciente is not null)
+            {
+                items.Insert(0, ToListItem(paciente));
+            }
+        }
+
+        return new PagedResult<PacienteListItemDto>(items, resultado.Total, 1, limite);
+    }
+
     public async Task<PacienteDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Ver", "No tienes permiso para consultar pacientes.");
