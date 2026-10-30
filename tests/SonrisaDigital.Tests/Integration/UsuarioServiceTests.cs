@@ -340,7 +340,9 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
             Email = email,
             Nombre = nombre,
             Estado = EstadoRegistro.Activo,
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            // Los usuarios pertenecen a la clínica del proveedor de la prueba.
+            ClinicaId = scope.ServiceProvider.GetRequiredService<ITenantProvider>().ClinicaId
         };
 
         AsegurarResultado(await userManager.CreateAsync(usuario, "Prueba123"));

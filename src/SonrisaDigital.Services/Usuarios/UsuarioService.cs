@@ -46,7 +46,13 @@ public sealed class UsuarioService(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
-        var query = userManager.Users.AsNoTracking();
+        // Solo se listan los usuarios de la clínica de la sesión; sin clínica no hay ninguno.
+        if (tenant.ClinicaId is not int clinicaId)
+        {
+            return PagedResult<UsuarioListItemDto>.Empty(pageSize);
+        }
+
+        var query = userManager.Users.AsNoTracking().Where(user => user.ClinicaId == clinicaId);
 
         if (estado.HasValue)
         {
@@ -106,7 +112,7 @@ public sealed class UsuarioService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
 
-        var user = await userManager.FindByIdAsync(id);
+        var user = await BuscarUsuarioDeLaClinicaAsync(id);
         if (user is null) return null;
 
         return new UsuarioFormDto
@@ -183,7 +189,7 @@ public sealed class UsuarioService(
         // sistema sin administrador activo al comprobar y guardar a la vez.
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
-            var user = await userManager.FindByIdAsync(model.Id);
+            var user = await BuscarUsuarioDeLaClinicaAsync(model.Id);
             if (user is null) throw new InvalidOperationException("El usuario no existe.");
 
             // Cambiar el estado es una operación sensible. Ocultar el control en
@@ -247,7 +253,7 @@ public sealed class UsuarioService(
         // formar una sola operación serializable para soportar concurrencia.
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
-            var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
+            var user = await BuscarUsuarioDeLaClinicaAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
             await EnsureNotLastActiveAdminAsync(user, estado, await userManager.GetRolesAsync(user), cancellationToken);
 
             user.Estado = estado;
@@ -270,7 +276,7 @@ public sealed class UsuarioService(
 
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
-            var user = await userManager.FindByIdAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
+            var user = await BuscarUsuarioDeLaClinicaAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
             var token = await userManager.GeneratePasswordResetTokenAsync(user);
             EnsureSucceeded(await userManager.ResetPasswordAsync(user, token, password));
 
@@ -281,6 +287,13 @@ public sealed class UsuarioService(
                 "Restableció", "Usuarios", nameof(Usuario), null,
                 $"Restableció la contraseña del usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
         }, cancellationToken);
+    }
+
+    /// <summary>Usuario por Id solo si pertenece a la clínica de la sesión; si no, null (como si no existiera).</summary>
+    private async Task<Usuario?> BuscarUsuarioDeLaClinicaAsync(string id)
+    {
+        var user = await userManager.FindByIdAsync(id);
+        return user is not null && tenant.ClinicaId is int clinicaId && user.ClinicaId == clinicaId ? user : null;
     }
 
     private async Task<bool> ReplaceRolesAsync(Usuario user, IEnumerable<string> roleNames, CancellationToken cancellationToken)
@@ -419,7 +432,8 @@ public sealed class UsuarioService(
         if (seguiraAdminActivo) return;
 
         var admins = await userManager.GetUsersInRoleAsync(RolesSonrisaDigital.Administrador);
-        var otrosAdminsActivos = admins.Count(admin => admin.Id != user.Id && admin.Estado == EstadoRegistro.Activo);
+        // El último administrador se cuenta dentro de la clínica del usuario, no en todo el sistema.
+        var otrosAdminsActivos = admins.Count(admin => admin.Id != user.Id && admin.Estado == EstadoRegistro.Activo && admin.ClinicaId == user.ClinicaId);
         if (otrosAdminsActivos == 0)
         {
             throw new InvalidOperationException(
