@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Services.Autorizacion;
 using System.Security.Claims;
 
@@ -47,6 +48,13 @@ public sealed class UsuarioClaimsPrincipalFactory : UserClaimsPrincipalFactory<U
         foreach (var permission in permissions)
         {
             identity.AddClaim(new Claim(PermissionCatalog.ClaimType, permission));
+        }
+
+        // La clínica va firmada en la sesión. Se regenera en cada petición (ValidationInterval = 0),
+        // así que un cambio de clínica del usuario surte efecto de inmediato.
+        if (user.ClinicaId is int clinicaId)
+        {
+            identity.AddClaim(new Claim(ReclamacionesClinica.ClinicaId, clinicaId.ToString()));
         }
 
         return identity;

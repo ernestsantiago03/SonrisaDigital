@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Autenticacion;
@@ -120,6 +121,8 @@ public static class DependencyInjection
             options.ValidationInterval = TimeSpan.Zero);
 
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        // La clínica activa sale de la sesión; el DbContext la usa para filtrar y para guardar.
+        services.AddScoped<ITenantProvider, TenantDesdeSesion>();
         services.AddScoped<IRolService, RolService>();
 
         services.AddAuthorization(options =>

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Services.Citas.DTOs;
 using SonrisaDigital.Services.Odontologos.DTOs;
 using SonrisaDigital.Services.Pacientes.DTOs;
@@ -64,7 +65,7 @@ public sealed class DtoLimitesBaseDatosTests
             .UseSqlServer("Server=localhost;Database=ModeloSinConexion;Trusted_Connection=True;TrustServerCertificate=True")
             .Options;
 
-        using var contexto = new ApplicationDbContext(opciones);
+        using var contexto = new ApplicationDbContext(opciones, SinClinica.Instancia);
         return contexto.Model;
     }
 }

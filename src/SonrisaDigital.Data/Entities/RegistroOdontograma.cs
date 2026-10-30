@@ -1,7 +1,11 @@
+using SonrisaDigital.Data.Tenancy;
 namespace SonrisaDigital.Data.Entities;
 
-public class RegistroOdontograma
+public class RegistroOdontograma : IPerteneceAClinica
 {
+    public int ClinicaId { get; set; }
+    public Clinica? Clinica { get; set; }
+
     public int Id { get; set; }
     public int PacienteId { get; set; }
     public int PiezaDentalId { get; set; }

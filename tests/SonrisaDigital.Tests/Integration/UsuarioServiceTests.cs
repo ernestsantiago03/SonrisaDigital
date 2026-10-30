@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Tenancy;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -275,6 +276,16 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
             .AddRoles<Rol>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
+
+        // La base de prueba ya tiene la clínica demo creada por la migración.
+        int clinicaId;
+        await using (var dbDemo = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlServer(cadenaConexion).Options,
+            SinClinica.Instancia))
+        {
+            clinicaId = await dbDemo.Clinicas.Where(clinic => clinic.Codigo == "clinica-demo").Select(clinic => clinic.Id).SingleAsync();
+        }
+        services.AddScoped<ITenantProvider>(_ => new TenantFijo(clinicaId));
 
         services.AddSingleton<ICurrentUserService>(TestSession.Crear());
         services.AddSingleton(autorizacion);

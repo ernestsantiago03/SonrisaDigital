@@ -32,6 +32,6 @@ public sealed class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Ap
             .UseSqlServer(cadenaConexion)
             .Options;
 
-        return new ApplicationDbContext(options);
+        return new ApplicationDbContext(options, SonrisaDigital.Data.Tenancy.SinClinica.Instancia);
     }
 }

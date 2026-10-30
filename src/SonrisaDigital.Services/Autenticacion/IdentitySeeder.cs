@@ -82,7 +82,11 @@ public static class IdentitySeeder
         var admin = await userManager.FindByEmailAsync(email);
         if (admin is null)
         {
-            admin = new Usuario { UserName = email, Email = email, Nombre = "Administrador", Estado = EstadoRegistro.Activo, EmailConfirmed = true };
+            // El administrador inicial pertenece a la clínica demo, creada por la migración.
+            var clinicaDemo = await services.GetRequiredService<ApplicationDbContext>().Clinicas
+                .AsNoTracking()
+                .SingleAsync(clinic => clinic.Codigo == "clinica-demo");
+            admin = new Usuario { UserName = email, Email = email, Nombre = "Administrador", Estado = EstadoRegistro.Activo, EmailConfirmed = true, ClinicaId = clinicaDemo.Id };
             var result = await userManager.CreateAsync(admin, password);
             EnsureSucceeded(result, "crear el administrador inicial");
         }

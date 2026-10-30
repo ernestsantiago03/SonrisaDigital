@@ -12,6 +12,8 @@ using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Odontologos.DTOs;
 using SonrisaDigital.Services.Usuarios.DTOs;
 
+using SonrisaDigital.Data.Tenancy;
+
 namespace SonrisaDigital.Services.Usuarios;
 
 public sealed class UsuarioService(
@@ -20,7 +22,8 @@ public sealed class UsuarioService(
     ApplicationDbContext dbContext,
     IAuditoriaService auditoriaService,
     ICurrentUserService currentUserService,
-    IAuthorizationService authorizationService) : IUsuarioService
+    IAuthorizationService authorizationService,
+    ITenantProvider tenant) : IUsuarioService
 {
     // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
     private const int MaxPageSize = 50;
@@ -148,7 +151,9 @@ public sealed class UsuarioService(
                 Nombre = model.Nombre.Trim(),
                 Estado = EstadoRegistro.Activo,
                 FechaCreacion = DateTime.UtcNow,
-                EmailConfirmed = true
+                EmailConfirmed = true,
+                // Un usuario nuevo queda en la clínica de quien lo crea.
+                ClinicaId = tenant.ClinicaId ?? throw new InvalidOperationException("No hay clínica en la sesión.")
             };
 
             var result = await userManager.CreateAsync(user, model.Password ?? string.Empty);
