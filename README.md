@@ -241,7 +241,7 @@ Inicia sesión con esas credenciales y, de inmediato:
 
 Antes de desplegar con clientes reales:
 
-> La guía completa de instalación, configuración, respaldos y operación está en [Despliegue y operación en producción](docs/06-despliegue.md).
+> La guía de instalación, configuración, respaldos y operación se entrega aparte, junto con la instalación de cada clínica.
 
 - [x] Login de demostración retirado y sin credenciales por defecto en la interfaz.
 - [x] La aplicación valida al arrancar el dominio, la cadena de conexión y la ruta de Data Protection fuera de Development.
@@ -268,10 +268,6 @@ Antes de desplegar con clientes reales:
 | [Módulos y funcionalidades](docs/03-modulos-funcionalidades.md) | Comportamiento esperado de cada módulo. |
 | [Modelo de dominio](docs/04-modelos-dominio.md) | Entidades, relaciones y reglas del negocio. |
 | [Arquitectura](docs/05-arquitectura.md) | Capas, dependencias y decisiones técnicas. |
-| [Despliegue y operación](docs/06-despliegue.md) | IIS, nginx, Docker, HTTPS, migraciones, respaldos y rollback. |
-| [Pruebas, integración continua y respaldos](docs/07-pruebas-y-ci.md) | Pruebas unitarias, integración, concurrencia, E2E, cobertura, CI y respaldos. |
-| [Puesta en producción y aceptación](docs/08-puesta-en-produccion.md) | Cierre técnico, despliegue, cutover, aceptación y go-live. |
-| [Cambios de red y despliegue](docs/CAMBIOS-RED-Y-DESPLIEGUE.md) | Registro técnico acumulativo de las mejoras implementadas. |
 
 ---
 
