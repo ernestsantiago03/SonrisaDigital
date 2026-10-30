@@ -13,6 +13,12 @@ public interface IOdontogramaService
     Task<IReadOnlyList<OdontogramaPacienteDto>> GetActivePatientsAsync(
         string? searchTerm = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Un paciente activo por Id, aunque no esté entre los primeros resultados de la búsqueda.
+    /// Devuelve null si no existe o está inactivo.
+    /// </summary>
+    Task<OdontogramaPacienteDto?> GetActivePatientAsync(int pacienteId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OdontogramaPiezaDto>> GetByPatientAsync(int pacienteId, CancellationToken cancellationToken = default);
 
     /// <summary>

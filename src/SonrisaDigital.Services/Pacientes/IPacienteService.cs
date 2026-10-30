@@ -19,6 +19,15 @@ public interface IPacienteService
         int pageSize = 10,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Pacientes activos para un selector, limitados a 50. Incluye el paciente ya elegido
+    /// si se indica. <c>Total</c> dice cuántos coinciden en total.
+    /// </summary>
+    Task<PagedResult<PacienteListItemDto>> BuscarActivosParaSeleccionAsync(
+        string? termino,
+        int? pacienteIdSeleccionado = null,
+        CancellationToken cancellationToken = default);
+
     Task<PacienteDetalleDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<PacienteFormDto?> GetFormAsync(int id, CancellationToken cancellationToken = default);
 

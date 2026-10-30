@@ -61,6 +61,14 @@ public sealed class OdontogramaService(
         return patients.Select(patient => new OdontogramaPacienteDto(patient.Id, $"{patient.Nombres} {patient.Apellidos}")).ToList();
     }
 
+    public async Task<OdontogramaPacienteDto?> GetActivePatientAsync(int pacienteId, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Ver", "No tienes permiso para consultar odontogramas.");
+
+        var patient = await repository.GetActivePatientByIdAsync(pacienteId, cancellationToken);
+        return patient is null ? null : new OdontogramaPacienteDto(patient.Id, $"{patient.Nombres} {patient.Apellidos}");
+    }
+
     // =========================================================================================
     // 2) LEER LAS 32 PIEZAS DE UN PACIENTE  →  dibuja el odontograma completo
     // =========================================================================================

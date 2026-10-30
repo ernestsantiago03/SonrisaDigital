@@ -1,6 +1,7 @@
 @page "/historia-clinica"
 @page "/historia-clinica/{PacienteId:int}"
 @attribute [Authorize(Policy = "HistoriaClinica.Ver")]
+@using SonrisaDigital.Data.Common
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.HistoriasClinicas
 @using SonrisaDigital.Services.HistoriasClinicas.DTOs
@@ -85,6 +86,10 @@
             {
                 <div class="search-results-head">
                     @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
+                    @if (resultados.Count >= LimitesBusqueda.PacientesResultados)
+                    {
+                        <div class="search-results-limit" style="font-size: 12px; color: #64748b; margin-top: 4px;">Se muestran los primeros @LimitesBusqueda.PacientesResultados. Escribe más letras para afinar la búsqueda.</div>
+                    }
                 </div>
                 <ul class="search-results-list">
                     @foreach (var patient in resultados)

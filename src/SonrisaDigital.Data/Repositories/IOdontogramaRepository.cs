@@ -12,6 +12,7 @@ public interface IOdontogramaRepository
     Task<IReadOnlyList<Paciente>> GetActivePatientsAsync(
         string? searchTerm = null,
         CancellationToken cancellationToken = default);
+    Task<Paciente?> GetActivePatientByIdAsync(int pacienteId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PiezaDental>> GetPiecesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RegistroOdontograma>> GetRecordsAsync(int pacienteId, CancellationToken cancellationToken = default);
     Task<int?> GetOdontologoIdByUserAsync(string userId, CancellationToken cancellationToken = default);

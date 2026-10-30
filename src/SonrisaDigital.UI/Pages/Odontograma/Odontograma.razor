@@ -1,6 +1,7 @@
 @page "/odontograma"
 @attribute [Authorize(Policy = "Odontograma.Ver")]
 @using System.Globalization
+@using SonrisaDigital.Data.Common
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Odontograma
 @using SonrisaDigital.Services.Odontograma.DTOs
@@ -77,6 +78,10 @@
             {
                 <div class="search-results-head">
                     @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
+                    @if (resultados.Count >= LimitesBusqueda.PacientesResultados)
+                    {
+                        <div class="search-results-limit" style="font-size: 12px; color: #64748b; margin-top: 4px;">Se muestran los primeros @LimitesBusqueda.PacientesResultados. Escribe más letras para afinar la búsqueda.</div>
+                    }
                 </div>
                 <ul class="search-results-list">
                     @foreach (var patient in resultados)
@@ -382,8 +387,8 @@
             if (PacienteDesdeUrl.HasValue)
             {
                 // Se busca dentro de los pacientes ACTIVOS: el odontograma es clínico.
-                var pacientes = await OdontogramaService.GetActivePatientsAsync();
-                var paciente = pacientes.FirstOrDefault(item => item.Id == PacienteDesdeUrl.Value);
+                // La búsqueda directa por Id evita depender del límite de la lista de resultados.
+                var paciente = await OdontogramaService.GetActivePatientAsync(PacienteDesdeUrl.Value);
 
                 if (paciente is null)
                 {

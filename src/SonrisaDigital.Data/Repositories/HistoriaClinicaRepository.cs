@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -52,11 +53,12 @@ public sealed class HistoriaClinicaRepository(ApplicationDbContext dbContext) : 
                 patient.Apellidos.Contains(term));
         }
 
-        // Paso 3: ordenar alfabéticamente (primero por nombre y, a igual nombre, por apellido)
-        // y ejecutar la consulta en la base de datos con ToListAsync.
+        // Paso 3: ordenar alfabéticamente (primero por nombre y, a igual nombre, por apellido),
+        // limitar el número de filas y ejecutar la consulta en la base de datos.
         return await query
             .OrderBy(patient => patient.Nombres)
             .ThenBy(patient => patient.Apellidos)
+            .Take(LimitesBusqueda.PacientesResultados)
             .ToListAsync(cancellationToken);
     }
 

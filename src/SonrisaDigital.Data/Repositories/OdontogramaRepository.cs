@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -53,12 +54,21 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
                 patient.Apellidos.Contains(term));
         }
 
-        // Paso 3: ordenar alfabéticamente y ejecutar la consulta.
+        // Paso 3: ordenar alfabéticamente, limitar el número de filas y ejecutar la consulta.
         return await query
             .OrderBy(patient => patient.Nombres)
             .ThenBy(patient => patient.Apellidos)
+            .Take(LimitesBusqueda.PacientesResultados)
             .ToListAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Un paciente activo por Id, sin el límite de la búsqueda. Se usa cuando la pantalla
+    /// abre un paciente desde un enlace y no debe depender de que aparezca en los primeros resultados.
+    /// </summary>
+    public Task<Paciente?> GetActivePatientByIdAsync(int pacienteId, CancellationToken cancellationToken = default) =>
+        dbContext.Pacientes.AsNoTracking()
+            .FirstOrDefaultAsync(patient => patient.Id == pacienteId && patient.Estado == EstadoRegistro.Activo, cancellationToken);
 
     /// <summary>
     /// El catálogo completo de piezas dentales (las 32), ordenado por su número FDI.
