@@ -20,15 +20,37 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<TratamientoRealizado> TratamientosRealizados => Set<TratamientoRealizado>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
+    public DbSet<Clinica> Clinicas => Set<Clinica>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Clinica>(entity =>
+        {
+            entity.ToTable("Clinicas");
+            entity.Property(clinic => clinic.Nombre).HasMaxLength(150).IsRequired();
+            entity.Property(clinic => clinic.Codigo).HasMaxLength(30).IsRequired();
+            entity.HasIndex(clinic => clinic.Codigo).IsUnique();
+            entity.Property(clinic => clinic.Rnc).HasMaxLength(30);
+            entity.Property(clinic => clinic.Telefono).HasMaxLength(30);
+            entity.Property(clinic => clinic.Correo).HasMaxLength(150);
+            entity.Property(clinic => clinic.Direccion).HasMaxLength(300);
+            entity.Property(clinic => clinic.Horario).HasMaxLength(150);
+            entity.Property(clinic => clinic.Eslogan).HasMaxLength(300);
+            entity.Property(clinic => clinic.LogoUrl).HasMaxLength(300);
+            entity.Property(clinic => clinic.Estado).HasConversion<string>().HasMaxLength(20);
+            entity.Property(clinic => clinic.Plan).HasMaxLength(30);
+        });
+
         modelBuilder.Entity<Usuario>(entity =>
         {
             entity.ToTable("Usuarios");
             entity.Property(user => user.Nombre).HasMaxLength(150).IsRequired();
+            entity.HasOne(user => user.Clinica)
+                .WithMany(clinic => clinic.Usuarios)
+                .HasForeignKey(user => user.ClinicaId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.Property(user => user.Estado).HasConversion<string>().HasMaxLength(20);
             entity.Property(user => user.FechaCreacion).HasDefaultValueSql("SYSUTCDATETIME()");
         });

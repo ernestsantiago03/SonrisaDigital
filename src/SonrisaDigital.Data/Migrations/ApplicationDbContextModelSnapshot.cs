@@ -17,7 +17,7 @@ namespace SonrisaDigital.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -179,6 +179,81 @@ namespace SonrisaDigital.Data.Migrations
                     b.HasIndex("PacienteId", "Fecha", "HoraInicio");
 
                     b.ToTable("Citas", (string)null);
+                });
+
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.Clinica", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Correo")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("EnPrueba")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Eslogan")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("FechaAlta")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaVencimiento")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Horario")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("LimiteUsuarios")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Plan")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Rnc")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("Clinicas", (string)null);
                 });
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.ConsultaClinica", b =>
@@ -738,6 +813,9 @@ namespace SonrisaDigital.Data.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ClinicaId")
+                        .HasColumnType("int");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
@@ -798,6 +876,8 @@ namespace SonrisaDigital.Data.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicaId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -1052,9 +1132,24 @@ namespace SonrisaDigital.Data.Migrations
                     b.Navigation("Tratamiento");
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.Usuario", b =>
+                {
+                    b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
+                        .WithMany("Usuarios")
+                        .HasForeignKey("ClinicaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Clinica");
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Cita", b =>
                 {
                     b.Navigation("ConsultaClinica");
+                });
+
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.Clinica", b =>
+                {
+                    b.Navigation("Usuarios");
                 });
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.ConsultaClinica", b =>
