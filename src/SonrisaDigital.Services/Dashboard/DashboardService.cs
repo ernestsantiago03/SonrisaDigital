@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Dashboard.DTOs;
 
 namespace SonrisaDigital.Services.Dashboard;
@@ -8,7 +10,8 @@ namespace SonrisaDigital.Services.Dashboard;
 public sealed class DashboardService(
     IPacienteRepository pacienteRepository,
     IOdontologoRepository odontologoRepository,
-    ICurrentUserService currentUserService) : IDashboardService
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService) : IDashboardService
 {
     // La clínica trabaja con la hora de República Dominicana, pero las fechas de registro
     // se guardan en UTC. Esta zona se usa para encontrar el lunes de la semana actual.
@@ -17,11 +20,15 @@ public sealed class DashboardService(
 
     public async Task<DashboardStatsDto> GetStatsAsync(CancellationToken cancellationToken = default)
     {
-        // Defensa en servicio: el dashboard requiere sesión autenticada.
-        if (currentUserService.Principal?.Identity?.IsAuthenticated != true)
-        {
-            throw new UnauthorizedAccessException("No hay una sesión autenticada.");
-        }
+        // Las cifras de pacientes y odontólogos solo se entregan con sus permisos de lectura.
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService,
+            "Pacientes.Ver",
+            "No tienes permiso para consultar pacientes.");
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService,
+            "Odontologos.Ver",
+            "No tienes permiso para consultar odontólogos.");
 
         var inicioSemanaUtc = ObtenerInicioSemanaUtc();
 

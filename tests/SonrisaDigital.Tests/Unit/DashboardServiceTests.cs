@@ -1,0 +1,20 @@
+using SonrisaDigital.Services.Dashboard;
+using SonrisaDigital.Tests.Support;
+
+namespace SonrisaDigital.Tests.Unit;
+
+public sealed class DashboardServiceTests
+{
+    [Fact]
+    public async Task RechazaSinPermisoDePacientesAntesDeConsultar()
+    {
+        var servicio = new DashboardService(
+            pacienteRepository: null!,
+            odontologoRepository: null!,
+            currentUserService: TestSession.Crear(),
+            authorizationService: new FakeAuthorizationService(permitir: false));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => servicio.GetStatsAsync());
+    }
+}

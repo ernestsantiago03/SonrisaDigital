@@ -9,12 +9,12 @@ public sealed class UsuarioFormDto
     public string? Id { get; set; }
 
     [Required(ErrorMessage = "El nombre es obligatorio.")]
-    [StringLength(150)]
+    [StringLength(150, ErrorMessage = "El nombre no puede superar los 150 caracteres.")]
     public string Nombre { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "El correo es obligatorio.")]
     [EmailAddress(ErrorMessage = "Introduzca un correo válido.")]
-    [StringLength(256)]
+    [StringLength(256, ErrorMessage = "El correo no puede superar los 256 caracteres.")]
     public string Email { get; set; } = string.Empty;
 
     [StringLength(100, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 100 caracteres.")]

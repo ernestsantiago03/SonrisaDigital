@@ -5,6 +5,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Pacientes.DTOs;
 
 namespace SonrisaDigital.Services.Pacientes;
@@ -86,9 +87,9 @@ public sealed class PacienteService(
         PacienteClinicoDto? clinico = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(model);
-
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Crear", "No tienes permiso para registrar pacientes.");
+
+        ValidadorDto.PrepararYValidar(model);
 
         // El bloque clínico solo exige permiso clínico cuando realmente trae un dato.
         // Un formulario administrativo sin alergias no crea una historia vacía.
@@ -123,9 +124,9 @@ public sealed class PacienteService(
         PacienteClinicoDto? clinico = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(model);
-
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pacientes.Editar", "No tienes permiso para editar pacientes.");
+
+        ValidadorDto.PrepararYValidar(model);
 
         var patient = await repository.GetByIdAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("El paciente no existe.");

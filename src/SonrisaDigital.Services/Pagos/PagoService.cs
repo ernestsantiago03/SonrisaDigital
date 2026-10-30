@@ -8,6 +8,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Pagos.DTOs;
 
 namespace SonrisaDigital.Services.Pagos;
@@ -244,6 +245,7 @@ public sealed class PagoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Pagos.Crear", "No tienes permiso para registrar pagos.");
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
 
         if (model.TratamientoRealizadoId <= 0)
             throw new InvalidOperationException("El tratamiento seleccionado no es válido.");

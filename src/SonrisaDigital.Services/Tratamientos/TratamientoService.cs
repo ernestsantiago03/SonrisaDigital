@@ -9,6 +9,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Tratamientos.DTOs;
 
@@ -92,6 +93,7 @@ public sealed class TratamientoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Crear", "No tienes permiso para registrar tratamientos.");
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
         ValidateCatalogo(model);
 
         var nombre = model.Nombre.Trim();
@@ -148,6 +150,7 @@ public sealed class TratamientoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para editar tratamientos.");
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
         if (model.Id <= 0)
         {
             throw new InvalidOperationException("El tratamiento no existe.");
@@ -305,6 +308,7 @@ public sealed class TratamientoService(
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Crear", "No tienes permiso para registrar tratamientos.");
 
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
         ValidateRealizado(model);
 
         var paciente = await repository.GetPacienteAsync(model.PacienteId, cancellationToken)
@@ -387,6 +391,7 @@ public sealed class TratamientoService(
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para editar tratamientos.");
 
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
         if (model.Id <= 0)
         {
             throw new InvalidOperationException("El tratamiento realizado no existe.");

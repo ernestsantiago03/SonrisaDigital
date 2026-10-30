@@ -8,6 +8,7 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Validacion;
 using SonrisaDigital.Services.Citas.DTOs;
 using SonrisaDigital.Services.HistoriasClinicas;
 
@@ -99,6 +100,7 @@ public sealed class CitaService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Crear", "No tienes permiso para crear citas.");
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
         ValidarDatosCita(model);
 
         var citaId = 0;
@@ -173,6 +175,7 @@ public sealed class CitaService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Editar", "No tienes permiso para editar citas.");
         ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
 
         if (model.Id <= 0)
             throw new InvalidOperationException("La cita no es válida.");

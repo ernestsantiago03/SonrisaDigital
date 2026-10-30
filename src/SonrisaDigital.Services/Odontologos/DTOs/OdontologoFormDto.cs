@@ -23,10 +23,10 @@ public sealed class OdontologoFormDto
     [Required(ErrorMessage = "La especialidad es obligatoria.")]
     public string? Especialidad { get; set; }
 
-    [StringLength(30)]
+    [StringLength(30, ErrorMessage = "El teléfono no puede superar los 30 caracteres.")]
     public string? Telefono { get; set; }
 
     [EmailAddress(ErrorMessage = "Introduzca un correo válido.")]
-    [StringLength(255)]
+    [StringLength(255, ErrorMessage = "El correo no puede superar los 255 caracteres.")]
     public string? Correo { get; set; }
 }
