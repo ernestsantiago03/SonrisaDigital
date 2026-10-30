@@ -22,6 +22,19 @@ using SonrisaDigital.Services.Reportes.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// En Development se mantiene la consola legible. En producción los logs salen en
+// JSON por consola (IIS stdout, journald o Docker) para poder filtrarlos por
+// CorrelationId y por nivel sin herramientas adicionales.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+    });
+}
+
 // ============================================================================
 // Validación temprana de la configuración de producción.
 //
@@ -182,6 +195,25 @@ using (var scope = app.Services.CreateScope())
 // Toma X-Forwarded-For / X-Forwarded-Proto y reconstruye el esquema y la IP
 // reales antes de que HSTS, HTTPS o la autenticacion tomen decisiones.
 app.UseForwardedHeaders();
+
+// Identificador de correlación: cada petición lleva un X-Correlation-Id que aparece
+// en su respuesta y en todas las líneas de log que genera. Si el proxy envía uno
+// válido se reutiliza; si no, o si el valor tiene un formato raro, se genera uno nuevo.
+// La validación evita que alguien inyecte saltos de línea o texto libre en los logs.
+app.Use(async (context, next) =>
+{
+    var entrante = context.Request.Headers["X-Correlation-Id"].ToString();
+    var correlationId = CorrelationIdValido(entrante)
+        ? entrante
+        : Guid.NewGuid().ToString("N");
+
+    context.Response.Headers["X-Correlation-Id"] = correlationId;
+
+    using (app.Logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+    {
+        await next();
+    }
+});
 
 // Health checks expuestos sin autenticacion y antes de la redireccion HTTPS,
 // para que un balanceador pueda consultarlos por HTTP sin recibir un 308.
@@ -479,6 +511,10 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static bool CorrelationIdValido(string? valor) =>
+    !string.IsNullOrEmpty(valor)
+    && System.Text.RegularExpressions.Regex.IsMatch(valor, "^[A-Za-z0-9-]{8,64}$");
 
 static bool IsLocalUrl(string? url) =>
     !string.IsNullOrWhiteSpace(url) && url.StartsWith('/') && !url.StartsWith("//") && !url.Contains('\\');
