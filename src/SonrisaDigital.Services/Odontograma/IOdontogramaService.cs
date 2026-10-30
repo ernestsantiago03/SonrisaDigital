@@ -16,13 +16,23 @@ public interface IOdontogramaService
     Task<IReadOnlyList<OdontogramaPiezaDto>> GetByPatientAsync(int pacienteId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Guarda una pieza dental. El usuario responsable se obtiene de la sesión
-    /// actual, no de un parámetro que el llamador pueda falsificar (ARQ-05).
+    /// Contexto de edición del odontograma. Indica si el usuario puede guardar, cuál es
+    /// su odontólogo vinculado y, si es un administrador sin perfil, qué odontólogos
+    /// activos puede elegir como firmante.
+    /// </summary>
+    Task<OdontogramaEditContextDto> GetEditContextAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Guarda una pieza dental. El usuario responsable se obtiene de la sesión actual,
+    /// no de un parámetro que el llamador pueda falsificar (ARQ-05). Un odontólogo
+    /// vinculado solo puede guardar como él mismo; un administrador sin perfil debe
+    /// indicar en <paramref name="odontologoId"/> un odontólogo activo.
     /// </summary>
     Task SaveAsync(
         int pacienteId,
         int piezaDentalId,
         EstadoOdontograma estado,
         string? observaciones,
+        int? odontologoId = null,
         CancellationToken cancellationToken = default);
 }

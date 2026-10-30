@@ -494,6 +494,12 @@ El odontólogo podrá:
 
 Las modificaciones deberán quedar asociadas al paciente y registradas mediante auditoría.
 
+La firma del cambio se resuelve en el servicio, no en la pantalla:
+
+* Un odontólogo con perfil vinculado firma siempre con ese perfil y no puede guardar como otro profesional.
+* Un administrador sin perfil de odontólogo debe seleccionar un odontólogo activo antes de guardar.
+* Un usuario sin perfil de odontólogo y sin rol administrador solo puede consultar el odontograma; el servicio rechaza cualquier intento de guardar.
+
 ## 8.5. Alcance
 
 El odontograma será una representación simplificada.

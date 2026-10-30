@@ -15,6 +15,16 @@ public interface IOdontogramaRepository
     Task<IReadOnlyList<PiezaDental>> GetPiecesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RegistroOdontograma>> GetRecordsAsync(int pacienteId, CancellationToken cancellationToken = default);
     Task<int?> GetOdontologoIdByUserAsync(string userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Odontólogos activos que pueden firmar un cambio del odontograma, ordenados
+    /// por apellidos y luego por nombres.
+    /// </summary>
+    Task<IReadOnlyList<Odontologo>> GetActiveOdontologosAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Un odontólogo por su id (solo lectura), para validar la firma.</summary>
+    Task<Odontologo?> GetOdontologoAsync(int odontologoId, CancellationToken cancellationToken = default);
+
     Task<RegistroOdontograma?> GetRecordAsync(int pacienteId, int piezaDentalId, CancellationToken cancellationToken = default);
     Task AddAsync(RegistroOdontograma record, CancellationToken cancellationToken = default);
 

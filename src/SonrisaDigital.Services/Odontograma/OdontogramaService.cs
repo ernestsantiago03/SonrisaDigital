@@ -28,7 +28,9 @@ namespace SonrisaDigital.Services.Odontograma;
 /// Orden de lectura del archivo:
 ///  1) Buscar pacientes                     → GetActivePatientsAsync
 ///  2) Leer las 32 piezas de un paciente    → GetByPatientAsync
-///  3) Guardar el estado de una pieza       → SaveAsync
+///  3) Resolver la firma de la sesión       → GetEditContextAsync
+///  4) Guardar el estado de una pieza       → SaveAsync
+///  5) Ayudantes privados                   → ResolverOdontologoFirmanteAsync, EsAdministrador
 /// </summary>
 public sealed class OdontogramaService(
     IOdontogramaRepository repository,
@@ -102,7 +104,84 @@ public sealed class OdontogramaService(
     }
 
     // =========================================================================================
-    // 3) GUARDAR EL ESTADO DE UNA PIEZA  →  cuando el odontólogo hace clic en un diente
+    // 3) RESOLVER LA FIRMA DE LA SESIÓN  →  qué puede hacer el usuario en esta pantalla
+    // =========================================================================================
+
+    /// <summary>
+    /// Contexto de edición del odontograma. El perfil vinculado al usuario manda; un
+    /// administrador sin perfil puede elegir un odontólogo activo y un usuario sin perfil
+    /// ni rol administrador queda en modo consulta con un mensaje claro.
+    /// </summary>
+    public async Task<OdontogramaEditContextDto> GetEditContextAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Ver", "No tienes permiso para consultar odontogramas.");
+
+        // Paso 1: saber si el rol tiene permiso de edición y si el usuario tiene un
+        // odontólogo vinculado. Esa vinculación es la firma de la sesión.
+        var tienePermisoEditar = await authorizationService.TienePermisoAsync(currentUserService, "Odontograma.Editar");
+        var userId = currentUserService.UsuarioId;
+        var vinculadoId = string.IsNullOrWhiteSpace(userId)
+            ? null
+            : await repository.GetOdontologoIdByUserAsync(userId, cancellationToken);
+
+        // Paso 2: cargar el perfil vinculado para comprobar que exista y siga activo.
+        var vinculado = vinculadoId.HasValue
+            ? await repository.GetOdontologoAsync(vinculadoId.Value, cancellationToken)
+            : null;
+
+        // Paso 3: solo un administrador sin perfil necesita elegir un firmante de la lista.
+        var esAdministrador = EsAdministrador();
+        var requiereSeleccionar = tienePermisoEditar && !vinculadoId.HasValue && esAdministrador;
+        var disponibles = requiereSeleccionar
+            ? await repository.GetActiveOdontologosAsync(cancellationToken)
+            : [];
+
+        // Paso 4: puede editar si tiene permiso y una firma válida. El administrador sin
+        // perfil necesita que exista al menos un odontólogo activo para elegir.
+        var vinculadoActivo = vinculado is not null && vinculado.Estado == EstadoRegistro.Activo;
+        var puedeEditar = tienePermisoEditar
+            && (vinculadoActivo || (requiereSeleccionar && disponibles.Count > 0));
+
+        // Paso 5: explicar por qué no puede editar cuando el permiso sí existe.
+        string? motivoSinEdicion = null;
+        if (tienePermisoEditar && !puedeEditar)
+        {
+            if (vinculadoId.HasValue)
+            {
+                motivoSinEdicion = vinculado is null
+                    ? "El odontólogo vinculado a tu usuario no existe. Un administrador debe corregir el perfil."
+                    : "El odontólogo vinculado a tu usuario está inactivo. Un administrador debe activarlo para editar el odontograma.";
+            }
+            else if (!esAdministrador)
+            {
+                motivoSinEdicion = "Tu usuario no tiene un perfil de odontólogo vinculado. Un administrador debe asignarte uno para editar el odontograma.";
+            }
+            else
+            {
+                motivoSinEdicion = "No hay odontólogos activos para firmar el odontograma. Activa un odontólogo antes de guardar.";
+            }
+        }
+
+        return new OdontogramaEditContextDto
+        {
+            TienePermisoEditar = tienePermisoEditar,
+            PuedeEditar = puedeEditar,
+            RequiereSeleccionarOdontologo = requiereSeleccionar,
+            OdontologoVinculadoId = vinculadoActivo ? vinculado!.Id : null,
+            OdontologoVinculadoNombre = vinculadoActivo
+                ? $"{vinculado!.Nombres} {vinculado.Apellidos}".Trim()
+                : null,
+            MotivoSinEdicion = motivoSinEdicion,
+            OdontologosDisponibles = disponibles
+                .Select(dentist => new OdontogramaOdontologoDto(
+                    dentist.Id,
+                    $"{dentist.Nombres} {dentist.Apellidos}".Trim()))
+                .ToList()
+        };
+    }
+
+    // =========================================================================================
+    // 4) GUARDAR EL ESTADO DE UNA PIEZA  →  cuando el odontólogo hace clic en un diente
     // =========================================================================================
 
     /// <summary>
@@ -110,7 +189,7 @@ public sealed class OdontogramaService(
     /// Si es la primera vez que se toca esa pieza, crea el registro; si ya existía, lo actualiza.
     /// Deja el movimiento anotado en la auditoría.
     /// </summary>
-    public async Task SaveAsync(int pacienteId, int piezaDentalId, EstadoOdontograma estado, string? observaciones, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(int pacienteId, int piezaDentalId, EstadoOdontograma estado, string? observaciones, int? odontologoId = null, CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Editar", "No tienes permiso para editar odontogramas.");
 
@@ -124,10 +203,9 @@ public sealed class OdontogramaService(
                 "No hay un usuario autenticado para guardar el odontograma.");
         }
 
-        // Paso 2: saber QUÉ odontólogo es el usuario que está en sesión (queda guardado como
-        // el responsable del cambio). Si su usuario no está ligado a un odontólogo, se corta.
-        var odontologoId = await repository.GetOdontologoIdByUserAsync(userId, cancellationToken)
-            ?? throw new InvalidOperationException("El usuario actual no está asociado a un odontólogo.");
+        // Paso 2: resolver el odontólogo que firma el cambio. Un odontólogo vinculado solo
+        // puede guardar como él mismo; un administrador sin perfil debe elegir uno activo.
+        var odontologoFirmanteId = await ResolverOdontologoFirmanteAsync(odontologoId, cancellationToken);
 
         // Paso 3: buscar si ya existe un registro de esa pieza para ese paciente.
         var record = await repository.GetRecordAsync(pacienteId, piezaDentalId, cancellationToken);
@@ -139,7 +217,7 @@ public sealed class OdontogramaService(
             {
                 PacienteId = pacienteId,
                 PiezaDentalId = piezaDentalId,
-                OdontologoId = odontologoId
+                OdontologoId = odontologoFirmanteId
             };
             await repository.AddAsync(record, cancellationToken);
         }
@@ -148,7 +226,7 @@ public sealed class OdontogramaService(
         // que ya existía). Las observaciones vacías se guardan como null.
         record.Estado = estado;
         record.Observaciones = string.IsNullOrWhiteSpace(observaciones) ? null : observaciones.Trim();
-        record.OdontologoId = odontologoId;
+        record.OdontologoId = odontologoFirmanteId;
         record.FechaModificacion = DateTime.UtcNow;
 
         // Paso 6: conseguir los nombres para el texto de la auditoría (paciente y pieza).
@@ -179,4 +257,75 @@ public sealed class OdontogramaService(
             Descripcion = $"Actualizó la pieza dental {numeroPieza} del paciente {nombrePaciente}."
         }, cancellationToken);
     }
+
+    // =========================================================================================
+    // 5) AYUDANTES PRIVADOS  →  reglas de la firma que no dependen de la pantalla
+    // =========================================================================================
+
+    /// <summary>
+    /// Resuelve qué odontólogo firma el cambio del odontograma. El perfil vinculado al
+    /// usuario manda; solo un administrador sin perfil puede elegir otro odontólogo activo.
+    /// </summary>
+    private async Task<int> ResolverOdontologoFirmanteAsync(
+        int? odontologoId,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.UsuarioId;
+
+        // El vínculo usuario → odontólogo es la firma de la sesión. Si existe, no se
+        // permite guardar como otro profesional, aunque la UI envíe un id distinto.
+        var vinculadoId = string.IsNullOrWhiteSpace(userId)
+            ? null
+            : await repository.GetOdontologoIdByUserAsync(userId, cancellationToken);
+
+        if (vinculadoId.HasValue)
+        {
+            if (odontologoId.HasValue && odontologoId.Value != vinculadoId.Value)
+            {
+                throw new InvalidOperationException(
+                    "Solo puedes guardar el odontograma con el odontólogo vinculado a tu usuario.");
+            }
+
+            var vinculado = await repository.GetOdontologoAsync(vinculadoId.Value, cancellationToken)
+                ?? throw new InvalidOperationException("El odontólogo vinculado a tu usuario no existe.");
+
+            if (vinculado.Estado != EstadoRegistro.Activo)
+            {
+                throw new InvalidOperationException("El odontólogo vinculado a tu usuario está inactivo.");
+            }
+
+            return vinculado.Id;
+        }
+
+        // Un administrador sin perfil puede actuar como supervisor y elegir un firmante
+        // activo de la lista.
+        if (!EsAdministrador())
+        {
+            throw new InvalidOperationException(
+                "Tu usuario no tiene un perfil de odontólogo vinculado. Un administrador debe asignarte uno.");
+        }
+
+        if (!odontologoId.HasValue || odontologoId.Value <= 0)
+        {
+            throw new InvalidOperationException(
+                "Selecciona un odontólogo activo para guardar el odontograma.");
+        }
+
+        var seleccionado = await repository.GetOdontologoAsync(odontologoId.Value, cancellationToken)
+            ?? throw new InvalidOperationException("El odontólogo seleccionado no existe.");
+
+        if (seleccionado.Estado != EstadoRegistro.Activo)
+        {
+            throw new InvalidOperationException("El odontólogo seleccionado está inactivo.");
+        }
+
+        return seleccionado.Id;
+    }
+
+    /// <summary>
+    /// Indica si la sesión tiene el rol administrador, que puede supervisar el odontograma
+    /// aunque no tenga un perfil de odontólogo vinculado.
+    /// </summary>
+    private bool EsAdministrador() =>
+        currentUserService.Principal?.IsInRole(RolesSonrisaDigital.Administrador) == true;
 }

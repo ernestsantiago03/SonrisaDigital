@@ -30,4 +30,23 @@ public static class AutorizacionHelper
             throw new UnauthorizedAccessException(mensaje);
         }
     }
+
+    /// <summary>
+    /// Comprueba un permiso sin lanzar excepción. Se usa para que la pantalla sepa qué
+    /// acciones mostrar sin convertir una consulta de contexto en un error.
+    /// </summary>
+    public static async Task<bool> TienePermisoAsync(
+        this IAuthorizationService authorizationService,
+        ICurrentUserService currentUserService,
+        string policy)
+    {
+        var principal = currentUserService.Principal;
+        if (principal is null)
+        {
+            return false;
+        }
+
+        var result = await authorizationService.AuthorizeAsync(principal, policy);
+        return result.Succeeded;
+    }
 }

@@ -1,13 +1,10 @@
 @page "/odontograma"
 @attribute [Authorize(Policy = "Odontograma.Ver")]
 @using System.Globalization
-@using System.Security.Claims
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Odontograma
 @using SonrisaDigital.Services.Odontograma.DTOs
-@using SonrisaDigital.Services.Autorizacion
 @inject IOdontogramaService OdontogramaService
-@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* ============================================================================
    PÁGINA: Odontograma        Ruta: /odontograma   (también /odontograma?paciente=12)
@@ -22,7 +19,7 @@
      - Markup: panel de búsqueda, encabezado del paciente y el dibujo del odontograma
        (arcada superior e inferior) con el panel lateral para editar la pieza elegida.
      - @code (al final):
-         OnInitializedAsync    -> validar permiso y abrir el paciente de la URL (si viene)
+         OnInitializedAsync    -> resolver la firma, validar permiso y abrir el paciente de la URL
          BuscarAsync           -> buscar pacientes activos
          SeleccionarPacienteAsync -> elegir paciente y cargar sus piezas
          LoadPiecesAsync       -> traer las 32 piezas del paciente
@@ -238,6 +235,29 @@
                                         Disabled="@(!canEdit)" />
                         </div>
 
+                        @* Un administrador sin perfil de odontólogo debe elegir quién firma el
+                           cambio. Un odontólogo vinculado ve su propia firma fija. *@
+                        @if (editContext is { RequiereSeleccionarOdontologo: true })
+                        {
+                            <div class="field">
+                                <label>Odontólogo responsable</label>
+                                <NiceSelect TValue="int"
+                                            Items="OdontologoOptions"
+                                            Value="selectedOdontologoId"
+                                            ValueChanged="HandleOdontologoChanged"
+                                            Disabled="@(!canEdit)" />
+                                <small class="field-hint">El cambio quedará firmado por el odontólogo que elijas.</small>
+                            </div>
+                        }
+                        else if (canEdit && !string.IsNullOrWhiteSpace(editContext?.OdontologoVinculadoNombre))
+                        {
+                            <div class="last-change">
+                                <span>Firma del odontograma</span>
+                                <strong>@editContext!.OdontologoVinculadoNombre</strong>
+                                <small>Los cambios se firman con el odontólogo vinculado a tu usuario.</small>
+                            </div>
+                        }
+
                         <div class="field">
                             <label for="tooth-notes">Observaciones</label>
                             <InputTextArea id="tooth-notes"
@@ -264,7 +284,8 @@
                         else
                         {
                             <div class="read-only-note">
-                                Tu rol tiene acceso de consulta. Solo un odontólogo autorizado puede modificar el odontograma.
+                                @(editContext?.MotivoSinEdicion
+                                    ?? "Tu rol tiene acceso de consulta. Solo un odontólogo autorizado puede modificar el odontograma.")
                             </div>
                         }
                     </div>
@@ -299,8 +320,19 @@
     private bool loading = true;
     private bool saving;
     private bool canEdit;
+    private OdontogramaEditContextDto? editContext;                 // firma y permisos de la sesión
+    private int selectedOdontologoId;                               // firmante elegido por un administrador
     private string? errorMessage;
     private string? successMessage;
+
+    /// <summary>
+    /// Opciones del selector de firmante: la primera deja el campo sin elegir y las demás
+    /// son los odontólogos activos que devolvió el servicio.
+    /// </summary>
+    private IEnumerable<NiceSelectItem<int>> OdontologoOptions =>
+        new[] { new NiceSelectItem<int>(0, "Selecciona un odontólogo…") }
+            .Concat((editContext?.OdontologosDisponibles ?? Array.Empty<OdontogramaOdontologoDto>())
+                .Select(odontologo => new NiceSelectItem<int>(odontologo.Id, odontologo.Nombre)));
 
     private IEnumerable<OdontogramaPiezaDto> UpperPieces =>
         pieces.Where(p => p.NumeroFDI.StartsWith('1') || p.NumeroFDI.StartsWith('2'))
@@ -340,12 +372,11 @@
     {
         try
         {
-            // Paso 1: ver quién está conectado y si puede editar el odontograma.
-            // El id del usuario ya no se guarda aquí: el Service lo obtiene de la
-            // sesión central para evitar que la UI envíe un usuario arbitrario.
-            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var user = authenticationState.User;
-            canEdit = user.HasClaim(PermissionCatalog.ClaimType, "Odontograma.Editar");
+            // Paso 1: pedirle al Service la firma y los permisos de la sesión. El id del
+            // usuario no se guarda aquí: el Service lo obtiene de la sesión central para
+            // evitar que la UI envíe un usuario arbitrario.
+            editContext = await OdontogramaService.GetEditContextAsync();
+            canEdit = editContext.PuedeEditar;
 
             // Paso 2: si la URL trae un paciente, abrirlo directo.
             if (PacienteDesdeUrl.HasValue)
@@ -445,6 +476,11 @@
     }
 
     /// <summary>
+    /// Guarda el odontólogo que un administrador sin perfil eligió como firmante.
+    /// </summary>
+    private void HandleOdontologoChanged(int odontologoId) => selectedOdontologoId = odontologoId;
+
+    /// <summary>
     /// Carga las 32 piezas dentales del paciente seleccionado desde la base de datos.
     /// Si todavía no hay paciente elegido (id 0) deja el odontograma vacío a propósito.
     /// </summary>
@@ -485,6 +521,13 @@
         // el Service desde la sesión, no esta pantalla.
         if (selectedPiece is null) return;
 
+        // Un administrador sin perfil debe elegir el odontólogo que firma el cambio.
+        if (editContext?.RequiereSeleccionarOdontologo == true && selectedOdontologoId <= 0)
+        {
+            errorMessage = "Selecciona el odontólogo responsable antes de guardar.";
+            return;
+        }
+
         // Paso 1: encender el "Guardando..." y limpiar mensajes.
         saving = true;
         errorMessage = null;
@@ -492,8 +535,14 @@
 
         try
         {
-            // Paso 2: mandar el cambio al servicio (paciente, pieza, estado y observaciones).
-            await OdontogramaService.SaveAsync(selectedPatientId, selectedPiece.Id, selectedPiece.Estado, selectedPiece.Observaciones);
+            // Paso 2: mandar el cambio al servicio. El firmante solo viaja cuando el
+            // usuario lo eligió; un odontólogo vinculado firma siempre con su perfil.
+            await OdontogramaService.SaveAsync(
+                selectedPatientId,
+                selectedPiece.Id,
+                selectedPiece.Estado,
+                selectedPiece.Observaciones,
+                selectedOdontologoId > 0 ? selectedOdontologoId : null);
 
             // Paso 3: recargar las piezas y avisar que se guardó.
             await LoadPiecesAsync();
