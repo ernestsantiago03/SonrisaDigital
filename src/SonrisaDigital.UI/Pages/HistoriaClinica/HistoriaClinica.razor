@@ -40,9 +40,6 @@
             <h1>Historia clínica</h1>
             <p>@(model is null ? "Consulta los antecedentes y las consultas clínicas del paciente." : model.PacienteNombre)</p>
         </div>
-        <div class="header-actions">
-            <a class="secondary-action" href="/pacientes">Volver</a>
-        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
