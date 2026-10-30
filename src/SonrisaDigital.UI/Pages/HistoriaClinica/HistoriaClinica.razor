@@ -808,6 +808,11 @@
         if (PacienteId.HasValue && PacienteId.Value != selectedPatientId)
         {
             selectedPatientId = PacienteId.Value;
+
+            // Si se abre un paciente por enlace, la lista de búsqueda no debe quedar visible.
+            buscandoResultados = false;
+            resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
+
             await LoadAsync();
         }
 
