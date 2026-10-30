@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -9,8 +10,10 @@ public interface IHistoriaClinicaRepository
     /// por nombre completo. Si se indica <paramref name="searchTerm"/> se filtran por
     /// nombres o apellidos.
     /// </summary>
-    Task<IReadOnlyList<Paciente>> GetPatientsAsync(
-        string? searchTerm = null,
+    Task<PagedResult<Paciente>> SearchPatientsPagedAsync(
+        string? searchTerm,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default);
     /// <summary>Datos generales de un paciente por su id (consulta de solo lectura).</summary>
     Task<Paciente?> GetPatientAsync(int pacienteId, CancellationToken cancellationToken = default);

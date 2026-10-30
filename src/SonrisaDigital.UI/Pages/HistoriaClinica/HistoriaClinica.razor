@@ -74,7 +74,7 @@
     @if (buscandoResultados)
     {
         <section class="search-results" aria-label="Resultados de la búsqueda">
-            @if (resultados.Count == 0)
+            @if (resultados.Total == 0)
             {
                 <div class="search-empty">
                     @(string.IsNullOrWhiteSpace(searchTerm)
@@ -85,14 +85,10 @@
             else
             {
                 <div class="search-results-head">
-                    @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
-                    @if (resultados.Count >= LimitesBusqueda.PacientesResultados)
-                    {
-                        <div class="search-results-limit" style="font-size: 12px; color: #64748b; margin-top: 4px;">Se muestran los primeros @LimitesBusqueda.PacientesResultados. Escribe más letras para afinar la búsqueda.</div>
-                    }
+                    @resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")
                 </div>
                 <ul class="search-results-list">
-                    @foreach (var patient in resultados)
+                    @foreach (var patient in resultados.Items)
                     {
                         var pacienteId = patient.Id;
                         <li>
@@ -107,6 +103,11 @@
                         </li>
                     }
                 </ul>
+                <PaginationFooter Page="resultados.Page"
+                                  TotalPages="resultados.TotalPages"
+                                  Total="resultados.Total"
+                                  ItemLabel="paciente(s) encontrado(s)"
+                                  OnPageChange="IrAPaginaResultadosAsync" />
             }
         </section>
     }
@@ -657,7 +658,8 @@
     // El id del paciente que llega por la URL al abrir /historia-clinica/12.
     [Parameter] public int? PacienteId { get; set; }
 
-    private readonly List<HistoriaClinicaPacienteDto> resultados = [];   // filas del panel de búsqueda
+    private const int PageSize = 10;                                      // pacientes por página en el panel de búsqueda
+    private PagedResult<HistoriaClinicaPacienteDto> resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
     private readonly HashSet<int> consultasAbiertas = [];                 // qué consultas están desplegadas
     private HistoriaClinicaDto? model;                                    // la historia que se está viendo
     private int selectedPatientId;                                        // paciente elegido (0 = ninguno)
@@ -819,7 +821,12 @@
     /// Si la caja está vacía, el servicio devuelve todos los pacientes activos en orden alfabético.
     /// El resultado se guarda en <c>resultados</c> para dibujarlo como lista en pantalla.
     /// </summary>
-    private async Task BuscarAsync()
+    private Task BuscarAsync() => CargarResultadosAsync(1);
+
+    private Task IrAPaginaResultadosAsync(int page) =>
+        page < 1 || page > resultados.TotalPages ? Task.CompletedTask : CargarResultadosAsync(page);
+
+    private async Task CargarResultadosAsync(int page)
     {
         // Paso 1: marcar que la búsqueda empezó y limpiar mensajes anteriores.
         buscandoResultados = true;
@@ -830,16 +837,13 @@
         {
             // Paso 2: pedirle al servicio los pacientes que coincidan con lo escrito.
             // Si la caja está vacía, devuelve todos (en orden alfabético).
-            var encontrados = await HistoriaService.GetPatientsAsync(searchTerm);
-
-            // Paso 3: reemplazar la lista vieja por los resultados nuevos.
-            resultados.Clear();
-            resultados.AddRange(encontrados);
+            // Paso 3: reemplazar la página anterior por la pedida y su total.
+            resultados = await HistoriaService.SearchPatientsPagedAsync(searchTerm, page, PageSize);
         }
         catch (Exception)
         {
             // Si algo falla: lista vacía + mensaje de error (nunca se deja la pantalla a medias).
-            resultados.Clear();
+            resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
             errorMessage = "No fue posible buscar los pacientes.";
         }
 
@@ -868,7 +872,7 @@
         // Paso 2: limpiar la búsqueda (caja, lista y mensajes) porque ya se eligió a alguien.
         searchTerm = string.Empty;
         buscandoResultados = false;
-        resultados.Clear();
+        resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
         successMessage = null;
         errorMessage = null;
 

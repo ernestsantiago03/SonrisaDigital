@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
@@ -47,18 +48,26 @@ public sealed class OdontogramaService(
     /// Pacientes activos para el panel de búsqueda del odontograma. Con un texto de búsqueda
     /// filtra por nombre o apellido; sin texto devuelve todos, en orden alfabético.
     /// </summary>
-    public async Task<IReadOnlyList<OdontogramaPacienteDto>> GetActivePatientsAsync(
-        string? searchTerm = null,
+    public async Task<PagedResult<OdontogramaPacienteDto>> SearchActivePatientsPagedAsync(
+        string? searchTerm,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Ver", "No tienes permiso para consultar odontogramas.");
 
         // Paso 1: pedirle al repositorio los pacientes ACTIVOS que coincidan con el texto.
         // (Solo activos: a un paciente desactivado no se le sigue trabajando el odontograma.)
-        var patients = await repository.GetActivePatientsAsync(searchTerm, cancellationToken);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+        var resultado = await repository.SearchActivePatientsPagedAsync(searchTerm, page, pageSize, cancellationToken);
 
         // Paso 2: quedarse solo con lo que la pantalla necesita: id y nombre completo.
-        return patients.Select(patient => new OdontogramaPacienteDto(patient.Id, $"{patient.Nombres} {patient.Apellidos}")).ToList();
+        return new PagedResult<OdontogramaPacienteDto>(
+            resultado.Items.Select(patient => new OdontogramaPacienteDto(patient.Id, $"{patient.Nombres} {patient.Apellidos}")).ToList(),
+            resultado.Total,
+            resultado.Page,
+            resultado.PageSize);
     }
 
     public async Task<OdontogramaPacienteDto?> GetActivePatientAsync(int pacienteId, CancellationToken cancellationToken = default)

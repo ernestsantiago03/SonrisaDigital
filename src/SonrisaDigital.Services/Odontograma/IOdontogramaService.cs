@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Odontograma.DTOs;
 
@@ -6,12 +7,14 @@ namespace SonrisaDigital.Services.Odontograma;
 public interface IOdontogramaService
 {
     /// <summary>
-    /// Pacientes activos para el panel de búsqueda, ordenados alfabéticamente por
-    /// nombre completo. Si se indica <paramref name="searchTerm"/> se filtran por
-    /// nombres o apellidos.
+    /// Una página de pacientes activos para el panel de búsqueda, ordenados alfabéticamente.
+    /// Si se indica <paramref name="searchTerm"/> se filtran por nombres o apellidos.
+    /// <c>Total</c> dice cuántos coinciden en total, para mostrar la paginación.
     /// </summary>
-    Task<IReadOnlyList<OdontogramaPacienteDto>> GetActivePatientsAsync(
-        string? searchTerm = null,
+    Task<PagedResult<OdontogramaPacienteDto>> SearchActivePatientsPagedAsync(
+        string? searchTerm,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default);
 
     /// <summary>

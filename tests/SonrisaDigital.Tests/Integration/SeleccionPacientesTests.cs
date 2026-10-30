@@ -8,39 +8,60 @@ using SonrisaDigital.Tests.Support;
 namespace SonrisaDigital.Tests.Integration;
 
 /// <summary>
-/// Comprueba contra SQL Server que los buscadores de pacientes no devuelven más del tope
-/// y que un paciente ya elegido sigue disponible aunque quede fuera de la búsqueda.
+/// Comprueba contra SQL Server la paginación de los buscadores de pacientes y que un paciente
+/// ya elegido sigue disponible aunque quede fuera de la búsqueda.
 /// </summary>
 public sealed class SeleccionPacientesTests(SqlServerFixture fixture)
     : IClassFixture<SqlServerFixture>
 {
-    private const int TotalCoincidencias = 60;
+    private const int TotalCoincidencias = 25;
+    private const int TamanoPagina = 10;
 
     [Fact]
-    public async Task LasBusquedasDeOdontogramaEHistoriaNoDevuelvenMasDelTope()
+    public async Task LasBusquedasDeOdontogramaEHistoriaSePaginan()
     {
         await using var db = fixture.CreateContext();
         var (prefijo, _) = await CrearPacientesAsync(db, TotalCoincidencias, EstadoRegistro.Activo);
 
-        var odontograma = await new OdontogramaRepository(db).GetActivePatientsAsync(prefijo);
-        var historia = await new HistoriaClinicaRepository(db).GetPatientsAsync(prefijo);
+        var odontograma = await new OdontogramaRepository(db).SearchActivePatientsPagedAsync(prefijo, 1, TamanoPagina);
+        var historia = await new HistoriaClinicaRepository(db).SearchPatientsPagedAsync(prefijo, 1, TamanoPagina);
 
-        Assert.Equal(LimitesBusqueda.PacientesResultados, odontograma.Count);
-        Assert.Equal(LimitesBusqueda.PacientesResultados, historia.Count);
+        Assert.Equal(TamanoPagina, odontograma.Items.Count);
+        Assert.Equal(TotalCoincidencias, odontograma.Total);
+        Assert.Equal(3, odontograma.TotalPages);
+        Assert.Equal(TamanoPagina, historia.Items.Count);
+        Assert.Equal(TotalCoincidencias, historia.Total);
     }
 
     [Fact]
-    public async Task UnPacienteActivoSeEncuentraPorIdAunqueQuedeFueraDelTope()
+    public async Task LaPaginaSiguienteTraeOtrosPacientesYLaFueraDeRangoSeAjusta()
+    {
+        await using var db = fixture.CreateContext();
+        var (prefijo, _) = await CrearPacientesAsync(db, TotalCoincidencias, EstadoRegistro.Activo);
+        var repositorio = new OdontogramaRepository(db);
+
+        var pagina1 = await repositorio.SearchActivePatientsPagedAsync(prefijo, 1, TamanoPagina);
+        var pagina2 = await repositorio.SearchActivePatientsPagedAsync(prefijo, 2, TamanoPagina);
+        var fueraDeRango = await repositorio.SearchActivePatientsPagedAsync(prefijo, 99, TamanoPagina);
+
+        Assert.Equal(2, pagina2.Page);
+        Assert.Empty(pagina1.Items.Select(paciente => paciente.Id).Intersect(pagina2.Items.Select(paciente => paciente.Id)));
+        Assert.Equal(3, fueraDeRango.Page);
+        Assert.Equal(5, fueraDeRango.Items.Count);
+    }
+
+    [Fact]
+    public async Task UnPacienteActivoSeEncuentraPorIdAunqueQuedeEnOtraPagina()
     {
         await using var db = fixture.CreateContext();
         var (prefijo, ids) = await CrearPacientesAsync(db, TotalCoincidencias, EstadoRegistro.Activo);
         var ultimoId = ids[^1];
 
         var repositorio = new OdontogramaRepository(db);
-        var enBusqueda = await repositorio.GetActivePatientsAsync(prefijo);
+        var primeraPagina = await repositorio.SearchActivePatientsPagedAsync(prefijo, 1, TamanoPagina);
         var porId = await repositorio.GetActivePatientByIdAsync(ultimoId);
 
-        Assert.DoesNotContain(enBusqueda, paciente => paciente.Id == ultimoId);
+        Assert.DoesNotContain(primeraPagina.Items, paciente => paciente.Id == ultimoId);
         Assert.NotNull(porId);
         Assert.Equal(ultimoId, porId.Id);
     }
@@ -60,20 +81,20 @@ public sealed class SeleccionPacientesTests(SqlServerFixture fixture)
     public async Task ElSelectorDevuelveElTopeYElTotalReal()
     {
         await using var db = fixture.CreateContext();
-        var (prefijo, _) = await CrearPacientesAsync(db, TotalCoincidencias, EstadoRegistro.Activo);
+        var (prefijo, _) = await CrearPacientesAsync(db, 60, EstadoRegistro.Activo);
 
         var servicio = CrearServicioPacientes(db);
         var resultado = await servicio.BuscarActivosParaSeleccionAsync(prefijo);
 
         Assert.Equal(LimitesBusqueda.PacientesResultados, resultado.Items.Count);
-        Assert.Equal(TotalCoincidencias, resultado.Total);
+        Assert.Equal(60, resultado.Total);
     }
 
     [Fact]
-    public async Task ElSelectorIncluyeElPacienteYaElegidoAunqueEsteInactivoOFueraDelTope()
+    public async Task ElSelectorIncluyeElPacienteYaElegidoAunqueEsteInactivo()
     {
         await using var db = fixture.CreateContext();
-        var (prefijo, _) = await CrearPacientesAsync(db, TotalCoincidencias, EstadoRegistro.Activo);
+        var (prefijo, _) = await CrearPacientesAsync(db, 60, EstadoRegistro.Activo);
         var (_, inactivo) = await CrearPacientesAsync(db, 1, EstadoRegistro.Inactivo);
         var idInactivo = inactivo[0];
 
@@ -82,7 +103,7 @@ public sealed class SeleccionPacientesTests(SqlServerFixture fixture)
 
         Assert.Equal(LimitesBusqueda.PacientesResultados + 1, resultado.Items.Count);
         Assert.Equal(idInactivo, resultado.Items[0].Id);
-        Assert.Equal(TotalCoincidencias, resultado.Total);
+        Assert.Equal(60, resultado.Total);
     }
 
     private static PacienteService CrearServicioPacientes(SonrisaDigital.Data.ApplicationDbContext db) =>

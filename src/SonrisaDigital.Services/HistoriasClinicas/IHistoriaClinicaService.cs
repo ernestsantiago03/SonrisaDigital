@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.HistoriasClinicas.DTOs;
 
@@ -6,11 +7,14 @@ namespace SonrisaDigital.Services.HistoriasClinicas;
 public interface IHistoriaClinicaService
 {
     /// <summary>
-    /// Pacientes para el buscador, ordenados alfabéticamente por nombre completo.
+    /// Una página de pacientes para el buscador, ordenados alfabéticamente por nombre completo.
     /// Si se indica <paramref name="searchTerm"/> se filtran por nombres o apellidos.
+    /// <c>Total</c> dice cuántos coinciden en total, para mostrar la paginación.
     /// </summary>
-    Task<IReadOnlyList<HistoriaClinicaPacienteDto>> GetPatientsAsync(
-        string? searchTerm = null,
+    Task<PagedResult<HistoriaClinicaPacienteDto>> SearchPatientsPagedAsync(
+        string? searchTerm,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default);
     /// <summary>
     /// Historia clínica completa de un paciente: sus datos generales, los datos clínicos

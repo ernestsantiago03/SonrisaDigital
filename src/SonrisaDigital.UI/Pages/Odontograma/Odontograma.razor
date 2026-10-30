@@ -66,7 +66,7 @@
     @if (buscandoResultados)
     {
         <section class="search-results" aria-label="Resultados de la búsqueda">
-            @if (resultados.Count == 0)
+            @if (resultados.Total == 0)
             {
                 <div class="search-empty">
                     @(string.IsNullOrWhiteSpace(searchTerm)
@@ -77,14 +77,10 @@
             else
             {
                 <div class="search-results-head">
-                    @resultados.Count @(resultados.Count == 1 ? "paciente encontrado" : "pacientes encontrados")
-                    @if (resultados.Count >= LimitesBusqueda.PacientesResultados)
-                    {
-                        <div class="search-results-limit" style="font-size: 12px; color: #64748b; margin-top: 4px;">Se muestran los primeros @LimitesBusqueda.PacientesResultados. Escribe más letras para afinar la búsqueda.</div>
-                    }
+                    @resultados.Total @(resultados.Total == 1 ? "paciente encontrado" : "pacientes encontrados")
                 </div>
                 <ul class="search-results-list">
-                    @foreach (var patient in resultados)
+                    @foreach (var patient in resultados.Items)
                     {
                         var paciente = patient;
                         <li>
@@ -94,6 +90,11 @@
                         </li>
                     }
                 </ul>
+                <PaginationFooter Page="resultados.Page"
+                                  TotalPages="resultados.TotalPages"
+                                  Total="resultados.Total"
+                                  ItemLabel="paciente(s) encontrado(s)"
+                                  OnPageChange="IrAPaginaResultadosAsync" />
             }
         </section>
     }
@@ -305,7 +306,8 @@
     // ESTADO DE LA PANTALLA  →  las variables que recuerdan lo que está pasando
     // =========================================================================================
 
-    private readonly List<OdontogramaPacienteDto> resultados = [];  // filas del panel de búsqueda
+    private const int PageSize = 10;                                 // pacientes por página en el panel de búsqueda
+    private PagedResult<OdontogramaPacienteDto> resultados = PagedResult<OdontogramaPacienteDto>.Empty(PageSize);
     private List<OdontogramaPiezaDto> pieces = [];                  // las 32 piezas del paciente
     private OdontogramaPiezaDto? selectedPiece;                     // la pieza que se está editando
     private int selectedPatientId;                                  // paciente elegido (0 = ninguno)
@@ -418,7 +420,12 @@
     /// Si la caja está vacía, el servicio devuelve todos los activos en orden alfabético.
     /// Los resultados se guardan en <c>resultados</c> para dibujarlos como lista.
     /// </summary>
-    private async Task BuscarAsync()
+    private Task BuscarAsync() => CargarResultadosAsync(1);
+
+    private Task IrAPaginaResultadosAsync(int page) =>
+        page < 1 || page > resultados.TotalPages ? Task.CompletedTask : CargarResultadosAsync(page);
+
+    private async Task CargarResultadosAsync(int page)
     {
         // Paso 1: marcar que la búsqueda empezó y limpiar mensajes anteriores.
         buscandoResultados = true;
@@ -429,15 +436,12 @@
         {
             // Paso 2: pedir los pacientes activos que coincidan con lo escrito.
             // Si la caja está vacía, devuelve todos en orden alfabético.
-            var encontrados = await OdontogramaService.GetActivePatientsAsync(searchTerm);
-
-            // Paso 3: reemplazar la lista vieja por los resultados nuevos.
-            resultados.Clear();
-            resultados.AddRange(encontrados);
+            // Paso 3: reemplazar la página anterior por la pedida y su total.
+            resultados = await OdontogramaService.SearchActivePatientsPagedAsync(searchTerm, page, PageSize);
         }
         catch (Exception)
         {
-            resultados.Clear();
+            resultados = PagedResult<OdontogramaPacienteDto>.Empty(PageSize);
             errorMessage = "No fue posible buscar los pacientes.";
         }
 
@@ -464,7 +468,7 @@
         // Paso 2: limpiar la búsqueda y los mensajes, porque ya se eligió a alguien.
         searchTerm = string.Empty;
         buscandoResultados = false;
-        resultados.Clear();
+        resultados = PagedResult<OdontogramaPacienteDto>.Empty(PageSize);
         errorMessage = null;
         successMessage = null;
 

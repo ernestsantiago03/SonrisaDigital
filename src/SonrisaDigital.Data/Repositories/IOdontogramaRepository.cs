@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 
 namespace SonrisaDigital.Data.Repositories;
@@ -9,8 +10,10 @@ public interface IOdontogramaRepository
     /// alfabéticamente por nombre completo. Si se indica <paramref name="searchTerm"/>
     /// se filtran por nombres o apellidos.
     /// </summary>
-    Task<IReadOnlyList<Paciente>> GetActivePatientsAsync(
-        string? searchTerm = null,
+    Task<PagedResult<Paciente>> SearchActivePatientsPagedAsync(
+        string? searchTerm,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken = default);
     Task<Paciente?> GetActivePatientByIdAsync(int pacienteId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PiezaDental>> GetPiecesAsync(CancellationToken cancellationToken = default);

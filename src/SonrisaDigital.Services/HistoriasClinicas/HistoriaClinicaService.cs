@@ -1,3 +1,4 @@
+using SonrisaDigital.Data.Common;
 using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
@@ -56,25 +57,30 @@ public sealed class HistoriaClinicaService(
     /// búsqueda filtra por nombre o apellido; sin texto devuelve todos los pacientes.
     /// Incluye también a los pacientes inactivos, porque su historia debe seguir consultable.
     /// </summary>
-    public async Task<IReadOnlyList<HistoriaClinicaPacienteDto>> GetPatientsAsync(
-        string? searchTerm = null,
+    public async Task<PagedResult<HistoriaClinicaPacienteDto>> SearchPatientsPagedAsync(
+        string? searchTerm,
+        int page = 1,
+        int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
 
-        // Paso 1: pedirle los pacientes al repositorio. Él es el único que habla con SQL y ya
-        // devuelve la lista ordenada alfabéticamente por nombre y apellido.
-        var patients = await repository.GetPatientsAsync(searchTerm, cancellationToken);
+        // Paso 1: pedirle una página de pacientes al repositorio. Él cuenta y recorta en SQL.
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+        var resultado = await repository.SearchPatientsPagedAsync(searchTerm, page, pageSize, cancellationToken);
 
         // Paso 2: convertir cada paciente de la base de datos al objeto liviano que usa la
         // pantalla (DTO). Solo se mandan los 4 datos que el panel necesita mostrar.
-        return patients
+        var items = resultado.Items
             .Select(patient => new HistoriaClinicaPacienteDto(
                 patient.Id,                                        // para saber a quién abrir al hacer clic
                 $"{patient.Nombres} {patient.Apellidos}".Trim(),   // nombre completo visible
                 patient.Estado == EstadoRegistro.Activo,           // ¿activo o inactivo? (pinta la etiqueta)
                 patient.Identificacion))                           // cédula / documento
             .ToList();
+
+        return new PagedResult<HistoriaClinicaPacienteDto>(items, resultado.Total, resultado.Page, resultado.PageSize);
     }
 
     // =========================================================================================
