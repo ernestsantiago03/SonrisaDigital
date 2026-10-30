@@ -25,6 +25,15 @@ public sealed class PermisosDuenoTests
     }
 
     [Fact]
+    public void SoloAdministradorYDuenoPuedenEditarAcercaDe()
+    {
+        Assert.Contains("AcercaDe.Editar", PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Administrador]);
+        Assert.Contains("AcercaDe.Editar", PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Dueno]);
+        Assert.DoesNotContain("AcercaDe.Editar", PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Recepcionista]);
+        Assert.DoesNotContain("AcercaDe.Editar", PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Odontologo]);
+    }
+
+    [Fact]
     public void ElDuenoTieneTodosLosPermisos()
     {
         var permisos = PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Dueno];
