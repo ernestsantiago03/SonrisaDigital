@@ -88,7 +88,7 @@
                 <div class="resultados-scroll">
                     <table class="resultados-tabla">
                         <thead>
-                            <tr><th>Nombre completo</th><th>Identificación</th></tr>
+                            <tr><th>Nombre completo</th>@* <th>Identificación</th> *@</tr>
                         </thead>
                         <tbody>
                             @foreach (var patient in resultados.Items)
@@ -102,7 +102,7 @@
                                             <span class="resultados-badge">Inactivo</span>
                                         }
                                     </td>
-                                    <td>@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "-" : patient.Identificacion)</td>
+                                    @* <td>@(string.IsNullOrWhiteSpace(patient.Identificacion) ? "-" : patient.Identificacion)</td> *@
                                 </tr>
                             }
                         </tbody>
@@ -808,6 +808,11 @@
         if (PacienteId.HasValue && PacienteId.Value != selectedPatientId)
         {
             selectedPatientId = PacienteId.Value;
+
+            // Si se abre un paciente por enlace, la lista de búsqueda no debe quedar visible.
+            buscandoResultados = false;
+            resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
+
             await LoadAsync();
         }
 
