@@ -1,0 +1,278 @@
+.clinica-form-page {
+    max-width: 920px;
+    margin: 0 auto;
+    padding-bottom: 12px;
+}
+
+/* Encabezado en tarjeta: separa la página del formulario y refuerza el contexto. */
+.form-header {
+    position: relative;
+    margin-bottom: 18px;
+    padding: 18px 20px 17px 23px;
+    overflow: hidden;
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .035);
+}
+
+.form-header::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background: #2563eb;
+    content: "";
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 12px;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+.page-eyebrow {
+    display: block;
+    margin-bottom: 5px;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.form-header h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 24px;
+    letter-spacing: -.02em;
+}
+
+.form-header p {
+    margin: 5px 0 0;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.form-panel {
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .035);
+}
+
+.section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 15px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.section-heading > div {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.section-heading h2 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.section-heading > span {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.section-kicker {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    place-items: center;
+    border-radius: 4px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.section-note {
+    margin: 14px 18px 0;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 18px;
+}
+
+.field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field-wide {
+    grid-column: 1 / -1;
+}
+
+.field label {
+    color: #475569;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+/* Los campos usan InputText (componente hijo): ::deep garantiza que el estilo
+   llegue al <input> real, no solo al contenedor del campo. */
+.field input,
+.field ::deep input {
+    width: 100%;
+    height: 38px;
+    padding: 0 11px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: white;
+    color: #1e293b;
+    font-size: 12px;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.field input::placeholder,
+.field ::deep input::placeholder {
+    color: #94a3b8;
+}
+
+.field input:focus,
+.field ::deep input:focus {
+    border-color: #60a5fa;
+    outline: 2px solid #bfdbfe;
+    outline-offset: 0;
+}
+
+.field input:disabled,
+.field ::deep input:disabled {
+    border-color: #e2e8f0;
+    background: #f1f5f9;
+    color: #64748b;
+    cursor: not-allowed;
+}
+
+.field-help {
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.field ::deep .validation-message {
+    color: #dc2626;
+    font-size: 10px;
+}
+
+.feedback {
+    margin-bottom: 14px;
+    padding: 11px 13px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.feedback.error {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 2px;
+}
+
+.cancel-action {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 14px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.cancel-action:hover {
+    color: #334155;
+}
+
+.primary-action {
+    min-height: 38px;
+    padding: 0 17px;
+    border: 1px solid #1d4ed8;
+    border-radius: 5px;
+    background: #2563eb;
+    color: white;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(37, 99, 235, .18);
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.primary-action:hover {
+    background: #1d4ed8;
+}
+
+.primary-action:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+@media (max-width: 720px) {
+    .form-header {
+        padding: 16px 16px 15px 19px;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .field-wide {
+        grid-column: auto;
+    }
+
+    .section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .form-actions > * {
+        flex: 1;
+        justify-content: center;
+        text-align: center;
+    }
+}

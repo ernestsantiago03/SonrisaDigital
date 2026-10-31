@@ -8,17 +8,21 @@
 
 <PageTitle>@(IsEditing ? "Editar clínica" : "Nueva clínica") · Sonrisa Digital</PageTitle>
 
-<div class="clinicas-page">
-    <div class="page-header">
-        <div>
-            <a class="back-link" href="/clinicas">← Clínicas</a>
-            <h1>@(IsEditing ? "Editar clínica" : "Nueva clínica")</h1>
-        </div>
-    </div>
+<div class="clinica-form-page">
+    <header class="form-header">
+        <a class="back-link" href="/clinicas">← Clínicas</a>
+        <span class="page-eyebrow">Panel de clínicas</span>
+        <h1>@(IsEditing ? "Editar clínica" : "Nueva clínica")</h1>
+        <p>
+            @(IsEditing
+                ? "Actualiza los datos de identidad que se muestran en Acerca De."
+                : "Registra la clínica y su primer administrador para empezar a operar.")
+        </p>
+    </header>
 
     @if (notFound)
     {
-        <div class="feedback error">La clínica solicitada no existe.</div>
+        <div class="feedback error" role="alert">La clínica solicitada no existe.</div>
     }
     else
     {
@@ -27,51 +31,61 @@
 
             @if (!string.IsNullOrWhiteSpace(errorMessage))
             {
-                <div class="feedback error">@errorMessage</div>
+                <div class="feedback error" role="alert">@errorMessage</div>
             }
 
-            <section class="clinicas-panel" style="padding: 16px;">
-                <h2 style="font-size: 15px; margin: 0 0 4px;">Identidad de la clínica</h2>
-                <p style="color: #64748b; font-size: 12px; margin: 0 0 12px;">Estos datos aparecen en la página Acerca De de la clínica.</p>
+            <section class="form-panel">
+                <div class="section-heading">
+                    <div>
+                        <span class="section-kicker">01</span>
+                        <h2>Identidad de la clínica</h2>
+                    </div>
+                    <span>Visible en Acerca De</span>
+                </div>
                 <div class="form-grid">
                     <div class="field">
                         <label for="clinica-nombre">Nombre</label>
-                        <InputText id="clinica-nombre" class="form-control" @bind-Value="model.Nombre" />
+                        <InputText id="clinica-nombre" @bind-Value="model.Nombre" placeholder="Ej. Clínica Sonrisa" />
                         <ValidationMessage For="@(() => model.Nombre)" />
                     </div>
                     <div class="field">
                         <label for="clinica-codigo">Código</label>
-                        <InputText id="clinica-codigo" class="form-control" @bind-Value="model.Codigo" disabled="@IsEditing" />
+                        <InputText id="clinica-codigo" @bind-Value="model.Codigo" disabled="@IsEditing" placeholder="ej. clinica-sonrisa" />
+                        <small class="field-help">
+                            @(IsEditing
+                                ? "El código no se puede cambiar después de crear la clínica."
+                                : "Solo minúsculas, números y guiones. Se usa para identificar la clínica.")
+                        </small>
                         <ValidationMessage For="@(() => model.Codigo)" />
                     </div>
                     <div class="field">
                         <label for="clinica-rnc">RNC</label>
-                        <InputText id="clinica-rnc" class="form-control" @bind-Value="model.Rnc" />
+                        <InputText id="clinica-rnc" @bind-Value="model.Rnc" placeholder="Opcional" />
                         <ValidationMessage For="@(() => model.Rnc)" />
                     </div>
                     <div class="field">
                         <label for="clinica-telefono">Teléfono</label>
-                        <InputText id="clinica-telefono" class="form-control" @bind-Value="model.Telefono" />
+                        <InputText id="clinica-telefono" @bind-Value="model.Telefono" placeholder="Opcional" />
                         <ValidationMessage For="@(() => model.Telefono)" />
                     </div>
                     <div class="field">
                         <label for="clinica-correo">Correo</label>
-                        <InputText id="clinica-correo" class="form-control" @bind-Value="model.Correo" />
+                        <InputText id="clinica-correo" type="email" @bind-Value="model.Correo" placeholder="contacto@clinica.com" />
                         <ValidationMessage For="@(() => model.Correo)" />
                     </div>
                     <div class="field">
                         <label for="clinica-horario">Horario</label>
-                        <InputText id="clinica-horario" class="form-control" @bind-Value="model.Horario" />
+                        <InputText id="clinica-horario" @bind-Value="model.Horario" placeholder="Ej. Lunes a viernes, 8:00 AM - 6:00 PM" />
                         <ValidationMessage For="@(() => model.Horario)" />
                     </div>
                     <div class="field field-wide">
                         <label for="clinica-direccion">Dirección</label>
-                        <InputText id="clinica-direccion" class="form-control" @bind-Value="model.Direccion" />
+                        <InputText id="clinica-direccion" @bind-Value="model.Direccion" placeholder="Dirección de la clínica" />
                         <ValidationMessage For="@(() => model.Direccion)" />
                     </div>
                     <div class="field field-wide">
                         <label for="clinica-eslogan">Eslogan</label>
-                        <InputText id="clinica-eslogan" class="form-control" @bind-Value="model.Eslogan" />
+                        <InputText id="clinica-eslogan" @bind-Value="model.Eslogan" placeholder="Frase breve que identifique a la clínica" />
                         <ValidationMessage For="@(() => model.Eslogan)" />
                     </div>
                 </div>
@@ -79,28 +93,40 @@
 
             @if (!IsEditing)
             {
-                <section class="clinicas-panel" style="padding: 16px; margin-top: 16px;">
-                    <h2 style="font-size: 15px; margin: 0 0 4px;">Primer administrador</h2>
-                    <p style="color: #64748b; font-size: 12px; margin: 0 0 12px;">Administrará esta clínica. Después puede cambiar su contraseña.</p>
+                <section class="form-panel">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-kicker">02</span>
+                            <h2>Primer administrador</h2>
+                        </div>
+                        <span>Acceso inicial</span>
+                    </div>
+                    <p class="section-note">
+                        Administrará esta clínica. Después podrá cambiar su contraseña desde Usuarios.
+                    </p>
                     <div class="form-grid">
                         <div class="field">
-                            <label for="admin-nombre">Nombre</label>
-                            <InputText id="admin-nombre" class="form-control" @bind-Value="admin.Nombre" />
+                            <label for="admin-nombre">Nombre completo</label>
+                            <InputText id="admin-nombre" @bind-Value="admin.Nombre" placeholder="Ej. Ana Rodríguez" />
                         </div>
                         <div class="field">
-                            <label for="admin-correo">Correo</label>
-                            <InputText id="admin-correo" class="form-control" @bind-Value="admin.Email" />
+                            <label for="admin-correo">Correo electrónico</label>
+                            <InputText id="admin-correo" type="email" @bind-Value="admin.Email" placeholder="admin@clinica.com" />
                         </div>
                         <div class="field">
                             <label for="admin-clave">Contraseña inicial</label>
-                            <InputText id="admin-clave" type="password" class="form-control" @bind-Value="admin.Password" />
+                            <InputText id="admin-clave" type="password" @bind-Value="admin.Password" placeholder="••••••••" autocomplete="new-password" />
+                            <small class="field-help">Mínimo 8 caracteres, una mayúscula y un número.</small>
                         </div>
                     </div>
                 </section>
             }
 
-            <div style="margin-top: 16px;">
-                <button type="submit" class="primary-action">@(IsEditing ? "Guardar cambios" : "Crear clínica")</button>
+            <div class="form-actions">
+                <a class="cancel-action" href="/clinicas">Cancelar</a>
+                <button type="submit" class="primary-action" disabled="@saving">
+                    @(saving ? "Guardando..." : IsEditing ? "Guardar cambios" : "Crear clínica")
+                </button>
             </div>
         </EditForm>
     }
@@ -112,6 +138,7 @@
 
     private bool IsEditing => Id.HasValue;
     private bool notFound;
+    private bool saving;
     private string? errorMessage;
     private ClinicaFormDto model = new();
     private AdministradorClinicaFormDto admin = new();
@@ -142,6 +169,7 @@
 
     private async Task GuardarAsync()
     {
+        saving = true;
         errorMessage = null;
         try
         {
@@ -169,6 +197,10 @@
         catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
         {
             errorMessage = ex.Message;
+        }
+        finally
+        {
+            saving = false;
         }
     }
 }
