@@ -28,6 +28,19 @@
     }
     else
     {
+        @if (!IsEditing && clinica is null)
+        {
+            <div class="feedback error" role="alert">
+                No hay una clínica activa seleccionada. Elige una clínica en el menú lateral o desde el panel de clínicas antes de registrar usuarios.
+            </div>
+        }
+        else if (!IsEditing && clinica is not null && clinica.Estado != EstadoClinica.Activa)
+        {
+            <div class="feedback error" role="alert">
+                La clínica @clinica.Nombre está suspendida. Reactívala antes de registrar usuarios.
+            </div>
+        }
+
         <EditForm Model="model" OnValidSubmit="SaveAsync">
             <DataAnnotationsValidator />
 
@@ -51,6 +64,17 @@
                         <label for="user-email">Correo electrónico</label>
                         <InputText id="user-email" type="email" @bind-Value="model.Email" placeholder="usuario@clinica.com" />
                         <ValidationMessage For="@(() => model.Email)" />
+                    </div>
+                    @* La clínica es la activa de la sesión, no un campo editable:
+                       un desplegable aquí podría contradecir el perfil y la auditoría. *@
+                    <div class="field">
+                        <span class="field-label">Clínica</span>
+                        <div class="clinic-readonly">@(clinica?.Nombre ?? "Sin clínica activa")</div>
+                        <small class="field-help">
+                            @(IsEditing
+                                ? "La clínica del usuario no se cambia desde esta pantalla."
+                                : "El usuario se crea en la clínica activa. Para cambiarla, selecciona otra clínica antes de abrir este formulario.")
+                        </small>
                     </div>
                     @* Identity guarda la contraseña como hash irreversible. Por eso en edición
                        no se muestra la original: se ofrece asignar una nueva de forma controlada. *@
@@ -205,7 +229,7 @@
 
             <div class="form-actions">
                 <a class="cancel-action" href="/usuarios">Cancelar</a>
-                <button class="primary-action" type="submit" disabled="@saving">
+                <button class="primary-action" type="submit" disabled="@(saving || (!IsEditing && !PuedeCrear))">
                     @(saving ? "Guardando..." : "Guardar usuario")
                 </button>
             </div>
@@ -218,6 +242,7 @@
     public string? Id { get; set; }
 
     private UsuarioFormDto model = new();
+    private ClinicaActivaDto? clinica;
     private List<string> availableRoles = [];
     private Dictionary<string, IReadOnlyList<string>> permisosPorRol = new(StringComparer.Ordinal);
     private bool loading = true;
@@ -238,6 +263,9 @@
     private bool initialized;
 
     private bool IsEditing => !string.IsNullOrWhiteSpace(Id);
+
+    /// <summary>Solo una clínica activa puede recibir usuarios nuevos.</summary>
+    private bool PuedeCrear => clinica is { Estado: EstadoClinica.Activa };
 
     private bool IsUserActive
     {
@@ -285,6 +313,9 @@
         showConfirmPassword = false;
         confirmPassword = null;
         model = new UsuarioFormDto();
+
+        // La clínica activa se muestra como dato fijo y se vuelve a validar al guardar.
+        clinica = await UsuarioService.GetClinicaActualAsync();
 
         availableRoles = (await UsuarioService.GetAvailableRolesAsync()).ToList();
 
@@ -372,6 +403,17 @@
     {
         saving = true;
         errorMessage = null;
+
+        // La creación depende de la clínica activa. Se bloquea aquí además del
+        // servidor para no perder lo escrito si la clínica dejó de estar activa.
+        if (!IsEditing && !PuedeCrear)
+        {
+            errorMessage = clinica is null
+                ? "No hay una clínica activa seleccionada. Elige una clínica antes de registrar usuarios."
+                : $"La clínica {clinica.Nombre} está suspendida. Reactívala antes de registrar usuarios.";
+            saving = false;
+            return;
+        }
 
         // En creación la contraseña es obligatoria; en edición solo lo es si se
         // activó explícitamente el flujo de cambio.

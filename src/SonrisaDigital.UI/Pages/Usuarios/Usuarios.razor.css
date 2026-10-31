@@ -61,6 +61,16 @@
     background: #1d4ed8;
 }
 
+/* Muestra la acción de registrar, pero bloqueada cuando no hay clínica activa. */
+.primary-action-disabled,
+.primary-action-disabled:hover {
+    border-color: #cbd5e1;
+    background: #e2e8f0;
+    color: #94a3b8;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
 .primary-action span {
     font-size: 17px;
     font-weight: 400;

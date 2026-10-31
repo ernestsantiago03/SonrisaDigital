@@ -31,6 +31,17 @@ test.describe('Dueño y selector de clínica', () => {
     await expect(page.getByRole('heading', { name: 'Clínicas', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Clinica Demo' })).toBeVisible();
 
+    // La acción Usuarios selecciona esa clínica y abre su gestión sin pasar por el selector.
+    await page.locator('tr', { hasText: 'Clinica Demo' }).getByRole('button', { name: 'Usuarios' }).click();
+    await expect(page).toHaveURL(/\/usuarios$/);
+    await expect(page.getByRole('heading', { name: 'Usuarios de Clinica Demo', level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Registrar usuario/ })).toBeVisible();
+
+    // El formulario muestra la clínica activa como dato fijo.
+    await page.getByRole('link', { name: /Registrar usuario/ }).click();
+    await expect(page).toHaveURL(/\/usuarios\/nuevo$/);
+    await expect(page.locator('.clinic-readonly')).toHaveText('Clinica Demo');
+
     // Acerca De debe leer la clínica elegida y permitir edición al Dueño.
     const eslogan = `Eslogan E2E ${Date.now()}`;
     await irA(page, '/acercaDe');
