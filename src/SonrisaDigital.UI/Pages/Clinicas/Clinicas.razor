@@ -3,7 +3,10 @@
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Clinicas
 @using SonrisaDigital.Services.Clinicas.DTOs
+@using SonrisaDigital.UI.Services
 @inject IClinicaService ClinicaService
+@inject IClinicaActivaService ClinicaActiva
+@inject NavigationManager Navigation
 
 <PageTitle>Clínicas · Sonrisa Digital</PageTitle>
 
@@ -42,6 +45,11 @@
                         <td class="clinicas-acciones">
                             <AuthorizeView Policy="Clinicas.Editar">
                                 <Authorized><a href="/clinicas/editar/@clinica.Id">Editar</a></Authorized>
+                            </AuthorizeView>
+                            <AuthorizeView Policy="Usuarios.Ver">
+                                <Authorized>
+                                    <button type="button" class="enlace-accion" @onclick="() => AbrirUsuariosAsync(clinica)">Usuarios</button>
+                                </Authorized>
                             </AuthorizeView>
                             <AuthorizeView Policy="Clinicas.Suspender">
                                 <Authorized>
@@ -84,6 +92,23 @@
             await ClinicaService.CambiarEstadoAsync(clinica.Id, nuevo);
             mensaje = null;
             await CargarAsync();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            mensaje = ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// Selecciona la clínica en esta pestaña y abre su gestión de usuarios. Así el
+    /// Dueño no tiene que cambiar el selector y volver a navegar por separado.
+    /// </summary>
+    private async Task AbrirUsuariosAsync(ClinicaListItemDto clinica)
+    {
+        try
+        {
+            await ClinicaActiva.SeleccionarAsync(clinica.Id, clinica.Nombre, "el panel de clínicas");
+            Navigation.NavigateTo("/usuarios");
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
         {

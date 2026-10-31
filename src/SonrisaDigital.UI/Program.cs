@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using SonrisaDigital.Data;
 using SonrisaDigital.UI.Components;
+using SonrisaDigital.UI.Services;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
 using SonrisaDigital.Services.Autenticacion;
@@ -89,6 +90,8 @@ if (!string.IsNullOrWhiteSpace(rutaClavesDataProtection))
 
 // Add services to the container.
 builder.Services.AddSonrisaDigitalServices(builder.Configuration, builder.Environment);
+// La clínica activa se comparte entre el selector, el panel de clínicas y las páginas.
+builder.Services.AddScoped<IClinicaActivaService, ClinicaActivaService>();
 
 // ============================================================================
 //

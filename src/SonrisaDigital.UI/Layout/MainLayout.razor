@@ -1,11 +1,9 @@
 ﻿@inherits LayoutComponentBase
-@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
-@using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Autenticacion
 @using SonrisaDigital.Services.Autorizacion
-@using SonrisaDigital.Services.Auditoria
 @using SonrisaDigital.Services.Clinicas
 @using SonrisaDigital.Services.Clinicas.DTOs
+@using SonrisaDigital.UI.Services
 
 <div class="app-shell">
     <aside class="app-sidebar @(sidebarOpen ? "is-open" : "")">
@@ -207,15 +205,9 @@
     [Inject]
     private ISelectorClinicasService SelectorClinicas { get; set; } = null!;
 
+    // Centraliza la selección, su persistencia por pestaña y la auditoría.
     [Inject]
-    private IAuditoriaService AuditoriaService { get; set; } = null!;
-
-    // La elección del Dueño se conserva al recargar la página, pero solo en esta
-    // pestaña del navegador (sessionStorage), como pide el plan multiclínica.
-    [Inject]
-    private ProtectedSessionStorage SessionStorage { get; set; } = null!;
-
-    private const string ClaveClinicaSeleccionada = "sonrisadigital.clinica-seleccionada";
+    private IClinicaActivaService ClinicaActiva { get; set; } = null!;
 
     private IReadOnlyList<ClinicaListItemDto> clinicas = [];
     private bool contenidoListo;
@@ -226,28 +218,15 @@
     private async Task CambiarClinicaAsync(ChangeEventArgs args)
     {
         var seleccion = int.TryParse(args.Value?.ToString(), out var id) ? id : (int?)null;
-        CurrentUserService.SeleccionarClinica(seleccion);
-
-        try
-        {
-            if (seleccion is int guardada)
-            {
-                await SessionStorage.SetAsync(ClaveClinicaSeleccionada, guardada);
-            }
-            else
-            {
-                await SessionStorage.DeleteAsync(ClaveClinicaSeleccionada);
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or JSDisconnectedException)
-        {
-            // Sin almacenamiento del navegador la selección sigue viva en el circuito.
-        }
 
         if (seleccion is int clinicaId)
         {
             var nombre = clinicas.FirstOrDefault(item => item.Id == clinicaId)?.Nombre ?? clinicaId.ToString();
-            await AuditoriaService.RegistrarAsync("Seleccionó", "Clínicas", nameof(Clinica), clinicaId, $"Abrió la clínica {nombre} desde el selector.", default, clinicaId);
+            await ClinicaActiva.SeleccionarAsync(clinicaId, nombre);
+        }
+        else
+        {
+            await ClinicaActiva.LimpiarAsync();
         }
 
         Navigation.NavigateTo("/");
@@ -266,23 +245,7 @@
 
         if (EsDueno)
         {
-            try
-            {
-                var guardada = await SessionStorage.GetAsync<int>(ClaveClinicaSeleccionada);
-                if (guardada.Success && clinicas.Any(clinica => clinica.Id == guardada.Value))
-                {
-                    CurrentUserService.SeleccionarClinica(guardada.Value);
-                }
-                else if (guardada.Success)
-                {
-                    // La clínica guardada ya no existe: se descarta.
-                    await SessionStorage.DeleteAsync(ClaveClinicaSeleccionada);
-                }
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or JSDisconnectedException)
-            {
-                // Sin almacenamiento disponible se empieza sin clínica seleccionada.
-            }
+            await ClinicaActiva.RestaurarAsync(clinicas.Select(clinica => clinica.Id).ToArray());
         }
 
         contenidoListo = true;

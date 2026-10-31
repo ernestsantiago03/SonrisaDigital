@@ -78,6 +78,78 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task NoSeCreaUsuarioSinClinicaActiva()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var tenant = provider.GetRequiredService<TenantMutable>();
+        var servicio = provider.GetRequiredService<IUsuarioService>();
+        tenant.ClinicaId = null;
+
+        var modelo = ModeloUsuario($"Sin clinica {Guid.NewGuid():N}");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.CreateAsync(modelo));
+
+        Assert.Contains("clínica activa", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        using var scope = provider.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+        Assert.Null(await userManager.FindByEmailAsync(modelo.Email));
+    }
+
+    [Fact]
+    public async Task NoSeCreaUsuarioEnClinicaSuspendida()
+    {
+        var clinicaSuspendida = await CrearClinicaAsync(EstadoClinica.Suspendida);
+        await using var provider = await CrearProveedorAsync();
+        var tenant = provider.GetRequiredService<TenantMutable>();
+        var servicio = provider.GetRequiredService<IUsuarioService>();
+        tenant.ClinicaId = clinicaSuspendida;
+
+        var modelo = ModeloUsuario($"Suspendida {Guid.NewGuid():N}");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.CreateAsync(modelo));
+
+        Assert.Contains("suspendida", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        using var scope = provider.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+        Assert.Null(await userManager.FindByEmailAsync(modelo.Email));
+    }
+
+    [Fact]
+    public async Task ObtieneLaClinicaActivaDeLaSesion()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var tenant = provider.GetRequiredService<TenantMutable>();
+        var servicio = provider.GetRequiredService<IUsuarioService>();
+        tenant.ClinicaId = fixture.ClinicaId;
+
+        var clinica = await servicio.GetClinicaActualAsync();
+
+        Assert.NotNull(clinica);
+        Assert.Equal(fixture.ClinicaId, clinica.Id);
+        Assert.Equal(EstadoClinica.Activa, clinica.Estado);
+        Assert.False(string.IsNullOrWhiteSpace(clinica.Nombre));
+
+        tenant.ClinicaId = null;
+        Assert.Null(await servicio.GetClinicaActualAsync());
+    }
+
+    [Fact]
+    public async Task LaAuditoriaDelAltaGuardaLaClinica()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var tenant = provider.GetRequiredService<TenantMutable>();
+        var servicio = provider.GetRequiredService<IUsuarioService>();
+        tenant.ClinicaId = fixture.ClinicaId;
+
+        await servicio.CreateAsync(ModeloUsuario($"Auditoria {Guid.NewGuid():N}"));
+
+        var auditoria = Assert.IsType<FakeAuditoriaService>(provider.GetRequiredService<IAuditoriaService>());
+        var registro = Assert.Single(auditoria.Registros);
+        Assert.Equal("Creó", registro.Accion);
+        Assert.Equal(fixture.ClinicaId, registro.ClinicaId);
+    }
+
+    [Fact]
     public async Task ElSeederCreaLaCuentaDelDuenoSinClinica()
     {
         await using var provider = await CrearProveedorAsync();
@@ -108,13 +180,14 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
         };
     }
 
-    private async Task<int> CrearClinicaAsync()
+    private async Task<int> CrearClinicaAsync(EstadoClinica estado = EstadoClinica.Activa)
     {
         await using var db = new ApplicationDbContext(fixture.Options, SinClinica.Instancia);
         var clinica = new Clinica
         {
             Nombre = $"Clinica usuarios {Guid.NewGuid():N}",
-            Codigo = $"usr-{Guid.NewGuid():N}"[..27]
+            Codigo = $"usr-{Guid.NewGuid():N}"[..27],
+            Estado = estado
         };
         db.Clinicas.Add(clinica);
         await db.SaveChangesAsync();

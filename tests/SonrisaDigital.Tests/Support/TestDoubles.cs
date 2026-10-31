@@ -77,6 +77,21 @@ internal static class TestSession
 /// </summary>
 internal sealed class FakeAuditoriaService : IAuditoriaService
 {
+    private readonly object candado = new();
+    private readonly List<RegistroAuditoria> registros = [];
+
+    /// <summary>Movimientos registrados, para comprobar qué clínica recibió la auditoría.</summary>
+    public IReadOnlyList<RegistroAuditoria> Registros
+    {
+        get
+        {
+            lock (candado)
+            {
+                return registros.ToArray();
+            }
+        }
+    }
+
     public Task RegistrarAsync(
         string accion,
         string modulo,
@@ -84,8 +99,16 @@ internal sealed class FakeAuditoriaService : IAuditoriaService
         int? entidadId,
         string descripcion,
         CancellationToken cancellationToken = default,
-        int? clinicaId = null) =>
-        Task.CompletedTask;
+        int? clinicaId = null)
+    {
+        // Las pruebas de concurrencia auditan desde varios hilos a la vez.
+        lock (candado)
+        {
+            registros.Add(new RegistroAuditoria(accion, modulo, entidad, entidadId, clinicaId));
+        }
+
+        return Task.CompletedTask;
+    }
 
     public Task<IReadOnlyList<ActividadRecienteDto>> GetRecientesAsync(
         int cantidad = 20,
@@ -100,6 +123,14 @@ internal sealed class FakeAuditoriaService : IAuditoriaService
     public Task<AuditoriaOpcionesDto> GetOpcionesAsync(CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 }
+
+/// <summary>Movimiento capturado por la auditoría de pruebas.</summary>
+internal sealed record RegistroAuditoria(
+    string Accion,
+    string Modulo,
+    string Entidad,
+    int? EntidadId,
+    int? ClinicaId);
 
 /// <summary>
 /// Historia clínica de pruebas. Las citas programadas no generan consulta;

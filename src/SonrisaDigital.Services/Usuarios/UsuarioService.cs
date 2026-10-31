@@ -126,6 +126,12 @@ public sealed class UsuarioService(
         };
     }
 
+    public async Task<ClinicaActivaDto?> GetClinicaActualAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
+        return await BuscarClinicaActualAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<string>> GetAvailableRolesAsync(CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Usuarios.Ver", "No tienes permiso para consultar usuarios.");
@@ -146,6 +152,18 @@ public sealed class UsuarioService(
 
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
+            // La clínica se vuelve a consultar aquí: la selección puede haber cambiado
+            // o haberse suspendido después de abrir el formulario.
+            var clinica = await BuscarClinicaActualAsync(cancellationToken)
+                ?? throw new InvalidOperationException(
+                    "No hay una clínica activa seleccionada. Selecciona una clínica antes de crear usuarios.");
+
+            if (clinica.Estado != EstadoClinica.Activa)
+            {
+                throw new InvalidOperationException(
+                    $"La clínica {clinica.Nombre} está suspendida. Actívala antes de crear usuarios.");
+            }
+
             // El usuario se crea dentro de la transacción para que, si la
             // estrategia de reintentos vuelve a ejecutar el bloque, parta de
             // una entidad nueva y no reutilice una que ya quedó marcada.
@@ -157,8 +175,8 @@ public sealed class UsuarioService(
                 Estado = EstadoRegistro.Activo,
                 FechaCreacion = DateTime.UtcNow,
                 EmailConfirmed = true,
-                // Un usuario nuevo queda en la clínica de quien lo crea.
-                ClinicaId = tenant.ClinicaId ?? throw new InvalidOperationException("No hay clínica en la sesión.")
+                // Un usuario nuevo queda en la clínica activa de quien lo crea.
+                ClinicaId = clinica.Id
             };
 
             var result = await userManager.CreateAsync(user, model.Password ?? string.Empty);
@@ -171,7 +189,7 @@ public sealed class UsuarioService(
             // el alta completa se deshace y no queda un usuario sin trazabilidad.
             await auditoriaService.RegistrarAsync(
                 "Creó", "Usuarios", nameof(Usuario), null,
-                $"Creó el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
+                $"Creó el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken, clinica.Id);
         }, cancellationToken);
     }
 
@@ -293,6 +311,21 @@ public sealed class UsuarioService(
     {
         var user = await userManager.FindByIdAsync(id);
         return user is not null && tenant.ClinicaId is int clinicaId && user.ClinicaId == clinicaId ? user : null;
+    }
+
+    /// <summary>Clínica de la sesión consultada en la base, para validar su existencia y estado.</summary>
+    private async Task<ClinicaActivaDto?> BuscarClinicaActualAsync(CancellationToken cancellationToken)
+    {
+        if (tenant.ClinicaId is not int clinicaId)
+        {
+            return null;
+        }
+
+        return await dbContext.Clinicas
+            .AsNoTracking()
+            .Where(clinica => clinica.Id == clinicaId)
+            .Select(clinica => new ClinicaActivaDto(clinica.Id, clinica.Nombre, clinica.Estado))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private async Task<bool> ReplaceRolesAsync(Usuario user, IEnumerable<string> roleNames, CancellationToken cancellationToken)

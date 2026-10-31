@@ -18,6 +18,13 @@ public interface IUsuarioService
         CancellationToken cancellationToken = default);
 
     Task<UsuarioFormDto?> GetFormAsync(string id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clínica de la sesión actual, o <c>null</c> si el Dueño todavía no eligió una.
+    /// Es la única fuente para asignar usuarios: no se acepta una clínica del formulario.
+    /// </summary>
+    Task<ClinicaActivaDto?> GetClinicaActualAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<string>> GetAvailableRolesAsync(CancellationToken cancellationToken = default);
     Task CreateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default);
     Task UpdateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default);

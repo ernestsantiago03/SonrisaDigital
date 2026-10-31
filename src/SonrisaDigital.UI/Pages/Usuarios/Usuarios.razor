@@ -11,18 +11,41 @@
     <header class="users-header">
         <div>
             <span class="page-eyebrow">Administración</span>
-            <h1>Usuarios</h1>
-            <p>Gestiona las cuentas, estados y roles de acceso a Sonrisa Digital.</p>
+            <h1>Usuarios@(clinica is null ? string.Empty : $" de {clinica.Nombre}")</h1>
+            <p>Gestiona las cuentas, estados y roles de acceso de la clínica activa.</p>
         </div>
         <AuthorizeView Policy="Usuarios.Crear">
             <Authorized>
-                <a class="primary-action" href="/usuarios/nuevo">
-                    <span aria-hidden="true">+</span>
-                    Registrar usuario
-                </a>
+                @if (PuedeCrearUsuarios)
+                {
+                    <a class="primary-action" href="/usuarios/nuevo">
+                        <span aria-hidden="true">+</span>
+                        Registrar usuario
+                    </a>
+                }
+                else
+                {
+                    <span class="primary-action primary-action-disabled" aria-disabled="true" title="Selecciona una clínica activa para registrar usuarios">
+                        <span aria-hidden="true">+</span>
+                        Registrar usuario
+                    </span>
+                }
             </Authorized>
         </AuthorizeView>
     </header>
+
+    @if (clinica is null)
+    {
+        <div class="feedback error" role="alert">
+            No hay una clínica activa seleccionada. Elige una clínica en el menú lateral o desde el panel de clínicas para gestionar sus usuarios.
+        </div>
+    }
+    else if (clinica.Estado != EstadoClinica.Activa)
+    {
+        <div class="feedback error" role="alert">
+            La clínica @clinica.Nombre está suspendida. Puedes consultar sus usuarios, pero no crear nuevos hasta reactivarla.
+        </div>
+    }
 
     <section class="users-toolbar" aria-label="Filtros de usuarios">
         <div class="search-field">
@@ -52,6 +75,13 @@
         @if (loading)
         {
             <div class="table-state">Cargando usuarios...</div>
+        }
+        else if (clinica is null)
+        {
+            <div class="table-state empty-state">
+                <strong>Selecciona una clínica</strong>
+                <span>Los usuarios se muestran por clínica. Elige una para continuar.</span>
+            </div>
         }
         else if (users.Items.Count == 0)
         {
@@ -130,13 +160,39 @@
 @code {
     private const int PageSize = 10;
     private PagedResult<UsuarioListItemDto> users = PagedResult<UsuarioListItemDto>.Empty(PageSize);
+    private ClinicaActivaDto? clinica;
     private string searchTerm = string.Empty;
     private string statusFilter = "Todos";
     private bool loading;
     private string? errorMessage;
     private readonly SemaphoreSlim cargaLock = new(1, 1);
 
-    protected override Task OnInitializedAsync() => LoadUsersAsync();
+    private bool PuedeCrearUsuarios => clinica is { Estado: EstadoClinica.Activa };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarClinicaAsync();
+        await LoadUsersAsync();
+    }
+
+    private async Task CargarClinicaAsync()
+    {
+        // Comparte el candado con las consultas de usuarios: el DbContext del
+        // circuito no admite dos operaciones simultáneas.
+        await cargaLock.WaitAsync();
+        try
+        {
+            clinica = await UsuarioService.GetClinicaActualAsync();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            cargaLock.Release();
+        }
+    }
 
     private async Task LoadUsersAsync()
     {
