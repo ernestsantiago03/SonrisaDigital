@@ -16,7 +16,7 @@
         <p>
             @(IsEditing
                 ? "Actualiza los datos de identidad que se muestran en Acerca De."
-                : "Registra la clínica y su primer administrador para empezar a operar.")
+                : "Registra la nueva clínica. Su administrador se crea después desde Usuarios.")
         </p>
     </header>
 
@@ -93,33 +93,10 @@
 
             @if (!IsEditing)
             {
-                <section class="form-panel">
-                    <div class="section-heading">
-                        <div>
-                            <span class="section-kicker">02</span>
-                            <h2>Primer administrador</h2>
-                        </div>
-                        <span>Acceso inicial</span>
-                    </div>
-                    <p class="section-note">
-                        Administrará esta clínica. Después podrá cambiar su contraseña desde Usuarios.
-                    </p>
-                    <div class="form-grid">
-                        <div class="field">
-                            <label for="admin-nombre">Nombre completo</label>
-                            <InputText id="admin-nombre" @bind-Value="admin.Nombre" placeholder="Ej. Ana Rodríguez" />
-                        </div>
-                        <div class="field">
-                            <label for="admin-correo">Correo electrónico</label>
-                            <InputText id="admin-correo" type="email" @bind-Value="admin.Email" placeholder="admin@clinica.com" />
-                        </div>
-                        <div class="field">
-                            <label for="admin-clave">Contraseña inicial</label>
-                            <InputText id="admin-clave" type="password" @bind-Value="admin.Password" placeholder="••••••••" autocomplete="new-password" />
-                            <small class="field-help">Mínimo 8 caracteres, una mayúscula y un número.</small>
-                        </div>
-                    </div>
-                </section>
+                <div class="form-note">
+                    Después de crear la clínica, usa la acción <strong>Usuarios</strong> en el panel de clínicas
+                    para seleccionarla y registrar a su administrador.
+                </div>
             }
 
             <div class="form-actions">
@@ -141,7 +118,6 @@
     private bool saving;
     private string? errorMessage;
     private ClinicaFormDto model = new();
-    private AdministradorClinicaFormDto admin = new();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -179,17 +155,7 @@
             }
             else
             {
-                var clinicaId = await ClinicaService.CrearAsync(model);
-                try
-                {
-                    await ClinicaService.CrearAdministradorAsync(clinicaId, admin);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    // La clínica ya quedó creada: se avisa para no volver a enviar el formulario.
-                    errorMessage = $"La clínica se creó, pero no se pudo crear el administrador: {ex.Message}";
-                    return;
-                }
+                await ClinicaService.CrearAsync(model);
             }
 
             Navigation.NavigateTo("/clinicas");

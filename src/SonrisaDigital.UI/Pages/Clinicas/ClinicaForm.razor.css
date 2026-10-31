@@ -205,6 +205,22 @@
     color: #b91c1c;
 }
 
+/* Aviso posterior al alta: el administrador se crea desde Usuarios. */
+.form-note {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1e40af;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.form-note strong {
+    font-weight: 700;
+}
+
 .form-actions {
     display: flex;
     align-items: center;

@@ -17,7 +17,4 @@ public interface IClinicaService
 
     /// <summary>Marca la clínica como activa o suspendida. El bloqueo real de sus usuarios llega en la fase 7.</summary>
     Task CambiarEstadoAsync(int id, EstadoClinica estado, CancellationToken cancellationToken = default);
-
-    /// <summary>Crea el primer administrador de una clínica y devuelve su id.</summary>
-    Task<string> CrearAdministradorAsync(int clinicaId, AdministradorClinicaFormDto model, CancellationToken cancellationToken = default);
 }
