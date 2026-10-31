@@ -54,6 +54,18 @@
             {
                 <div class="login-error">La cuenta está bloqueada temporalmente.</div>
             }
+            else if (Error == "clinic")
+            {
+                <div class="login-error">
+                    El acceso de tu clínica está suspendido. Contacta al administrador del sistema.
+                </div>
+            }
+            else if (Error == "expired")
+            {
+                <div class="login-error">
+                    El formulario expiró por seguridad. Vuelve a escribir tus credenciales.
+                </div>
+            }
 
         </div>
 

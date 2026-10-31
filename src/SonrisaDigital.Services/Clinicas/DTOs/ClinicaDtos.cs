@@ -42,20 +42,3 @@ public sealed class ClinicaFormDto
     [StringLength(300, ErrorMessage = "El eslogan no puede superar los 300 caracteres.")]
     public string? Eslogan { get; set; }
 }
-
-/// <summary>Primer administrador de una clínica nueva, creado por el Dueño.</summary>
-public sealed class AdministradorClinicaFormDto
-{
-    [Required(ErrorMessage = "El nombre del administrador es obligatorio.")]
-    [StringLength(150, ErrorMessage = "El nombre no puede superar los 150 caracteres.")]
-    public string Nombre { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "El correo del administrador es obligatorio.")]
-    [EmailAddress(ErrorMessage = "Introduzca un correo válido.")]
-    [StringLength(256, ErrorMessage = "El correo no puede superar los 256 caracteres.")]
-    public string Email { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "La contraseña inicial es obligatoria.")]
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 100 caracteres.")]
-    public string Password { get; set; } = string.Empty;
-}

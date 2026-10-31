@@ -2,9 +2,11 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services.Autenticacion;
 
@@ -44,7 +46,7 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
         await using var scope = scopeFactory.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
 
-        var isValid = await ValidateSecurityStampAsync(userManager, authenticationState.User);
+        var isValid = await ValidateSessionAsync(scope, userManager, authenticationState.User, cancellationToken);
         if (!isValid)
         {
             // El circuito puede seguir vivo unos instantes hasta que el layout se
@@ -56,7 +58,11 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
         return isValid;
     }
 
-    private async Task<bool> ValidateSecurityStampAsync(UserManager<Usuario> userManager, ClaimsPrincipal principal)
+    private async Task<bool> ValidateSessionAsync(
+        AsyncServiceScope scope,
+        UserManager<Usuario> userManager,
+        ClaimsPrincipal principal,
+        CancellationToken cancellationToken)
     {
         var user = await userManager.GetUserAsync(principal);
         if (user is null || user.Estado != EstadoRegistro.Activo)
@@ -64,6 +70,29 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
             return false;
         }
 
+        // Suspender una clínica debe cerrar también las sesiones ya abiertas.
+        if (user.ClinicaId is int clinicaId)
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var clinicaActiva = await dbContext.Clinicas
+                .Where(clinica => clinica.Id == clinicaId)
+                .Select(clinica => clinica.Estado == EstadoClinica.Activa)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!clinicaActiva)
+            {
+                return false;
+            }
+        }
+
+        return await ValidateSecurityStampAsync(userManager, user, principal);
+    }
+
+    private async Task<bool> ValidateSecurityStampAsync(
+        UserManager<Usuario> userManager,
+        Usuario user,
+        ClaimsPrincipal principal)
+    {
         // Si el almacén no usa SecurityStamp no hay nada más que comparar.
         if (!userManager.SupportsUserSecurityStamp)
         {

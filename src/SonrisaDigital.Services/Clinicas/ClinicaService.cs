@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
@@ -13,7 +12,6 @@ namespace SonrisaDigital.Services.Clinicas;
 
 public sealed class ClinicaService(
     ApplicationDbContext dbContext,
-    UserManager<Usuario> userManager,
     IAuditoriaService auditoriaService,
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IClinicaService
@@ -131,47 +129,6 @@ public sealed class ClinicaService(
         await auditoriaService.RegistrarAsync(
             "Cambió estado", Modulo, nameof(Clinica), clinica.Id,
             $"Cambió el estado de la clínica {clinica.Nombre} a {estado}.", cancellationToken, clinica.Id);
-    }
-
-    public async Task<string> CrearAdministradorAsync(int clinicaId, AdministradorClinicaFormDto model, CancellationToken cancellationToken = default)
-    {
-        await authorizationService.AsegurarPermisoAsync(currentUserService, "Clinicas.Editar", "No tienes permiso para crear administradores de clínica.");
-        ArgumentNullException.ThrowIfNull(model);
-        ValidadorDto.PrepararYValidar(model);
-
-        var clinica = await dbContext.Clinicas.AsNoTracking().SingleOrDefaultAsync(clinic => clinic.Id == clinicaId, cancellationToken)
-            ?? throw new InvalidOperationException("La clínica no existe.");
-
-        var email = model.Email.Trim();
-        var usuario = new Usuario
-        {
-            UserName = email,
-            Email = email,
-            Nombre = model.Nombre,
-            Estado = EstadoRegistro.Activo,
-            EmailConfirmed = true,
-            // El administrador pertenece a la clínica indicada, no a la del Dueño.
-            ClinicaId = clinicaId
-        };
-
-        var creado = await userManager.CreateAsync(usuario, model.Password);
-        if (!creado.Succeeded)
-        {
-            throw new InvalidOperationException($"No se pudo crear el administrador: {string.Join("; ", creado.Errors.Select(error => error.Description))}");
-        }
-
-        var rol = await userManager.AddToRoleAsync(usuario, RolesSonrisaDigital.Administrador);
-        if (!rol.Succeeded)
-        {
-            await userManager.DeleteAsync(usuario);
-            throw new InvalidOperationException("No se pudo asignar el rol Administrador al nuevo usuario.");
-        }
-
-        await auditoriaService.RegistrarAsync(
-            "Creó", Modulo, nameof(Usuario), null,
-            $"Creó el administrador {usuario.Nombre} de la clínica {clinica.Nombre}.", cancellationToken, clinicaId);
-
-        return usuario.Id;
     }
 
     private static string NormalizarCodigo(string codigo) =>
