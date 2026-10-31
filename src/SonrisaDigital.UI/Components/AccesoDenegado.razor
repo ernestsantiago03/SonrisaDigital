@@ -1,6 +1,7 @@
 @page "/acceso-denegado"
 @attribute [AllowAnonymous]
 @attribute [ExcludeFromInteractiveRouting]
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Sin permisos · Sonrisa Digital</PageTitle>
 
@@ -15,22 +16,20 @@ else
         <h1>No tienes permisos para esta sección</h1>
         <p>
             Tu cuenta no tiene habilitado el permiso necesario para entrar aquí.
-            Si necesitas acceso, pídele al administrador que lo revise en <strong>Roles y permisos</strong>.
+            Si necesitas acceso, pídele al Dueño del sistema que lo revise en <strong>Roles y permisos</strong>.
         </p>
         <a class="denied-action" href="/">Volver al inicio</a>
     </div>
 }
 
 @code {
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
     private bool esAnonimo;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // En SSR estático la cookie se refleja en HttpContext.User; el
-        // AuthenticationStateProvider del circuito no está disponible aquí.
-        esAnonimo = HttpContext.User.Identity?.IsAuthenticated != true;
+        // HttpContext es nulo cuando se llega desde una navegación del circuito
+        // interactivo; el AuthenticationStateProvider funciona en ambos casos.
+        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        esAnonimo = estado.User.Identity?.IsAuthenticated != true;
     }
 }
