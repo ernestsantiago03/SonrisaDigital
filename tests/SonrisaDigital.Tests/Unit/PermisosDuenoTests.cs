@@ -21,7 +21,23 @@ public sealed class PermisosDuenoTests
         var permisos = PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Administrador];
 
         Assert.DoesNotContain(permisos, PermissionCatalog.EsPermisoDeClinicas);
-        Assert.Contains("Usuarios.Editar", permisos);
+    }
+
+    [Fact]
+    public void SoloElDuenoGestionaUsuariosRolesYAuditoria()
+    {
+        var permisosAdministrador = PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Administrador];
+        var exclusivos = PermissionCatalog.All
+            .Select(permission => permission.Nombre)
+            .Where(nombre => nombre.StartsWith("Usuarios.", StringComparison.Ordinal)
+                || nombre.StartsWith("Roles.", StringComparison.Ordinal)
+                || nombre == "Auditoria.Ver");
+
+        foreach (var permiso in exclusivos)
+        {
+            Assert.DoesNotContain(permiso, permisosAdministrador);
+            Assert.Contains(permiso, PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Dueno]);
+        }
     }
 
     [Fact]

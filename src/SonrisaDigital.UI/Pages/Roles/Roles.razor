@@ -51,10 +51,6 @@
                             <Authorized><button class="primary-action" @onclick="SavePermissionsAsync" disabled="@saving">@(saving ? "Guardando..." : "Guardar permisos")</button></Authorized>
                         </AuthorizeView>
                     </div>
-                    @if (selectedRole.Nombre == RolesSonrisaDigital.Administrador)
-                    {
-                        <p class="permission-hint">El rol <strong>@RolesSonrisaDigital.Administrador</strong> conserva siempre <strong>Roles.Ver</strong> y <strong>Roles.Editar</strong>, para que el sistema nunca quede sin acceso a esta pantalla.</p>
-                    }
                     <div class="permission-groups">
                         @foreach (var group in permissions.GroupBy(permission => permission.Modulo).OrderBy(group => group.Key))
                         {
@@ -64,7 +60,7 @@
                                     @foreach (var permission in group)
                                     {
                                         <label class="permission-option">
-                                            <input type="checkbox" checked="@selectedPermissions.Contains(permission.Nombre)" disabled="@IsMandatory(permission.Nombre)" @onchange="eventArgs => TogglePermission(permission.Nombre, eventArgs.Value is true)" />
+                                            <input type="checkbox" checked="@selectedPermissions.Contains(permission.Nombre)" @onchange="eventArgs => TogglePermission(permission.Nombre, eventArgs.Value is true)" />
                                             <span><strong>@permission.Nombre</strong><small>@permission.Descripcion</small></span>
                                         </label>
                                     }
@@ -117,15 +113,9 @@
 
     private void TogglePermission(string permission, bool selected)
     {
-        if (IsMandatory(permission)) return;
-
         if (selected) selectedPermissions.Add(permission);
         else selectedPermissions.Remove(permission);
     }
-
-    private bool IsMandatory(string permission) =>
-        selectedRole?.Nombre == RolesSonrisaDigital.Administrador
-        && (permission == "Roles.Ver" || permission == "Roles.Editar");
 
     private async Task SavePermissionsAsync()
     {

@@ -27,12 +27,6 @@ public sealed class RolService(
     IAuthorizationService authorizationService,
     ICatalogoCache catalogoCache) : IRolService
 {
-    /// <summary>
-    /// El rol Administrador nunca pierde estos permisos: si se quitaran, nadie podria
-    /// volver a entrar a "Roles y permisos" para corregirlo.
-    /// </summary>
-    private static readonly string[] PermisosQueAdministradorConserva = ["Roles.Ver", "Roles.Editar"];
-
     public async Task<IReadOnlyList<RolePermissionDto>> GetRolesAsync(CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Roles.Ver", "No tienes permiso para consultar roles y permisos.");
@@ -108,11 +102,6 @@ public sealed class RolService(
             if (names.Any(PermissionCatalog.EsPermisoDeClinicas))
             {
                 throw new InvalidOperationException("Solo el rol Dueño puede tener permisos del panel de clínicas.");
-            }
-
-            if (string.Equals(role.Name, RolesSonrisaDigital.Administrador, StringComparison.Ordinal))
-            {
-                names.UnionWith(PermisosQueAdministradorConserva);
             }
 
             var permissions = await dbContext.Permisos

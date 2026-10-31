@@ -51,9 +51,21 @@ public static class PermissionCatalog
     public static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> DefaultRolePermissions =
         new Dictionary<string, IReadOnlySet<string>>
         {
-            // El Administrador de clínica gestiona su clínica, nunca el panel de clínicas.
-            [RolesSonrisaDigital.Administrador] = All.Where(permission => !EsPermisoDeClinicas(permission.Nombre)).Select(permission => permission.Nombre).ToHashSet(),
+            // El Administrador de clínica gestiona su clínica, nunca el panel de clínicas,
+            // ni usuarios, roles y permisos o auditoría: esas tres áreas son solo del Dueño.
             [RolesSonrisaDigital.Dueno] = All.Select(permission => permission.Nombre).ToHashSet(),
+            [RolesSonrisaDigital.Administrador] = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "Pacientes.Ver", "Pacientes.Crear", "Pacientes.Editar", "Pacientes.Desactivar",
+                "Odontologos.Ver", "Odontologos.Crear", "Odontologos.Editar", "Odontologos.Desactivar",
+                "Citas.Ver", "Citas.Crear", "Citas.Editar", "Citas.Cancelar", "Citas.Atender",
+                "HistoriaClinica.Ver", "HistoriaClinica.Crear", "HistoriaClinica.Editar",
+                "Odontograma.Ver", "Odontograma.Editar",
+                "Tratamientos.Ver", "Tratamientos.Crear", "Tratamientos.Editar",
+                "Pagos.Ver", "Pagos.Crear", "Pagos.Editar",
+                "Reportes.Ver",
+                "AcercaDe.Editar"
+            },
             [RolesSonrisaDigital.Recepcionista] = new HashSet<string>(StringComparer.Ordinal)
             {
                 "Pacientes.Ver", "Pacientes.Crear", "Pacientes.Editar", "Pacientes.Desactivar",
