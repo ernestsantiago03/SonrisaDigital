@@ -9,6 +9,7 @@
 @using SonrisaDigital.Services.Tratamientos
 @using SonrisaDigital.Services.Tratamientos.DTOs
 @inject ITratamientoService TratamientoService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<Tratamientos> Logger
 @inject IJSRuntime JS
 
@@ -468,8 +469,8 @@
                     @if (realizadoForm.Id > 0)
                     {
                         <p class="form-hint">
-                            Si el tratamiento ya tiene pagos, no se puede cambiar el paciente ni el tratamiento,
-                            ni dejar el precio por debajo de lo pagado.
+                            No se puede dejar el precio por debajo de lo pagado.
+                            Si el tratamiento tiene pagos, solo el Dueño puede modificarlo.
                         </p>
                     }
                 </div>
@@ -607,7 +608,7 @@
                     </AuthorizeView>
                 }
 
-                @if (detalleRealizado.Estado == EstadoTratamiento.EnProceso)
+                @if (PuedeEditarRealizado(detalleRealizado))
                 {
                     <AuthorizeView Policy="Tratamientos.Editar">
                         <Authorized>
@@ -664,11 +665,19 @@
     private string piezaSeleccionada = string.Empty;
 
     private CancellationTokenSource? debounceBusqueda;
+    private bool esDueno;
 
     protected override async Task OnInitializedAsync()
     {
+        var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        esDueno = estadoAutenticacion.User.IsInRole(RolesSonrisaDigital.Dueno);
         await CargarAsync();
     }
+
+    // Con pagos registrados solo el Dueño puede modificar; los tratamientos cancelados nunca.
+    private bool PuedeEditarRealizado(TratamientoRealizadoDetalleDto detalle) =>
+        detalle.Estado != EstadoTratamiento.Cancelado
+        && (esDueno || detalle.CantidadPagos == 0);
 
     public void Dispose()
     {

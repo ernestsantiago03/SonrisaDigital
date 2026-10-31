@@ -26,7 +26,8 @@ namespace SonrisaDigital.Services.Tratamientos;
 ///  - El estado solo cambia por el flujo: se completa al pagar el precio total o se
 ///    cancela desde la acción dedicada (siempre que no tenga pagos registrados).
 ///  - No se puede bajar el precio de un realizado por debajo de lo ya pagado.
-///  - Los estados terminales (Completado / Cancelado) solo se pueden consultar.
+///  - Un tratamiento con pagos registrados solo lo puede modificar el Dueño.
+///  - Un tratamiento cancelado solo se puede consultar.
 /// </summary>
 public sealed class TratamientoService(
     ITratamientoRepository repository,
@@ -41,6 +42,8 @@ public sealed class TratamientoService(
     private const decimal PrecioMaximo = 9_999_999.99m;
 
     private static readonly CultureInfo Cultura = CultureInfo.GetCultureInfo("es-DO");
+
+    private bool EsDueno => currentUserService.Principal?.IsInRole(RolesSonrisaDigital.Dueno) == true;
 
     // =====================================================================
     // Catálogo
@@ -402,11 +405,19 @@ public sealed class TratamientoService(
         var realizado = await repository.GetRealizadoForUpdateAsync(model.Id, cancellationToken)
             ?? throw new InvalidOperationException("El tratamiento realizado no existe.");
 
-        if (realizado.Estado is EstadoTratamiento.Completado or EstadoTratamiento.Cancelado)
+        if (realizado.Estado == EstadoTratamiento.Cancelado)
         {
             throw new InvalidOperationException(
-                "Un tratamiento completado o cancelado ya no se puede editar. Solo se puede consultar.");
+                "Un tratamiento cancelado no se puede editar. Solo se puede consultar.");
         }
+
+        if (realizado.Pagos.Count > 0 && !EsDueno)
+        {
+            throw new InvalidOperationException(
+                "Este tratamiento tiene pagos registrados. Solo el Dueño puede modificarlo.");
+        }
+
+        var estadoAnterior = realizado.Estado;
 
         var paciente = await repository.GetPacienteAsync(model.PacienteId, cancellationToken)
             ?? throw new InvalidOperationException("El paciente seleccionado no existe.");
@@ -451,28 +462,21 @@ public sealed class TratamientoService(
 
         var completaPorPrecio = pagado > 0 && model.Precio == pagado;
 
-        if (pagado > 0 && (cambiaPaciente || cambiaTratamiento))
-        {
-            throw new InvalidOperationException(
-                "No se puede cambiar el paciente ni el tratamiento cuando ya existen pagos registrados.");
-        }
-
         realizado.PacienteId = model.PacienteId;
         realizado.TratamientoId = model.TratamientoId;
         realizado.OdontologoId = model.OdontologoId;
         realizado.PiezaDentalId = model.PiezaDentalId;
         realizado.Fecha = model.Fecha.Date;
         realizado.Precio = model.Precio;
-        if (completaPorPrecio)
-        {
-            realizado.Estado = EstadoTratamiento.Completado;
-        }
+        realizado.Estado = completaPorPrecio ? EstadoTratamiento.Completado : EstadoTratamiento.EnProceso;
 
         realizado.Observaciones = Normalize(model.Observaciones);
 
         var detalleEstado = completaPorPrecio
             ? " El tratamiento quedó completado porque el precio coincide con lo pagado."
-            : string.Empty;
+            : estadoAnterior == EstadoTratamiento.Completado
+                ? " El tratamiento volvió a En proceso porque el precio supera lo pagado."
+                : string.Empty;
 
         try
         {
