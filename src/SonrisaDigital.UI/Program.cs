@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -10,6 +11,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.UI.Services;
 using SonrisaDigital.Data.Entities;
@@ -289,6 +291,22 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// El formulario de login lleva un token antiforgery. Si el navegador reutiliza
+// una copia cacheada (bfcache, historial o una pestaña abierta antes de reiniciar
+// la app), el token puede no corresponder con la cookie actual. Estas cabeceras
+// obligan a pedir siempre una página fresca con su token.
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method)
+        && context.Request.Path.Equals("/login", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        context.Response.Headers.Pragma = "no-cache";
+    }
+
+    await next();
+});
+
 // Los endpoints de salud se responden sin forzar HTTPS para que un balanceador
 // pueda consultarlos por HTTP sin recibir un 308. Se colocan antes de
 // UseHttpsRedirection y devuelven la respuesta directamente, sin pasar al resto
@@ -344,6 +362,45 @@ app.Use(async (context, next) =>
 // request HTTP no llegue a generar un challenge de login sobre HTTP.
 app.UseHttpsRedirection();
 app.UseAuthentication();
+
+// Una cookie emitida antes de suspender la clínica seguiría siendo válida hasta
+// su vencimiento. En cada navegación se comprueba el estado de la clínica y, si
+// ya no está activa, se cierra la sesión y se explica el motivo en /login.
+app.Use(async (context, next) =>
+{
+    var esNavegacion = context.Request.Headers.Accept
+        .Any(valor => valor?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
+
+    if (!esNavegacion || context.User.Identity?.IsAuthenticated != true)
+    {
+        await next();
+        return;
+    }
+
+    var clinicaIdClaim = context.User.FindFirst(ReclamacionesClinica.ClinicaId);
+    if (clinicaIdClaim is null || !int.TryParse(clinicaIdClaim.Value, out var clinicaId))
+    {
+        // El Dueño del sistema no pertenece a ninguna clínica.
+        await next();
+        return;
+    }
+
+    var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+    var clinicaActiva = await dbContext.Clinicas
+        .Where(clinica => clinica.Id == clinicaId)
+        .Select(clinica => clinica.Estado == EstadoClinica.Activa)
+        .FirstOrDefaultAsync(context.RequestAborted);
+
+    if (!clinicaActiva)
+    {
+        await context.SignOutAsync(IdentityConstants.ApplicationScheme);
+        context.Response.Redirect("/login?error=clinic");
+        return;
+    }
+
+    await next();
+});
+
 app.UseAuthorization();
 
 // El limitador va antes de UseStatusCodePagesWithReExecute: si estuviera dentro, la
@@ -365,9 +422,21 @@ app.UseStatusCodePagesWithReExecute("/404");
 app.MapStaticAssets().AllowAnonymous();
 app.UseAntiforgery();
 
-app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforgery, SignInManager<Usuario> signInManager, UserManager<Usuario> userManager) =>
+app.MapPost("/account/login", async (
+    HttpContext context,
+    IAntiforgery antiforgery,
+    SignInManager<Usuario> signInManager,
+    UserManager<Usuario> userManager,
+    ApplicationDbContext dbContext,
+    ILoggerFactory loggerFactory) =>
 {
-    await antiforgery.ValidateRequestAsync(context);
+    // Un token vencido no es un error del servidor: la página de login quedó
+    // obsoleta. Se devuelve al formulario con un aviso y un token nuevo.
+    if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
+    {
+        return Results.Redirect("/login?error=expired");
+    }
+
     var form = await context.Request.ReadFormAsync();
     var email = form["Email"].ToString().Trim();
     var password = form["Password"].ToString();
@@ -379,19 +448,42 @@ app.MapPost("/account/login", async (HttpContext context, IAntiforgery antiforge
         return Results.Redirect("/login?error=invalid");
     }
 
-    var result = await signInManager.PasswordSignInAsync(user, password, false, true);
-    if (result.Succeeded)
+    // Se validan las credenciales antes de revelar el estado de la clínica.
+    var result = await signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: true);
+    if (!result.Succeeded)
     {
-        return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
+        return Results.Redirect(result.IsLockedOut ? "/login?error=locked" : "/login?error=invalid");
     }
 
-    return Results.Redirect(result.IsLockedOut ? "/login?error=locked" : "/login?error=invalid");
+    if (user.ClinicaId is int clinicaId)
+    {
+        var estadoClinica = await dbContext.Clinicas
+            .Where(clinica => clinica.Id == clinicaId)
+            .Select(clinica => (EstadoClinica?)clinica.Estado)
+            .FirstOrDefaultAsync();
+
+        if (estadoClinica != EstadoClinica.Activa)
+        {
+            return Results.Redirect("/login?error=clinic");
+        }
+    }
+
+    await signInManager.SignInAsync(user, isPersistent: false);
+    return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
 }).AllowAnonymous().RequireRateLimiting("login");
 
 // Logout por POST: evita CSRF por GET (p. ej. <img src="/account/logout">).
-app.MapPost("/account/logout", async (HttpContext context, IAntiforgery antiforgery, SignInManager<Usuario> signInManager) =>
+app.MapPost("/account/logout", async (
+    HttpContext context,
+    IAntiforgery antiforgery,
+    SignInManager<Usuario> signInManager,
+    ILoggerFactory loggerFactory) =>
 {
-    await antiforgery.ValidateRequestAsync(context);
+    if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
+    {
+        return Results.Redirect("/login?error=expired");
+    }
+
     await signInManager.SignOutAsync();
     return Results.Redirect("/login");
 }).AllowAnonymous();
@@ -520,6 +612,29 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+static async Task<bool> AntiforgeryValidoAsync(
+    HttpContext context,
+    IAntiforgery antiforgery,
+    ILoggerFactory loggerFactory)
+{
+    try
+    {
+        await antiforgery.ValidateRequestAsync(context);
+        return true;
+    }
+    catch (AntiforgeryValidationException ex)
+    {
+        // Ocurre con formularios cacheados o abiertos antes de reiniciar la app.
+        // No es un fallo del servidor: se registra y se pide un formulario nuevo.
+        loggerFactory.CreateLogger("Antiforgery").LogWarning(
+            ex,
+            "Token antiforgery inválido en {Path}. Se redirige al formulario.",
+            context.Request.Path);
+
+        return false;
+    }
+}
 
 static bool CorrelationIdValido(string? valor) =>
     !string.IsNullOrEmpty(valor)
