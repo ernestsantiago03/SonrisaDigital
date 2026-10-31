@@ -126,6 +126,7 @@ public static class DependencyInjection
         services.AddScoped<ITenantProvider, TenantDesdeSesion>();
         services.AddScoped<IRolService, RolService>();
         services.AddScoped<IClinicaService, ClinicaService>();
+        services.AddScoped<IIdentidadClinicaService, IdentidadClinicaService>();
 
         services.AddAuthorization(options =>
         {

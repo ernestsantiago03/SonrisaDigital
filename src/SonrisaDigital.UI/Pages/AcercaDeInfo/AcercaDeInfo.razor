@@ -1,90 +1,223 @@
 ﻿@page "/acercaDe"
 @attribute [Authorize]
+@using SonrisaDigital.Services.Clinicas
+@inject IIdentidadClinicaService IdentidadService
 
 <PageTitle>Acerca de · Sonrisa Digital</PageTitle>
 
 <div class="appointments-page">
-    @* --- CABECERA DE LA PÁGINA --- *@
     <div class="page-header">
         <div>
             <h1>Información de la Empresa</h1>
             <p>Datos corporativos, institucionales y de contacto de la clínica.</p>
         </div>
+        <AuthorizeView Policy="AcercaDe.Editar">
+            <Authorized>
+                @if (!editando && identidad is not null)
+                {
+                    <button type="button" class="primary-action" @onclick="EmpezarEdicion">Editar</button>
+                }
+            </Authorized>
+        </AuthorizeView>
     </div>
 
-    @* --- PANEL 1: IDENTIDAD --- *@
-    <section class="form-panel">
-        <div class="section-heading">
-            <h2>Identidad Institucional</h2>
-            <span>Información general y eslogan de nuestra marca.</span>
-        </div>
+    @if (!string.IsNullOrWhiteSpace(mensaje))
+    {
+        <div class="feedback @(mensajeEsError ? "error" : "success")">@mensaje</div>
+    }
 
-        <div class="form-grid">
-            <div class="field">
-                <label>Nombre Comercial</label>
-                <input type="text" class="form-control-readonly" value="Sonrisa Digital, Clínica Dental" readonly />
+    @if (identidad is null)
+    {
+        <section class="form-panel">
+            <div class="section-heading">
+                <h2>Sin clínica seleccionada</h2>
+                <span>Tu sesión no tiene una clínica asociada. Si eres Dueño, elige una clínica en el selector del menú.</span>
             </div>
-
-            <div class="field">
-                <label>RNC / Identificación Fiscal</label>
-                <input type="text" class="form-control-readonly mono" value="123-456789-0" readonly />
+        </section>
+    }
+    else if (!editando)
+    {
+        <section class="form-panel">
+            <div class="section-heading">
+                <h2>Identidad Institucional</h2>
+                <span>Información general y eslogan de nuestra marca.</span>
             </div>
-
-            <div class="field field-wide">
-                <label>Eslogan corporativo</label>
-                <input type="text" class="form-control-readonly italic" value="&quot;Tu sonrisa en las mejores manos profesionales.&quot;" readonly />
+            <div class="form-grid">
+                <div class="field">
+                    <label>Nombre Comercial</label>
+                    <input type="text" class="form-control-readonly" value="@identidad.Nombre" readonly />
+                </div>
+                <div class="field">
+                    <label>RNC / Identificación Fiscal</label>
+                    <input type="text" class="form-control-readonly mono" value="@(identidad.Rnc ?? "—")" readonly />
+                </div>
+                <div class="field field-wide">
+                    <label>Eslogan corporativo</label>
+                    <input type="text" class="form-control-readonly italic" value="@(identidad.Eslogan ?? "—")" readonly />
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    @* --- PANEL 2: CONTACTO Y UBICACIÓN --- *@
-    <section class="form-panel">
-        <div class="section-heading">
-            <h2>Contacto y Ubicación</h2>
-            <span>Canales de atención al cliente y localización física.</span>
-        </div>
-
-        <div class="form-grid">
-            <div class="field">
-                <label>Teléfono Principal</label>
-                <input type="text" class="form-control-readonly" value="809-555-5555" readonly />
+        <section class="form-panel">
+            <div class="section-heading">
+                <h2>Contacto y Ubicación</h2>
+                <span>Canales de atención al cliente y localización física.</span>
             </div>
-
-            <div class="field">
-                <label>Correo Electrónico</label>
-                <input type="text" class="form-control-readonly" value="contacto@sonrisadigital.com" readonly />
+            <div class="form-grid">
+                <div class="field">
+                    <label>Teléfono Principal</label>
+                    <input type="text" class="form-control-readonly" value="@(identidad.Telefono ?? "—")" readonly />
+                </div>
+                <div class="field">
+                    <label>Correo Electrónico</label>
+                    <input type="text" class="form-control-readonly" value="@(identidad.Correo ?? "—")" readonly />
+                </div>
+                <div class="field">
+                    <label>Horario de Atención</label>
+                    <input type="text" class="form-control-readonly" value="@(identidad.Horario ?? "—")" readonly />
+                </div>
+                <div class="field field-wide">
+                    <label>Dirección Física</label>
+                    <input type="text" class="form-control-readonly" value="@(identidad.Direccion ?? "—")" readonly />
+                </div>
             </div>
+        </section>
+    }
+    else
+    {
+        <EditForm Model="formulario" OnValidSubmit="GuardarAsync">
+            <DataAnnotationsValidator />
 
-            <div class="field">
-                <label>Horario de Atención</label>
-                <input type="text" class="form-control-readonly" value="Lunes a Viernes: 8:00 AM - 6:00 PM " readonly />
-            </div>
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Identidad Institucional</h2>
+                    <span>Estos datos se muestran a todo el personal de la clínica.</span>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="acerca-nombre">Nombre Comercial</label>
+                        <InputText id="acerca-nombre" class="form-control" @bind-Value="formulario.Nombre" />
+                        <ValidationMessage For="@(() => formulario.Nombre)" />
+                    </div>
+                    <div class="field">
+                        <label for="acerca-rnc">RNC / Identificación Fiscal</label>
+                        <InputText id="acerca-rnc" class="form-control" @bind-Value="formulario.Rnc" />
+                        <ValidationMessage For="@(() => formulario.Rnc)" />
+                    </div>
+                    <div class="field field-wide">
+                        <label for="acerca-eslogan">Eslogan corporativo</label>
+                        <InputText id="acerca-eslogan" class="form-control" @bind-Value="formulario.Eslogan" />
+                        <ValidationMessage For="@(() => formulario.Eslogan)" />
+                    </div>
+                </div>
+            </section>
 
-            <div class="field field-wide">
-                <label>Dirección Física</label>
-                <input type="text" class="form-control-readonly" value="Av. Pedro A. Rivera, Plaza Comercial, Sonrisa Digital, 2do Nivel, La Vega, República Dominicana." readonly />
+            <section class="form-panel">
+                <div class="section-heading">
+                    <h2>Contacto y Ubicación</h2>
+                    <span>Canales de atención al cliente y localización física.</span>
+                </div>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="acerca-telefono">Teléfono Principal</label>
+                        <InputText id="acerca-telefono" class="form-control" @bind-Value="formulario.Telefono" />
+                        <ValidationMessage For="@(() => formulario.Telefono)" />
+                    </div>
+                    <div class="field">
+                        <label for="acerca-correo">Correo Electrónico</label>
+                        <InputText id="acerca-correo" class="form-control" @bind-Value="formulario.Correo" />
+                        <ValidationMessage For="@(() => formulario.Correo)" />
+                    </div>
+                    <div class="field">
+                        <label for="acerca-horario">Horario de Atención</label>
+                        <InputText id="acerca-horario" class="form-control" @bind-Value="formulario.Horario" />
+                        <ValidationMessage For="@(() => formulario.Horario)" />
+                    </div>
+                    <div class="field field-wide">
+                        <label for="acerca-direccion">Dirección Física</label>
+                        <InputText id="acerca-direccion" class="form-control" @bind-Value="formulario.Direccion" />
+                        <ValidationMessage For="@(() => formulario.Direccion)" />
+                    </div>
+                </div>
+            </section>
+
+            <div style="margin-top: 16px; display: flex; gap: 10px;">
+                <button type="submit" class="primary-action">Guardar cambios</button>
+                <button type="button" class="secondary-action" @onclick="CancelarEdicion">Cancelar</button>
             </div>
-        </div>
-    </section>
+        </EditForm>
+    }
 </div>
 
-@* --- ESTILOS LOCALES EXACTOS PARA CAMPO DE SOLO LECTURA --- *@
+@code {
+    private IdentidadClinicaDto? identidad;
+    private IdentidadClinicaFormDto formulario = new();
+    private bool editando;
+    private string? mensaje;
+    private bool mensajeEsError;
+
+    protected override async Task OnInitializedAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        identidad = await IdentidadService.ObtenerAsync();
+    }
+
+    private void EmpezarEdicion()
+    {
+        formulario = new IdentidadClinicaFormDto
+        {
+            Nombre = identidad!.Nombre,
+            Rnc = identidad.Rnc,
+            Eslogan = identidad.Eslogan,
+            Telefono = identidad.Telefono,
+            Correo = identidad.Correo,
+            Horario = identidad.Horario,
+            Direccion = identidad.Direccion
+        };
+        editando = true;
+        mensaje = null;
+    }
+
+    private void CancelarEdicion()
+    {
+        editando = false;
+        mensaje = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        try
+        {
+            await IdentidadService.ActualizarAsync(formulario);
+            editando = false;
+            mensaje = "La información de la clínica se guardó correctamente.";
+            mensajeEsError = false;
+            await CargarAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            mensaje = ex.Message;
+            mensajeEsError = true;
+        }
+    }
+}
+
+@* --- ESTILOS LOCALES PARA CAMPO DE SOLO LECTURA --- *@
 <style>
-    /* Esto imita perfectamente el borde, tamaño y fuente de los inputs de Sonrisa Digital, pero bloqueado */
     .form-control-readonly {
         width: 100%;
         padding: 10px 14px;
-        background-color: #f8fafc; /* Fondo gris sutil de campo deshabilitado */
-        border: 1px solid #e2e8f0; /* Borde idéntico al de tus formularios */
-        border-radius: 6px; /* Curvatura de esquina del sistema */
-        color: #334155; /* Color de texto oscuro para lectura */
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        color: #334155;
         font-size: 0.95rem;
         font-family: inherit;
         outline: none;
         cursor: default;
     }
 
-        /* Variaciones de estilo internas */
         .form-control-readonly.mono {
             font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
         }
