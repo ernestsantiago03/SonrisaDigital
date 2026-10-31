@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.Autenticacion
 @using SonrisaDigital.Services.Autorizacion
@@ -151,7 +152,14 @@
 
     <div class="app-main">
         <main class="app-content">
-            @Body
+            @if (contenidoListo)
+            {
+                @Body
+            }
+            else
+            {
+                <div class="table-state">Cargando...</div>
+            }
         </main>
     </div>
 </div>
@@ -195,13 +203,23 @@
     [Inject]
     private ICurrentUserService CurrentUserService { get; set; } = null!;
 
+    // Servicio con su propio DbContext: la página que carga usa el del circuito y no admite consultas a la vez.
     [Inject]
-    private IClinicaService ClinicaService { get; set; } = null!;
+    private ISelectorClinicasService SelectorClinicas { get; set; } = null!;
 
     [Inject]
     private IAuditoriaService AuditoriaService { get; set; } = null!;
 
+    // La elección del Dueño se conserva al recargar la página, pero solo en esta
+    // pestaña del navegador (sessionStorage), como pide el plan multiclínica.
+    [Inject]
+    private ProtectedSessionStorage SessionStorage { get; set; } = null!;
+
+    private const string ClaveClinicaSeleccionada = "sonrisadigital.clinica-seleccionada";
+
     private IReadOnlyList<ClinicaListItemDto> clinicas = [];
+    private bool contenidoListo;
+    private bool seleccionRestaurada;
 
     private bool EsDueno => CurrentUser.IsInRole(RolesSonrisaDigital.Dueno);
 
@@ -209,6 +227,22 @@
     {
         var seleccion = int.TryParse(args.Value?.ToString(), out var id) ? id : (int?)null;
         CurrentUserService.SeleccionarClinica(seleccion);
+
+        try
+        {
+            if (seleccion is int guardada)
+            {
+                await SessionStorage.SetAsync(ClaveClinicaSeleccionada, guardada);
+            }
+            else
+            {
+                await SessionStorage.DeleteAsync(ClaveClinicaSeleccionada);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSDisconnectedException)
+        {
+            // Sin almacenamiento del navegador la selección sigue viva en el circuito.
+        }
 
         if (seleccion is int clinicaId)
         {
@@ -219,11 +253,47 @@
         Navigation.NavigateTo("/");
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // El contenido no se renderiza hasta restaurar la clínica elegida: así la
+        // página que se abre no consulta datos sin clínica y no muestra un error.
+        if (!firstRender || seleccionRestaurada)
+        {
+            return;
+        }
+
+        seleccionRestaurada = true;
+
+        if (EsDueno)
+        {
+            try
+            {
+                var guardada = await SessionStorage.GetAsync<int>(ClaveClinicaSeleccionada);
+                if (guardada.Success && clinicas.Any(clinica => clinica.Id == guardada.Value))
+                {
+                    CurrentUserService.SeleccionarClinica(guardada.Value);
+                }
+                else if (guardada.Success)
+                {
+                    // La clínica guardada ya no existe: se descarta.
+                    await SessionStorage.DeleteAsync(ClaveClinicaSeleccionada);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or JSDisconnectedException)
+            {
+                // Sin almacenamiento disponible se empieza sin clínica seleccionada.
+            }
+        }
+
+        contenidoListo = true;
+        StateHasChanged();
+    }
+
     private async Task<IReadOnlyList<ClinicaListItemDto>> CargarClinicasAsync()
     {
         try
         {
-            return await ClinicaService.ListarAsync();
+            return await SelectorClinicas.ListarAsync();
         }
         catch (UnauthorizedAccessException)
         {
@@ -251,6 +321,7 @@
             UserRole = "Sin rol";
             UserInitials = "US";
             CurrentUserService.Establecer(null, null, null);
+            contenidoListo = true;
             return;
         }
 
@@ -270,6 +341,13 @@
         CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName, user);
 
         clinicas = EsDueno ? await CargarClinicasAsync() : [];
+
+        // El Dueño espera a que OnAfterRender restaure la clínica elegida antes
+        // de renderizar la página. Los demás usuarios no dependen del selector.
+        if (!EsDueno)
+        {
+            contenidoListo = true;
+        }
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;

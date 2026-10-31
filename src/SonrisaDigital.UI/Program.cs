@@ -154,6 +154,12 @@ builder.Services.AddRazorComponents()
 
 // Rate limiting: limita intentos de login por IP. Cada IP tiene su propio contador;
 // un limitador global dejaría a toda la clínica sin poder entrar tras 5 intentos fallidos.
+// El límite se puede elevar solo para las pruebas E2E, que inician sesión varias
+// veces desde la misma IP. En producción queda en 5 por minuto si no se configura.
+var loginPermitLimit = builder.Configuration.GetValue<int?>("Authentication:LoginPermitLimit") is int configurado && configurado > 0
+    ? configurado
+    : 5;
+
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("login", context =>
@@ -161,7 +167,7 @@ builder.Services.AddRateLimiter(options =>
             context.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
+                PermitLimit = loginPermitLimit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0

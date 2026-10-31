@@ -57,6 +57,10 @@ $cadenaPrueba = $constructor.ConnectionString
 $correoAdmin = 'e2e.admin@sonrisadigital.test'
 $claveAdmin = "E2E_$([Guid]::NewGuid().ToString('N').Substring(0, 12))!aA1"
 
+# Cuenta de Dueño temporal para probar el selector de clínica y el aislamiento.
+$correoDueno = 'e2e.dueno@sonrisadigital.test'
+$claveDueno = "E2E_$([Guid]::NewGuid().ToString('N').Substring(0, 12))!aA1"
+
 # Se elige un puerto libre para no chocar con una instancia abierta.
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
 $listener.Start()
@@ -75,9 +79,14 @@ $variables = @(
     'ConnectionStrings__DefaultConnection',
     'Authentication__AdminEmail',
     'Authentication__AdminPassword',
+    'Authentication__LoginPermitLimit',
+    'Dueno__Email',
+    'Dueno__Password',
     'SONRISADIGITAL_E2E_BASE_URL',
     'SONRISADIGITAL_E2E_EMAIL',
-    'SONRISADIGITAL_E2E_PASSWORD'
+    'SONRISADIGITAL_E2E_PASSWORD',
+    'SONRISADIGITAL_E2E_DUENO_EMAIL',
+    'SONRISADIGITAL_E2E_DUENO_PASSWORD'
 )
 $valoresOriginales = @{}
 foreach ($nombre in $variables) {
@@ -106,6 +115,10 @@ try {
     $env:ConnectionStrings__DefaultConnection = $cadenaPrueba
     $env:Authentication__AdminEmail = $correoAdmin
     $env:Authentication__AdminPassword = $claveAdmin
+    # La suite inicia sesión más de 5 veces desde localhost en menos de un minuto.
+    $env:Authentication__LoginPermitLimit = '50'
+    $env:Dueno__Email = $correoDueno
+    $env:Dueno__Password = $claveDueno
 
     $procesoApp = Start-Process `
         -FilePath 'dotnet' `
@@ -146,6 +159,8 @@ try {
     $env:SONRISADIGITAL_E2E_BASE_URL = $urlBase
     $env:SONRISADIGITAL_E2E_EMAIL = $correoAdmin
     $env:SONRISADIGITAL_E2E_PASSWORD = $claveAdmin
+    $env:SONRISADIGITAL_E2E_DUENO_EMAIL = $correoDueno
+    $env:SONRISADIGITAL_E2E_DUENO_PASSWORD = $claveDueno
 
     Push-Location $e2eDir
     try {
