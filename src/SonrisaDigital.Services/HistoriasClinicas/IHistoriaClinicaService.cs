@@ -44,17 +44,14 @@ public interface IHistoriaClinicaService
     /// Registra una consulta clínica del paciente. Si el paciente todavía no tenía historia
     /// clínica, la crea (la consulta es un dato clínico que la necesita) y deja el movimiento
     /// anotado en la auditoría. El acceso lo decide el permiso del rol (HistoriaClinica.Crear);
-    /// la firma debe corresponder al odontólogo vinculado al usuario, salvo que un administrador
-    /// sin perfil elija un odontólogo activo.
+    /// el odontólogo que atendió se elige en la ventana.
     /// </summary>
     Task CreateConsultaAsync(ConsultaClinicaFormDto model, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Completa o corrige una consulta que todavía está Abierta (por ejemplo la que se creó
-    /// automáticamente al atender una cita, a la que le falta el diagnóstico). Un odontólogo
-    /// solo puede modificar sus propias consultas; un administrador sin perfil puede corregir
-    /// cualquiera. Una consulta cerrada es de solo lectura y no se puede modificar. Deja el
-    /// cambio en la auditoría.
+    /// automáticamente al atender una cita, a la que le falta el diagnóstico). Una consulta
+    /// cerrada es de solo lectura y no se puede modificar. Deja el cambio en la auditoría.
     /// </summary>
     Task UpdateConsultaAsync(ConsultaClinicaFormDto model, CancellationToken cancellationToken = default);
 
@@ -67,10 +64,8 @@ public interface IHistoriaClinicaService
     Task<int> RegistrarConsultaDeCitaAsync(Cita cita, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Cierra una consulta clínica (pasa de Abierta a Cerrada) después de comprobar que tenga
-    /// diagnóstico y plan de tratamiento. Un odontólogo solo puede cerrar sus propias consultas;
-    /// un administrador sin perfil puede cerrar cualquiera. Una vez cerrada queda de solo lectura.
-    /// Deja el cambio anotado en la auditoría.
+    /// Cierra una consulta clínica (pasa de Abierta a Cerrada). Una vez cerrada queda de solo
+    /// lectura. Deja el cambio anotado en la auditoría.
     /// </summary>
     Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default);
 }

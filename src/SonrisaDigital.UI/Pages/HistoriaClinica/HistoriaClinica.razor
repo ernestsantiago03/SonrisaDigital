@@ -475,19 +475,12 @@
                     <h2>Consultas clínicas</h2>
                     <div class="heading-actions">
                         <span class="section-meta">@model.Consultas.Count @(model.Consultas.Count == 1 ? "consulta" : "consultas")</span>
-                        @if (PuedeCrearConsulta)
+                        @if (canCreateConsulta)
                         {
                             <button type="button" class="primary-action" @onclick="AbrirModalConsulta">+ Nueva consulta</button>
                         }
                     </div>
                 </div>
-
-                @if (!PuedeFirmarConsulta && (canEdit || canCreateConsulta))
-                {
-                    <div class="read-only-note">
-                        Tu usuario no tiene un perfil de odontólogo vinculado. Un administrador debe vincularlo para registrar, completar o cerrar consultas.
-                    </div>
-                }
 
                 @if (model.Consultas.Count == 0)
                 {
@@ -537,22 +530,29 @@
                                     }
 
                                     @* Acciones de una consulta que sigue abierta (una cerrada ya es de
-                                       solo lectura). Completar y cerrar exigen HistoriaClinica.Editar:
-                                       cerrar también modifica información clínica. Un odontólogo solo
-                                       puede actuar sobre sus propias consultas; un administrador sin
-                                       perfil puede hacerlo sobre cualquiera. *@
-                                    @if (consulta.Estado == EstadoConsulta.Abierta && PuedeModificarConsulta(consulta))
+                                       solo lectura):
+                                        - "Completar consulta" → permiso HistoriaClinica.Editar (modificar
+                                          información clínica: aquí se termina el diagnóstico y el plan).
+                                        - "Cerrar consulta"    → permiso HistoriaClinica.Crear (es parte del
+                                          registro de la consulta). *@
+                                    @if (consulta.Estado == EstadoConsulta.Abierta && (canEdit || canCreateConsulta))
                                     {
                                         <div class="consultation-actions">
-                                            <button type="button" class="secondary-action"
-                                                    @onclick="() => AbrirModalConsultaParaCompletar(consulta)">
-                                                Completar consulta
-                                            </button>
-                                            <button type="button" class="secondary-action"
-                                                    @onclick="() => CerrarConsultaAsync(consulta.Id)"
-                                                    disabled="@cerrandoConsulta">
-                                                Cerrar consulta
-                                            </button>
+                                            @if (canEdit)
+                                            {
+                                                <button type="button" class="secondary-action"
+                                                        @onclick="() => AbrirModalConsultaParaCompletar(consulta)">
+                                                    Completar consulta
+                                                </button>
+                                            }
+                                            @if (canCreateConsulta)
+                                            {
+                                                <button type="button" class="secondary-action"
+                                                        @onclick="() => CerrarConsultaAsync(consulta.Id)"
+                                                        disabled="@cerrandoConsulta">
+                                                    Cerrar consulta
+                                                </button>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -584,25 +584,14 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label class="form-label" for="consulta-odontologo">Odontólogo tratante</label>
-                        @if (odontologoVinculadoId.HasValue)
-                        {
-                            <input id="consulta-odontologo"
-                                   class="form-control"
-                                   value="@NombreOdontologoVinculado"
-                                   readonly />
-                            <p class="form-hint">La consulta se firma con el odontólogo vinculado a tu usuario.</p>
-                        }
-                        else
-                        {
-                            <select id="consulta-odontologo" class="form-control" @bind="consultaForm.OdontologoId">
-                                <option value="0">Selecciona un odontólogo…</option>
-                                @foreach (var odontologo in odontologos)
-                                {
-                                    <option value="@odontologo.Id">@odontologo.Nombre</option>
-                                }
-                            </select>
-                            <ValidationMessage For="@(() => consultaForm.OdontologoId)" />
-                        }
+                        <select id="consulta-odontologo" class="form-control" @bind="consultaForm.OdontologoId">
+                            <option value="0">Selecciona un odontólogo…</option>
+                            @foreach (var odontologo in odontologos)
+                            {
+                                <option value="@odontologo.Id">@odontologo.Nombre</option>
+                            }
+                        </select>
+                        <ValidationMessage For="@(() => consultaForm.OdontologoId)" />
                     </div>
 
                     <div class="form-group">
@@ -666,9 +655,7 @@
     private bool loading = true;                                          // ¿la página sigue cargando?
     private bool saving;                                                  // ¿se está guardando?
     private bool canEdit;                                                 // ¿puede modificar datos clínicos? (permiso HistoriaClinica.Editar)
-    private bool canCreateConsulta;                                       // ¿puede registrar consultas? (permiso HistoriaClinica.Crear)
-    private bool esAdministrador;                                         // ¿puede supervisar consultas sin perfil de odontólogo?
-    private int? odontologoVinculadoId;                                   // odontólogo que firma las consultas del usuario
+    private bool canCreateConsulta;                                       // ¿puede registrar/cerrar consultas? (permiso HistoriaClinica.Crear)
     private bool datosInicialesCargados;                                  // para validar los permisos una sola vez
     private string tabActiva = "general";                                 // pestaña visible ahora mismo
     private string? seccionEditando;                                      // sección abierta para editar (null = todo en modo detalle)
@@ -697,30 +684,6 @@
 
     /// <summary>¿Hay alguna sección abierta para editar? (si no, todo se ve en modo detalle)</summary>
     private bool EditandoAlgunaSeccion => seccionEditando is not null;
-
-    /// <summary>
-    /// ¿El usuario puede firmar consultas? Un odontólogo vinculado siempre puede; un
-    /// administrador sin perfil puede elegir un firmante de la lista.
-    /// </summary>
-    private bool PuedeFirmarConsulta => odontologoVinculadoId.HasValue || esAdministrador;
-
-    /// <summary>¿Se muestra el botón "+ Nueva consulta"?</summary>
-    private bool PuedeCrearConsulta => canCreateConsulta && PuedeFirmarConsulta;
-
-    /// <summary>
-    /// ¿Puede completar o cerrar esta consulta? Si el usuario tiene odontólogo vinculado,
-    /// solo puede actuar sobre las consultas que firmó él; un administrador sin perfil
-    /// puede supervisar cualquiera. Completar y cerrar exigen HistoriaClinica.Editar.
-    /// </summary>
-    private bool PuedeModificarConsulta(ConsultaClinicaItemDto consulta) =>
-        canEdit && (odontologoVinculadoId.HasValue
-            ? odontologoVinculadoId == consulta.OdontologoId
-            : esAdministrador);
-
-    /// <summary>Nombre del odontólogo vinculado para mostrarlo como firma fija.</summary>
-    private string NombreOdontologoVinculado =>
-        odontologos.FirstOrDefault(odontologo => odontologo.Id == odontologoVinculadoId)?.Nombre
-        ?? "Odontólogo vinculado";
 
     /// <summary>
     /// Edad del paciente en años completos, calculada a partir de su fecha de nacimiento.
@@ -765,34 +728,18 @@
             try
             {
                 // Se le pregunta al sistema quién está conectado y qué permisos tiene su rol:
-                //  - "HistoriaClinica.Editar" → puede guardar los antecedentes clínicos,
-                //    completar una consulta abierta y cerrarla.
-                //  - "HistoriaClinica.Crear"  → puede registrar consultas.
-                // También se guarda el id del usuario y su rol para resolver la firma.
+                //  - "HistoriaClinica.Editar" → puede guardar los antecedentes clínicos y
+                //    completar una consulta que siga abierta.
+                //  - "HistoriaClinica.Crear"  → puede registrar y cerrar consultas.
+                // También se guarda el id del usuario, para preseleccionar al odontólogo cuando
+                // el propio usuario es un odontólogo.
                 var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
                 var usuario = authenticationState.User;
 
                 canEdit = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Editar");
-                // El permiso del rol es lo que da acceso a registrar consultas.
+                // El permiso del rol es lo que da acceso a registrar y cerrar consultas.
                 canCreateConsulta = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Crear");
-                esAdministrador = usuario.IsInRole(RolesSonrisaDigital.Administrador);
                 usuarioId = usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-                // El odontólogo vinculado es la firma de la sesión. Se consulta una sola vez
-                // para que la pantalla no ofrezca acciones que el servicio va a rechazar.
-                if (!string.IsNullOrWhiteSpace(usuarioId))
-                {
-                    try
-                    {
-                        odontologoVinculadoId = await HistoriaService.GetOdontologoVinculadoAsync(usuarioId);
-                    }
-                    catch (Exception)
-                    {
-                        // Si no se puede resolver la firma, la pantalla queda sin acciones
-                        // clínicas; el servicio seguirá denegando por seguridad.
-                        odontologoVinculadoId = null;
-                    }
-                }
             }
             catch (Exception)
             {
@@ -1069,11 +1016,10 @@
         // odontólogo de la sesión: se respeta el que ya tenía la consulta.
         await PrepararVentanaConsultaAsync(preseleccionarVinculado: false);
 
-        // Paso 3: si el odontólogo que firmó la consulta ya no está activo y el usuario es un
-        // administrador sin perfil, se deja el desplegable sin elegir para que escoja uno
-        // actual. Si hay un odontólogo vinculado, la firma se conserva y el servicio decide.
-        if (!odontologoVinculadoId.HasValue
-            && odontologos.All(odontologo => odontologo.Id != consultaForm.OdontologoId))
+        // Paso 3: si el odontólogo que firmó la consulta ya no está activo, no aparece en la
+        // lista; en ese caso se deja el desplegable sin elegir (así lo que se ve en pantalla y
+        // el valor del formulario coinciden) y el usuario escoge al profesional actual.
+        if (odontologos.All(odontologo => odontologo.Id != consultaForm.OdontologoId))
         {
             consultaForm.OdontologoId = 0;
         }
@@ -1098,19 +1044,12 @@
                 odontologos = [.. await HistoriaService.GetOdontologosAsync()];
             }
 
-            // Paso 2: la firma no se elige libremente. Si el usuario tiene un odontólogo
-            // vinculado, se usa siempre ese; solo un administrador sin perfil ve la lista.
-            if (odontologoVinculadoId.HasValue)
+            // Paso 2: si el usuario de la sesión es odontólogo, dejarlo ya elegido.
+            if (preseleccionarVinculado && !string.IsNullOrWhiteSpace(usuarioId))
             {
-                consultaForm.OdontologoId = odontologoVinculadoId.Value;
-            }
-            else if (preseleccionarVinculado && !string.IsNullOrWhiteSpace(usuarioId))
-            {
-                // Respaldo por si la vinculación no se pudo cargar al abrir la página.
                 var vinculado = await HistoriaService.GetOdontologoVinculadoAsync(usuarioId);
                 if (vinculado.HasValue && odontologos.Any(odontologo => odontologo.Id == vinculado.Value))
                 {
-                    odontologoVinculadoId = vinculado.Value;
                     consultaForm.OdontologoId = vinculado.Value;
                 }
             }
