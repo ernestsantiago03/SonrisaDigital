@@ -147,7 +147,20 @@ public sealed class HistoriaClinicaService(
                     consulta.PlanTratamiento,
                     consulta.Observaciones,
                     consulta.CitaId,
-                    consulta.Estado))
+                    consulta.Estado,
+                    consulta.PlanTratamientoItems
+                        .OrderBy(item => item.Id)
+                        .Select(item => new PlanTratamientoItemDto(
+                            item.Id,
+                            item.TratamientoId,
+                            item.Tratamiento.Nombre,
+                            item.PiezaDentalId,
+                            item.PiezaDental is null ? null : $"{item.PiezaDental.NumeroFDI} — {item.PiezaDental.Nombre}",
+                            item.Precio,
+                            item.Observaciones,
+                            item.Estado,
+                            item.TratamientoRealizadoId))
+                        .ToList()))
                 .ToList()
         };
     }
@@ -484,10 +497,14 @@ public sealed class HistoriaClinicaService(
                 "Completa el diagnóstico antes de cerrar la consulta.");
         }
 
-        if (string.IsNullOrWhiteSpace(consulta.PlanTratamiento))
+        // El plan se compone de tratamientos del catálogo (ítems no cancelados) y/o una nota.
+        var tieneTratamientosEnPlan = consulta.PlanTratamientoItems
+            .Any(item => item.Estado != EstadoPlanTratamiento.Cancelado);
+
+        if (!tieneTratamientosEnPlan && string.IsNullOrWhiteSpace(consulta.PlanTratamiento))
         {
             throw new InvalidOperationException(
-                "Completa el plan de tratamiento antes de cerrar la consulta.");
+                "Agrega al menos un tratamiento al plan o escribe una nota del plan antes de cerrar la consulta.");
         }
 
         // Paso 5: cambiar el estado y guardar.
@@ -501,6 +518,128 @@ public sealed class HistoriaClinicaService(
             nameof(ConsultaClinica),
             consulta.Id,
             "Cerró una consulta clínica.",
+            cancellationToken);
+    }
+
+    // =========================================================================================
+    // 4b) PLAN DE TRATAMIENTO  →  tratamientos propuestos dentro de una consulta abierta
+    // =========================================================================================
+
+    /// <summary>
+    /// Tratamientos del catálogo activos para proponerlos en el plan de una consulta.
+    /// </summary>
+    public async Task<IReadOnlyList<TratamientoPlanOptionDto>> GetTratamientosPlanAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
+
+        var tratamientos = await repository.GetTratamientosActivosAsync(cancellationToken);
+        return tratamientos
+            .Select(treatment => new TratamientoPlanOptionDto(treatment.Id, treatment.Nombre, treatment.PrecioBase))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Piezas dentales para indicar en un ítem del plan.
+    /// </summary>
+    public async Task<IReadOnlyList<PiezaPlanOptionDto>> GetPiezasPlanAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Ver", "No tienes permiso para consultar historias clínicas.");
+
+        var piezas = await repository.GetPiezasAsync(cancellationToken);
+        return piezas
+            .Select(tooth => new PiezaPlanOptionDto(tooth.Id, tooth.NumeroFDI, tooth.Nombre))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Agrega un tratamiento del catálogo al plan de una consulta abierta. Queda Pendiente: no
+    /// genera cobros hasta que se asigna como tratamiento realizado desde el módulo de Tratamientos.
+    /// </summary>
+    public async Task AgregarPlanItemAsync(
+        PlanTratamientoItemFormDto model,
+        CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
+        ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
+
+        var consulta = await repository.GetConsultaAsync(model.ConsultaId, cancellationToken)
+            ?? throw new InvalidOperationException("La consulta no existe.");
+
+        if (consulta.Estado != EstadoConsulta.Abierta)
+        {
+            throw new InvalidOperationException("Una consulta cerrada ya no se puede modificar.");
+        }
+
+        await ValidarFirmanteDeConsultaAsync(consulta, cancellationToken);
+
+        var tratamiento = await repository.GetTratamientoActivoAsync(model.TratamientoId, cancellationToken)
+            ?? throw new InvalidOperationException("El tratamiento seleccionado no existe o está inactivo.");
+
+        if (model.PiezaDentalId is int piezaId && await repository.GetPiezaAsync(piezaId, cancellationToken) is null)
+        {
+            throw new InvalidOperationException("La pieza dental seleccionada no existe.");
+        }
+
+        var item = new PlanTratamientoItem
+        {
+            ConsultaId = consulta.Id,
+            TratamientoId = tratamiento.Id,
+            PiezaDentalId = model.PiezaDentalId,
+            Precio = model.Precio,
+            Observaciones = Normalize(model.Observaciones),
+            Estado = EstadoPlanTratamiento.Pendiente
+        };
+
+        await repository.AddPlanItemAsync(item, cancellationToken);
+        await repository.SaveChangesAsync(cancellationToken);
+
+        var paciente = await repository.GetPatientAsync(consulta.PacienteId, cancellationToken);
+        var nombrePaciente = paciente is null
+            ? "paciente"
+            : $"{paciente.Nombres} {paciente.Apellidos}".Trim();
+
+        await auditoriaService.RegistrarAsync(
+            "Agregó",
+            "Historia Clínica",
+            nameof(PlanTratamientoItem),
+            item.Id,
+            $"Agregó '{tratamiento.Nombre}' al plan de tratamiento del paciente: {nombrePaciente}",
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Quita del plan un tratamiento que todavía está pendiente. Un ítem ya asignado no se quita
+    /// desde aquí: su tratamiento realizado se gestiona en el módulo de Tratamientos.
+    /// </summary>
+    public async Task CancelarPlanItemAsync(int itemId, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "HistoriaClinica.Editar", "No tienes permiso para editar información clínica.");
+
+        var item = await repository.GetPlanItemAsync(itemId, cancellationToken)
+            ?? throw new InvalidOperationException("El tratamiento del plan no existe.");
+
+        if (item.ConsultaClinica.Estado != EstadoConsulta.Abierta)
+        {
+            throw new InvalidOperationException("Una consulta cerrada ya no se puede modificar.");
+        }
+
+        await ValidarFirmanteDeConsultaAsync(item.ConsultaClinica, cancellationToken);
+
+        if (item.Estado != EstadoPlanTratamiento.Pendiente)
+        {
+            throw new InvalidOperationException("Solo se puede quitar del plan un tratamiento que todavía está pendiente.");
+        }
+
+        item.Estado = EstadoPlanTratamiento.Cancelado;
+        await repository.SaveChangesAsync(cancellationToken);
+
+        await auditoriaService.RegistrarAsync(
+            "Canceló",
+            "Historia Clínica",
+            nameof(PlanTratamientoItem),
+            item.Id,
+            "Quitó un tratamiento pendiente del plan de una consulta clínica.",
             cancellationToken);
     }
 

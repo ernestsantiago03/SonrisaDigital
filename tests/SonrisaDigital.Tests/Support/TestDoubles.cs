@@ -196,6 +196,18 @@ internal sealed class FakeHistoriaClinicaService : IHistoriaClinicaService
 
     public Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    public Task<IReadOnlyList<TratamientoPlanOptionDto>> GetTratamientosPlanAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<IReadOnlyList<PiezaPlanOptionDto>> GetPiezasPlanAsync(CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task AgregarPlanItemAsync(PlanTratamientoItemFormDto model, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task CancelarPlanItemAsync(int itemId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }
 
 /// <summary>

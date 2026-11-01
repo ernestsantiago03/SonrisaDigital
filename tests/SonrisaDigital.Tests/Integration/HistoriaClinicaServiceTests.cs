@@ -175,7 +175,7 @@ public sealed class HistoriaClinicaServiceTests(SqlServerFixture fixture)
         var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
             () => servicio.CerrarConsultaAsync(consulta.Id));
 
-        Assert.Contains("plan de tratamiento", excepcion.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("al menos un tratamiento al plan", excepcion.Message, StringComparison.OrdinalIgnoreCase);
         await AssertEstadoAsync(consulta.Id, EstadoConsulta.Abierta);
     }
 

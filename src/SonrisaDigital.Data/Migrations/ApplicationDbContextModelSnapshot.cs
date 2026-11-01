@@ -618,6 +618,64 @@ namespace SonrisaDigital.Data.Migrations
                     b.ToTable("PiezasDentales", (string)null);
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.PlanTratamientoItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ConsultaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("FechaRegistro")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("PiezaDentalId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Precio")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("TratamientoId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TratamientoRealizadoId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("ClinicaId", "Id");
+
+                    b.HasIndex("ClinicaId");
+
+                    b.HasIndex("PiezaDentalId");
+
+                    b.HasIndex("ClinicaId", "ConsultaId");
+
+                    b.HasIndex("ClinicaId", "TratamientoId");
+
+                    b.HasIndex("ClinicaId", "TratamientoRealizadoId");
+
+                    b.ToTable("PlanesTratamiento", (string)null);
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.RegistroAuditoria", b =>
                 {
                     b.Property<long>("Id")
@@ -1156,6 +1214,50 @@ namespace SonrisaDigital.Data.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.PlanTratamientoItem", b =>
+                {
+                    b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.PiezaDental", "PiezaDental")
+                        .WithMany()
+                        .HasForeignKey("PiezaDentalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SonrisaDigital.Data.Entities.ConsultaClinica", "ConsultaClinica")
+                        .WithMany("PlanTratamientoItems")
+                        .HasForeignKey("ClinicaId", "ConsultaId")
+                        .HasPrincipalKey("ClinicaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Tratamiento", "Tratamiento")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId", "TratamientoId")
+                        .HasPrincipalKey("ClinicaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.TratamientoRealizado", "TratamientoRealizado")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId", "TratamientoRealizadoId")
+                        .HasPrincipalKey("ClinicaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Clinica");
+
+                    b.Navigation("ConsultaClinica");
+
+                    b.Navigation("PiezaDental");
+
+                    b.Navigation("Tratamiento");
+
+                    b.Navigation("TratamientoRealizado");
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.RegistroAuditoria", b =>
                 {
                     b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
@@ -1317,6 +1419,8 @@ namespace SonrisaDigital.Data.Migrations
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.ConsultaClinica", b =>
                 {
+                    b.Navigation("PlanTratamientoItems");
+
                     b.Navigation("TratamientosRealizados");
                 });
 

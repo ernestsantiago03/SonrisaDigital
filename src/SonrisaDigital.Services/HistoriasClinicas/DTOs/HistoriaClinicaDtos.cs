@@ -74,7 +74,43 @@ public sealed record ConsultaClinicaItemDto(
     string? PlanTratamiento,
     string? Observaciones,
     int? CitaId,
-    EstadoConsulta Estado);
+    EstadoConsulta Estado,
+    IReadOnlyList<PlanTratamientoItemDto> Plan);
+
+/// <summary>Un tratamiento propuesto dentro del plan de una consulta.</summary>
+public sealed record PlanTratamientoItemDto(
+    int Id,
+    int TratamientoId,
+    string Tratamiento,
+    int? PiezaDentalId,
+    string? Pieza,
+    decimal Precio,
+    string? Observaciones,
+    EstadoPlanTratamiento Estado,
+    int? TratamientoRealizadoId);
+
+/// <summary>Datos para agregar un tratamiento al plan de una consulta abierta.</summary>
+public sealed class PlanTratamientoItemFormDto
+{
+    public int ConsultaId { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Selecciona un tratamiento del catálogo.")]
+    public int TratamientoId { get; set; }
+
+    public int? PiezaDentalId { get; set; }
+
+    [Range(0.01, 9999999.99, ErrorMessage = "El precio debe ser mayor que cero.")]
+    public decimal Precio { get; set; }
+
+    [StringLength(500, ErrorMessage = "Las observaciones no pueden superar los 500 caracteres.")]
+    public string? Observaciones { get; set; }
+}
+
+/// <summary>Tratamiento del catálogo que se puede proponer en un plan.</summary>
+public sealed record TratamientoPlanOptionDto(int Id, string Nombre, decimal PrecioBase);
+
+/// <summary>Pieza dental que se puede indicar en un plan.</summary>
+public sealed record PiezaPlanOptionDto(int Id, string NumeroFdi, string Nombre);
 
 /// <summary>
 /// Datos que el usuario escribe en la ventana "+ Nueva consulta": es lo que viaja de la
