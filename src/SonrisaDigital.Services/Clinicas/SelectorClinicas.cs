@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -27,11 +28,40 @@ public sealed class SelectorClinicasService(
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Clinicas.Ver", "No tienes permiso para consultar clínicas.");
 
         await using var db = new ApplicationDbContext(options, SinClinica.Instancia);
-        return await db.Clinicas
+        var hoy = ReglaSuscripcion.Hoy();
+        var clinicas = await db.Clinicas
             .AsNoTracking()
             .OrderBy(clinic => clinic.Nombre)
             .ThenBy(clinic => clinic.Id)
-            .Select(clinic => new ClinicaListItemDto(clinic.Id, clinic.Nombre, clinic.Codigo, clinic.Estado, clinic.FechaAlta))
+            .Select(clinic => new
+            {
+                clinic.Id,
+                clinic.Nombre,
+                clinic.Codigo,
+                clinic.Estado,
+                clinic.FechaAlta,
+                clinic.Plan,
+                clinic.EnPrueba,
+                clinic.FechaPrimerIngreso,
+                clinic.FechaVencimiento,
+                clinic.LimiteUsuarios
+            })
             .ToListAsync(cancellationToken);
+
+        return clinicas
+            .Select(clinic => new ClinicaListItemDto(
+                clinic.Id,
+                clinic.Nombre,
+                clinic.Codigo,
+                clinic.Estado,
+                clinic.FechaAlta,
+                clinic.Plan,
+                clinic.EnPrueba,
+                clinic.FechaVencimiento,
+                clinic.LimiteUsuarios,
+                ReglaSuscripcion.Evaluar(
+                    clinic.Estado, clinic.EnPrueba, clinic.FechaPrimerIngreso, clinic.FechaVencimiento, hoy),
+                ReglaSuscripcion.DiasRestantes(clinic.FechaVencimiento, hoy)))
+            .ToList();
     }
 }

@@ -81,6 +81,44 @@
 .avatar { width: 26px; height: 26px; display: grid; flex: 0 0 26px; place-items: center; border-radius: 50%; background: #2563eb; color: white; font-size: 10px; font-weight: 700; }
 .avatar-small { background: #475569; color: #e2e8f0; }
 .app-main { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+
+.suscripcion-aviso {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-bottom: 1px solid;
+    font-size: 12px;
+}
+
+.suscripcion-aviso strong {
+    flex: 0 0 auto;
+    font-size: 12px;
+}
+
+.suscripcion-aviso span {
+    opacity: .88;
+}
+
+.suscripcion-aviso.proximo {
+    border-color: #fde68a;
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.suscripcion-aviso.gracia {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+@media (max-width: 700px) {
+    .suscripcion-aviso {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+    }
+}
 .app-header { height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: white; border-bottom: 1px solid #e2e8f0; }
 .menu-button { display: none; border: 0; background: transparent; color: #64748b; font-size: 18px; cursor: pointer; }
 .header-title { color: #0f172a; font-size: 14px; font-weight: 600; }

@@ -15,4 +15,5 @@ public class Usuario : IdentityUser
     public Odontologo? Odontologo { get; set; }
     public ICollection<RegistroAuditoria> RegistrosAuditoria { get; set; } = [];
     public ICollection<Pago> Pagos { get; set; } = [];
+    public ICollection<PagoSuscripcion> PagosSuscripcionRegistrados { get; set; } = [];
 }

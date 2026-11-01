@@ -29,6 +29,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<Clinica> Clinicas => Set<Clinica>();
+    public DbSet<PagoSuscripcion> PagosSuscripcion => Set<PagoSuscripcion>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -93,6 +94,26 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(clinic => clinic.LogoUrl).HasMaxLength(300);
             entity.Property(clinic => clinic.Estado).HasConversion<string>().HasMaxLength(20);
             entity.Property(clinic => clinic.Plan).HasMaxLength(30);
+        });
+
+        modelBuilder.Entity<PagoSuscripcion>(entity =>
+        {
+            entity.ToTable("PagosSuscripcion");
+            entity.Property(payment => payment.Monto).HasPrecision(12, 2);
+            entity.Property(payment => payment.Moneda).HasMaxLength(3).IsRequired();
+            entity.Property(payment => payment.Metodo).HasConversion<string>().HasMaxLength(20);
+            entity.Property(payment => payment.Referencia).HasMaxLength(100);
+            entity.Property(payment => payment.Notas).HasMaxLength(500);
+            entity.Property(payment => payment.RegistradoPorId).HasMaxLength(450).IsRequired();
+            entity.HasOne(payment => payment.Clinica)
+                .WithMany(clinic => clinic.PagosSuscripcion)
+                .HasForeignKey(payment => payment.ClinicaId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(payment => payment.RegistradoPor)
+                .WithMany(user => user.PagosSuscripcionRegistrados)
+                .HasForeignKey(payment => payment.RegistradoPorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(payment => new { payment.ClinicaId, payment.FechaPago });
         });
 
         modelBuilder.Entity<Usuario>(entity =>

@@ -19,11 +19,16 @@ public class Clinica
     public EstadoClinica Estado { get; set; } = EstadoClinica.Activa;
     public DateTime FechaAlta { get; set; } = DateTime.UtcNow;
     public string? Plan { get; set; }
+
+    /// <summary>Fecha en que la clínica empieza a operar. La prueba de 30 días corre desde aquí.</summary>
+    public DateTime? FechaPrimerIngreso { get; set; }
+
     public DateTime? FechaVencimiento { get; set; }
     public bool EnPrueba { get; set; }
     public int LimiteUsuarios { get; set; }
 
     public ICollection<Usuario> Usuarios { get; set; } = [];
+    public ICollection<PagoSuscripcion> PagosSuscripcion { get; set; } = [];
 }
 
 public enum EstadoClinica

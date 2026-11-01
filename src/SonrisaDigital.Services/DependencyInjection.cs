@@ -25,6 +25,7 @@ using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Tratamientos;
+using SonrisaDigital.Services.Suscripciones;
 
 namespace SonrisaDigital.Services;
 
@@ -129,6 +130,9 @@ public static class DependencyInjection
         services.AddScoped<IClinicaService, ClinicaService>();
         services.AddScoped<IIdentidadClinicaService, IdentidadClinicaService>();
         services.AddScoped<ISelectorClinicasService, SelectorClinicasService>();
+        services.Configure<SuscripcionOptions>(configuration.GetSection(SuscripcionOptions.SectionName));
+        services.AddScoped<ISuscripcionService, SuscripcionService>();
+        services.AddScoped<ISuscripcionAvisoService, SuscripcionAvisoService>();
 
         services.AddAuthorization(options =>
         {

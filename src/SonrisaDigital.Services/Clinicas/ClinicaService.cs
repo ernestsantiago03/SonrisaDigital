@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -18,16 +19,50 @@ public sealed class ClinicaService(
 {
     private const string Modulo = "Clínicas";
 
+    // Una sola oferta mientras se valida el producto. La prueba no cobra y,
+    // al registrar el primer pago, el plan pasa a "Mensual".
+    private const string PlanPrueba = "Prueba";
+    private const int LimiteUsuariosInicial = 10;
+
     public async Task<IReadOnlyList<ClinicaListItemDto>> ListarAsync(CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Clinicas.Ver", "No tienes permiso para consultar clínicas.");
 
-        return await dbContext.Clinicas
+        var hoy = ReglaSuscripcion.Hoy();
+        var clinicas = await dbContext.Clinicas
             .AsNoTracking()
             .OrderBy(clinic => clinic.Nombre)
             .ThenBy(clinic => clinic.Id)
-            .Select(clinic => new ClinicaListItemDto(clinic.Id, clinic.Nombre, clinic.Codigo, clinic.Estado, clinic.FechaAlta))
+            .Select(clinic => new
+            {
+                clinic.Id,
+                clinic.Nombre,
+                clinic.Codigo,
+                clinic.Estado,
+                clinic.FechaAlta,
+                clinic.Plan,
+                clinic.EnPrueba,
+                clinic.FechaPrimerIngreso,
+                clinic.FechaVencimiento,
+                clinic.LimiteUsuarios
+            })
             .ToListAsync(cancellationToken);
+
+        return clinicas
+            .Select(clinic => new ClinicaListItemDto(
+                clinic.Id,
+                clinic.Nombre,
+                clinic.Codigo,
+                clinic.Estado,
+                clinic.FechaAlta,
+                clinic.Plan,
+                clinic.EnPrueba,
+                clinic.FechaVencimiento,
+                clinic.LimiteUsuarios,
+                ReglaSuscripcion.Evaluar(
+                    clinic.Estado, clinic.EnPrueba, clinic.FechaPrimerIngreso, clinic.FechaVencimiento, hoy),
+                ReglaSuscripcion.DiasRestantes(clinic.FechaVencimiento, hoy)))
+            .ToList();
     }
 
     public async Task<ClinicaFormDto?> ObtenerFormularioAsync(int id, CancellationToken cancellationToken = default)
@@ -74,7 +109,14 @@ public sealed class ClinicaService(
             Horario = Normalizar(model.Horario),
             Eslogan = Normalizar(model.Eslogan),
             Estado = EstadoClinica.Activa,
-            FechaAlta = DateTime.UtcNow
+            FechaAlta = DateTime.UtcNow,
+            // La prueba no empieza al crear la clínica sino en su primer ingreso.
+            // Mientras no haya fecha de vencimiento, la regla permite entrar.
+            Plan = PlanPrueba,
+            EnPrueba = true,
+            FechaPrimerIngreso = null,
+            FechaVencimiento = null,
+            LimiteUsuarios = LimiteUsuariosInicial
         };
 
         dbContext.Clinicas.Add(clinica);

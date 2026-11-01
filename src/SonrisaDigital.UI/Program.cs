@@ -11,6 +11,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using SonrisaDigital.Data;
+using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.UI.Services;
@@ -23,6 +24,7 @@ using SonrisaDigital.Services.Odontograma;
 using SonrisaDigital.Services.Archivos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Reportes.DTOs;
+using SonrisaDigital.Services.Suscripciones;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -388,15 +390,33 @@ app.Use(async (context, next) =>
     }
 
     var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
-    var clinicaActiva = await dbContext.Clinicas
-        .Where(clinica => clinica.Id == clinicaId)
-        .Select(clinica => clinica.Estado == EstadoClinica.Activa)
+    var clinica = await dbContext.Clinicas
+        .Where(item => item.Id == clinicaId)
+        .Select(item => new
+        {
+            item.Estado,
+            item.EnPrueba,
+            item.FechaPrimerIngreso,
+            item.FechaVencimiento
+        })
         .FirstOrDefaultAsync(context.RequestAborted);
 
-    if (!clinicaActiva)
+    // Una clínica inexistente se trata como suspendida: cierre por defecto.
+    var acceso = clinica is null
+        ? AccesoClinica.Suspendida
+        : ReglaSuscripcion.Evaluar(
+            clinica.Estado,
+            clinica.EnPrueba,
+            clinica.FechaPrimerIngreso,
+            clinica.FechaVencimiento,
+            ReglaSuscripcion.Hoy());
+
+    if (acceso is AccesoClinica.Suspendida or AccesoClinica.Vencida)
     {
         await context.SignOutAsync(IdentityConstants.ApplicationScheme);
-        context.Response.Redirect("/login?error=clinic");
+        context.Response.Redirect(acceso == AccesoClinica.Vencida
+            ? "/login?error=clinic-expired"
+            : "/login?error=clinic");
         return;
     }
 
@@ -459,13 +479,45 @@ app.MapPost("/account/login", async (
 
     if (user.ClinicaId is int clinicaId)
     {
-        var estadoClinica = await dbContext.Clinicas
-            .Where(clinica => clinica.Id == clinicaId)
-            .Select(clinica => (EstadoClinica?)clinica.Estado)
+        var clinica = await dbContext.Clinicas
+            .Where(item => item.Id == clinicaId)
+            .Select(item => new
+            {
+                item.Estado,
+                item.EnPrueba,
+                item.FechaPrimerIngreso,
+                item.FechaVencimiento
+            })
             .FirstOrDefaultAsync();
 
-        if (estadoClinica != EstadoClinica.Activa)
+        var acceso = clinica is null
+            ? AccesoClinica.Suspendida
+            : ReglaSuscripcion.Evaluar(
+                clinica.Estado,
+                clinica.EnPrueba,
+                clinica.FechaPrimerIngreso,
+                clinica.FechaVencimiento,
+                ReglaSuscripcion.Hoy());
+
+        if (acceso is AccesoClinica.Suspendida or AccesoClinica.Vencida)
         {
+            return Results.Redirect(acceso == AccesoClinica.Vencida
+                ? "/login?error=clinic-expired"
+                : "/login?error=clinic");
+        }
+
+        // La prueba de 30 días empieza con el primer ingreso, no al crear la clínica.
+        // Si no se puede guardar la fecha se niega el acceso: una prueba sin
+        // vencimiento dejaría a la clínica operando gratis de forma indefinida.
+        try
+        {
+            var suscripcionService = context.RequestServices.GetRequiredService<ISuscripcionService>();
+            await suscripcionService.IniciarPruebaSiCorrespondeAsync(clinicaId);
+        }
+        catch (Exception exception)
+        {
+            loggerFactory.CreateLogger("Login").LogError(
+                exception, "No se pudo iniciar la prueba de la clínica {ClinicaId}.", clinicaId);
             return Results.Redirect("/login?error=clinic");
         }
     }

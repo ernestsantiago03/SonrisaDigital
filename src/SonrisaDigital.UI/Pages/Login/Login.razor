@@ -60,6 +60,12 @@
                     El acceso de tu clínica está suspendido. Contacta al administrador del sistema.
                 </div>
             }
+            else if (Error == "clinic-expired")
+            {
+                <div class="login-error">
+                    La mensualidad de tu clínica venció. Contacta al administrador del sistema para reactivar el acceso.
+                </div>
+            }
             else if (Error == "expired")
             {
                 <div class="login-error">

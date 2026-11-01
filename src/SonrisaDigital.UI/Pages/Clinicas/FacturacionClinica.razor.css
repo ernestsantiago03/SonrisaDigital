@@ -1,0 +1,341 @@
+.facturacion-page {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-bottom: 12px;
+}
+
+.form-header {
+    position: relative;
+    margin-bottom: 18px;
+    padding: 18px 20px 17px 23px;
+    overflow: hidden;
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .035);
+}
+
+.form-header::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background: #2563eb;
+    content: "";
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 12px;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.back-link:hover { text-decoration: underline; }
+
+.page-eyebrow {
+    display: block;
+    margin-bottom: 5px;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.form-header h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 24px;
+    letter-spacing: -.02em;
+}
+
+.form-header p {
+    margin: 5px 0 0;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.feedback {
+    margin-bottom: 14px;
+    padding: 11px 13px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.feedback.error {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.feedback.success {
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+.resumen-panel {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    background: #e2e8f0;
+}
+
+.resumen-item {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+    padding: 13px 14px;
+    background: white;
+}
+
+.resumen-item span {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.resumen-item strong {
+    overflow: hidden;
+    color: #1e293b;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.acceso {
+    display: inline-block;
+    width: fit-content;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.acceso.ok { background: #f0fdf4; color: #15803d; }
+.acceso.gracia { background: #fffbeb; color: #b45309; }
+.acceso.vencida { background: #fef2f2; color: #b91c1c; }
+.acceso.suspendida { background: #f1f5f9; color: #475569; }
+
+.form-note {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1e40af;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.facturacion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.form-panel {
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid #dbe4ee;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .035);
+}
+
+.section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 15px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.section-heading > div {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.section-heading h2 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.section-heading > span {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.section-kicker {
+    display: grid;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    place-items: center;
+    border-radius: 4px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 18px;
+}
+
+.field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field-wide { grid-column: 1 / -1; }
+
+.field label {
+    color: #475569;
+    font-size: 11px;
+    font-weight: 650;
+}
+
+.field ::deep input,
+.field ::deep select {
+    width: 100%;
+    height: 38px;
+    padding: 0 11px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: white;
+    color: #1e293b;
+    font-size: 12px;
+}
+
+.field ::deep input:focus,
+.field ::deep select:focus {
+    border-color: #60a5fa;
+    outline: 2px solid #bfdbfe;
+    outline-offset: 0;
+}
+
+.field-help {
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+.field ::deep .validation-message {
+    color: #dc2626;
+    font-size: 10px;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 0 18px 18px;
+}
+
+.primary-action,
+.secondary-action {
+    min-height: 38px;
+    padding: 0 17px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.primary-action {
+    border: 1px solid #1d4ed8;
+    background: #2563eb;
+    color: white;
+    box-shadow: 0 2px 5px rgba(37, 99, 235, .18);
+}
+
+.primary-action:hover { background: #1d4ed8; }
+
+.secondary-action {
+    border: 1px solid #cbd5e1;
+    background: white;
+    color: #334155;
+}
+
+.secondary-action:hover { background: #f8fafc; }
+
+.primary-action:disabled,
+.secondary-action:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.tabla-pagos {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.tabla-pagos th {
+    padding: 9px 12px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.tabla-pagos td {
+    padding: 10px 12px;
+    border-top: 1px solid #f1f5f9;
+    color: #334155;
+}
+
+.nota-pago {
+    display: block;
+    margin-top: 2px;
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.sin-pagos {
+    margin: 0;
+    padding: 18px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .resumen-panel { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .facturacion-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+    .resumen-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .form-grid { grid-template-columns: 1fr; }
+    .field-wide { grid-column: auto; }
+    .resumen-item strong { white-space: normal; }
+}

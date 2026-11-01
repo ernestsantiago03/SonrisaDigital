@@ -1,0 +1,217 @@
+using System.Data;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using SonrisaDigital.Data;
+using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Suscripciones;
+using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Suscripciones.DTOs;
+using SonrisaDigital.Services.Validacion;
+
+namespace SonrisaDigital.Services.Suscripciones;
+
+public sealed class SuscripcionService(
+    ApplicationDbContext dbContext,
+    IAuditoriaService auditoriaService,
+    ICurrentUserService currentUserService,
+    IAuthorizationService authorizationService,
+    IOptions<SuscripcionOptions> options) : ISuscripcionService
+{
+    private const string Modulo = "Suscripciones";
+    private const string PlanMensual = "Mensual";
+    private const string PlanPrueba = "Prueba";
+
+    public async Task<ResumenSuscripcionDto?> ObtenerAsync(int clinicaId, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService, "Clinicas.Ver", "No tienes permiso para consultar la suscripción.");
+
+        // Clinicas y PagosSuscripcion no llevan el filtro por clínica del inquilino:
+        // el Dueño debe poder facturar cualquier clínica aunque no la haya seleccionado.
+        var clinica = await dbContext.Clinicas
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == clinicaId, cancellationToken);
+
+        if (clinica is null)
+        {
+            return null;
+        }
+
+        var pagos = await dbContext.PagosSuscripcion
+            .AsNoTracking()
+            .Where(payment => payment.ClinicaId == clinicaId)
+            .OrderByDescending(payment => payment.FechaPago)
+            .ThenByDescending(payment => payment.Id)
+            .Select(payment => new PagoSuscripcionDto(
+                payment.Id,
+                payment.FechaPago,
+                payment.PeriodoDesde,
+                payment.PeriodoHasta,
+                payment.Monto,
+                payment.Moneda,
+                payment.Metodo,
+                payment.Referencia,
+                payment.Notas,
+                payment.RegistradoPor.Nombre,
+                payment.FechaRegistro))
+            .ToListAsync(cancellationToken);
+
+        var hoy = ReglaSuscripcion.Hoy();
+        var acceso = ReglaSuscripcion.Evaluar(
+            clinica.Estado,
+            clinica.EnPrueba,
+            clinica.FechaPrimerIngreso,
+            clinica.FechaVencimiento,
+            hoy);
+
+        return new ResumenSuscripcionDto(
+            clinica.Id,
+            clinica.Nombre,
+            clinica.Codigo,
+            clinica.Plan,
+            clinica.Estado,
+            clinica.EnPrueba,
+            clinica.FechaPrimerIngreso,
+            clinica.FechaVencimiento,
+            clinica.LimiteUsuarios,
+            acceso,
+            ReglaSuscripcion.DiasRestantes(clinica.FechaVencimiento, hoy),
+            options.Value.PrecioMensualUsd,
+            pagos);
+    }
+
+    public async Task RegistrarPagoAsync(RegistrarPagoSuscripcionDto model, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService, "Clinicas.Editar", "No tienes permiso para registrar pagos de suscripción.");
+
+        ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
+
+        if (model.Monto <= 0)
+        {
+            throw new InvalidOperationException("El monto del pago debe ser mayor que cero.");
+        }
+
+        var usuarioId = ObtenerUsuarioId();
+
+        // Serializable evita que dos pagos simultáneos lean el mismo vencimiento
+        // y uno de los dos meses se pierda.
+        await dbContext.ExecuteInTransactionAsync(async () =>
+        {
+            var clinica = await dbContext.Clinicas
+                .SingleOrDefaultAsync(item => item.Id == model.ClinicaId, cancellationToken)
+                ?? throw new InvalidOperationException("La clínica no existe.");
+
+            var hoy = ReglaSuscripcion.Hoy();
+            var periodoDesde = ReglaSuscripcion.InicioPeriodo(clinica.FechaVencimiento, hoy);
+            var periodoHasta = periodoDesde.AddMonths(model.Meses);
+
+            var pago = new PagoSuscripcion
+            {
+                ClinicaId = clinica.Id,
+                FechaPago = hoy,
+                PeriodoDesde = periodoDesde,
+                PeriodoHasta = periodoHasta,
+                Monto = model.Monto,
+                Moneda = "USD",
+                Metodo = model.Metodo,
+                Referencia = Normalizar(model.Referencia),
+                Notas = Normalizar(model.Notas),
+                RegistradoPorId = usuarioId,
+                FechaRegistro = DateTime.UtcNow
+            };
+
+            // Un pago reactiva la clínica y termina la prueba: desde aquí paga mensualidad.
+            // La suspensión manual es la excepción: si el Dueño la suspendió por otro
+            // motivo, cobrar no debe devolverle el acceso sin una reactivación explícita.
+            clinica.FechaVencimiento = periodoHasta;
+            clinica.FechaPrimerIngreso ??= hoy;
+            clinica.EnPrueba = false;
+            if (clinica.Estado != EstadoClinica.Suspendida)
+            {
+                clinica.Estado = EstadoClinica.Activa;
+            }
+            if (string.IsNullOrWhiteSpace(clinica.Plan) || clinica.Plan == PlanPrueba)
+            {
+                clinica.Plan = PlanMensual;
+            }
+
+            dbContext.PagosSuscripcion.Add(pago);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            await auditoriaService.RegistrarAsync(
+                "Registró pago", Modulo, nameof(PagoSuscripcion), pago.Id,
+                $"Registró {model.Meses} mes(es) de suscripción de {clinica.Nombre} por {model.Monto:0.00} USD. Nuevo vencimiento: {periodoHasta:dd/MM/yyyy}.",
+                cancellationToken, clinica.Id);
+        }, IsolationLevel.Serializable, cancellationToken);
+    }
+
+    public async Task ExtenderAsync(ExtenderSuscripcionDto model, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService, "Clinicas.Editar", "No tienes permiso para extender suscripciones.");
+
+        ArgumentNullException.ThrowIfNull(model);
+        ValidadorDto.PrepararYValidar(model);
+
+        await dbContext.ExecuteInTransactionAsync(async () =>
+        {
+            var clinica = await dbContext.Clinicas
+                .SingleOrDefaultAsync(item => item.Id == model.ClinicaId, cancellationToken)
+                ?? throw new InvalidOperationException("La clínica no existe.");
+
+            var hoy = ReglaSuscripcion.Hoy();
+            var inicio = ReglaSuscripcion.InicioPeriodo(clinica.FechaVencimiento, hoy);
+            clinica.FechaVencimiento = inicio.AddDays(model.Dias);
+            clinica.FechaPrimerIngreso ??= hoy;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            await auditoriaService.RegistrarAsync(
+                "Extendió", Modulo, nameof(Clinica), clinica.Id,
+                $"Extendió {model.Dias} día(s) la suscripción de {clinica.Nombre}. Motivo: {model.Motivo}. Nuevo vencimiento: {clinica.FechaVencimiento:dd/MM/yyyy}.",
+                cancellationToken, clinica.Id);
+        }, IsolationLevel.Serializable, cancellationToken);
+    }
+
+    public async Task<bool> IniciarPruebaSiCorrespondeAsync(int clinicaId, CancellationToken cancellationToken = default)
+    {
+        // Se ejecuta desde el login, cuando todavía no hay una sesión de Blazor.
+        // Por eso no valida permisos ni audita: el evento es del sistema y la
+        // fecha queda registrada en la propia clínica.
+        var clinica = await dbContext.Clinicas
+            .SingleOrDefaultAsync(item => item.Id == clinicaId, cancellationToken);
+
+        if (clinica is null || !clinica.EnPrueba || clinica.FechaPrimerIngreso is not null)
+        {
+            return false;
+        }
+
+        var hoy = ReglaSuscripcion.Hoy();
+        clinica.FechaPrimerIngreso = hoy;
+        clinica.FechaVencimiento = ReglaSuscripcion.VencimientoDePrueba(hoy);
+        clinica.Plan ??= PlanPrueba;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>Usuario que registra el pago. Si el circuito aún no lo cargó, sale del principal.</summary>
+    private string ObtenerUsuarioId()
+    {
+        var usuarioId = currentUserService.UsuarioId
+            ?? currentUserService.Principal?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        return string.IsNullOrWhiteSpace(usuarioId)
+            ? throw new InvalidOperationException("No hay un usuario autenticado para registrar el pago.")
+            : usuarioId;
+    }
+
+    private static string? Normalizar(string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+}
