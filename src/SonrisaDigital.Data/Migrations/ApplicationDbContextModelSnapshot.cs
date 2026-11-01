@@ -128,6 +128,82 @@ namespace SonrisaDigital.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.ArchivoPaciente", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClaveArchivo")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ClaveMiniatura")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("ClinicaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateOnly>("FechaEstudio")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("FechaOcultado")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaSubida")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("NombreOriginal")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("OcultadoPorUsuarioId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("Oculto")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PacienteId")
+                        .HasColumnType("int");
+
+                    b.Property<long>("Tamano")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TipoContenido")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("UsuarioId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicaId");
+
+                    b.HasIndex("OcultadoPorUsuarioId");
+
+                    b.HasIndex("UsuarioId");
+
+                    b.HasIndex("ClinicaId", "PacienteId", "FechaEstudio");
+
+                    b.ToTable("ArchivosPaciente", (string)null);
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Cita", b =>
                 {
                     b.Property<int>("Id")
@@ -1052,6 +1128,41 @@ namespace SonrisaDigital.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.ArchivoPaciente", b =>
+                {
+                    b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Usuario", "OcultadoPor")
+                        .WithMany()
+                        .HasForeignKey("OcultadoPorUsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Paciente", "Paciente")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId", "PacienteId")
+                        .HasPrincipalKey("ClinicaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Clinica");
+
+                    b.Navigation("OcultadoPor");
+
+                    b.Navigation("Paciente");
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Cita", b =>

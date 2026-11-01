@@ -106,7 +106,10 @@ public class ValidadorConfiguracionProduccionTests
             ["ReverseProxy:ForwardLimit"] = "1",
             ["DataProtection:KeysPath"] = Path.Combine(
                 Path.GetTempPath(),
-                "sonrisa-digital-data-protection-keys")
+                "sonrisa-digital-data-protection-keys"),
+            ["Archivos:Directorio"] = Path.Combine(
+                Path.GetTempPath(),
+                "sonrisa-digital-archivos")
         };
 
         if (!string.IsNullOrWhiteSpace(proxy))

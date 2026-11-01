@@ -9,6 +9,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Services.Archivos;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Clinicas;
 using SonrisaDigital.Services.Autorizacion;
@@ -151,6 +152,10 @@ public static class DependencyInjection
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IOdontogramaRepository, OdontogramaRepository>();
         services.AddScoped<IOdontogramaService, OdontogramaService>();
+        services.AddScoped<IArchivoStorage, ArchivoStorage>();
+#pragma warning disable CA1416 // El módulo de archivos usa System.Drawing, que la aplicación solo soporta en Windows.
+        services.AddScoped<IArchivoPacienteService, ArchivoPacienteService>();
+#pragma warning restore CA1416
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<ICitaRepository, CitaRepository>();
         services.AddScoped<ICitaService, CitaService>();

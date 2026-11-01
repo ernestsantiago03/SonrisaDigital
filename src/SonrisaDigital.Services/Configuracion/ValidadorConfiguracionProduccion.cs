@@ -39,6 +39,7 @@ public static class ValidadorConfiguracionProduccion
         ValidarCadenaConexion(configuration, errores, advertencias);
         ValidarProxy(configuration, errores, advertencias);
         ValidarDataProtection(configuration, errores, advertencias);
+        ValidarArchivos(configuration, errores, advertencias);
 
         return new ResultadoValidacionConfiguracion(errores, advertencias);
     }
@@ -180,6 +181,33 @@ public static class ValidadorConfiguracionProduccion
             advertencias.Add(
                 "DataProtection:KeysPath es una ruta relativa. " +
                 "En producción se recomienda una ruta absoluta fuera de la publicación.");
+        }
+    }
+
+    /// <summary>
+    /// Las radiografías y fotos del odontograma viven en una carpeta del servidor. Sin esa carpeta
+    /// no se pueden subir archivos, así que debe estar configurada y ser una ruta absoluta.
+    /// </summary>
+    private static void ValidarArchivos(
+        IConfiguration configuration,
+        List<string> errores,
+        List<string> advertencias)
+    {
+        var directorio = configuration["Archivos:Directorio"]?.Trim();
+
+        if (string.IsNullOrWhiteSpace(directorio))
+        {
+            errores.Add(
+                "Archivos:Directorio no está configurado. " +
+                "Indica una carpeta absoluta, fuera de wwwroot, para las imágenes del odontograma.");
+            return;
+        }
+
+        if (!Path.IsPathRooted(directorio))
+        {
+            advertencias.Add(
+                "Archivos:Directorio es una ruta relativa. " +
+                "En producción se recomienda una ruta absoluta.");
         }
     }
 }

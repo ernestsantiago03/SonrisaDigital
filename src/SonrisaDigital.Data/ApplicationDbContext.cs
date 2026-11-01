@@ -23,6 +23,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PiezaDental> PiezasDentales => Set<PiezaDental>();
     public DbSet<RegistroOdontograma> RegistrosOdontograma => Set<RegistroOdontograma>();
     public DbSet<HistorialOdontograma> HistorialesOdontograma => Set<HistorialOdontograma>();
+    public DbSet<ArchivoPaciente> ArchivosPaciente => Set<ArchivoPaciente>();
     public DbSet<Tratamiento> Tratamientos => Set<Tratamiento>();
     public DbSet<TratamientoRealizado> TratamientosRealizados => Set<TratamientoRealizado>();
     public DbSet<Pago> Pagos => Set<Pago>();
@@ -273,6 +274,35 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasPrincipalKey(dentist => new { dentist.ClinicaId, dentist.Id })
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(record => record.ClinicaId == ClinicaActual);
+        });
+
+        modelBuilder.Entity<ArchivoPaciente>(entity =>
+        {
+            entity.ToTable("ArchivosPaciente");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.NombreOriginal).HasMaxLength(255).IsRequired();
+            entity.Property(item => item.ClaveArchivo).HasMaxLength(300).IsRequired();
+            entity.Property(item => item.ClaveMiniatura).HasMaxLength(300).IsRequired();
+            entity.Property(item => item.TipoContenido).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Descripcion).HasMaxLength(300);
+            entity.Property(item => item.UsuarioId).HasMaxLength(450).IsRequired();
+            entity.Property(item => item.FechaSubida).HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.HasIndex(item => item.ClinicaId);
+            entity.HasIndex(item => new { item.ClinicaId, item.PacienteId, item.FechaEstudio });
+            entity.HasOne(item => item.Paciente)
+                .WithMany()
+                .HasForeignKey(item => new { item.ClinicaId, item.PacienteId })
+                .HasPrincipalKey(patient => new { patient.ClinicaId, patient.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Usuario)
+                .WithMany()
+                .HasForeignKey(item => item.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.OcultadoPor)
+                .WithMany()
+                .HasForeignKey(item => item.OcultadoPorUsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(item => item.ClinicaId == ClinicaActual);
         });
 
         modelBuilder.Entity<HistorialOdontograma>(entity =>

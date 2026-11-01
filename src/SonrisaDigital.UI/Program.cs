@@ -20,8 +20,10 @@ using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Configuracion;
 using SonrisaDigital.Services.Odontograma;
+using SonrisaDigital.Services.Archivos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Reportes.DTOs;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -608,6 +610,102 @@ app.MapGet("/reportes/pdf", async (
 })
 .RequireAuthorization("Reportes.Ver");
 
+// Subida de una imagen (JPG o PNG) al odontograma del paciente. Va por HTTP, como los PDF, para no
+// cargar archivos grandes en el circuito de Blazor. El límite de 20 MB lo valida el servicio.
+app.MapPost("/pacientes/{pacienteId:int}/archivos", async (
+    int pacienteId,
+    HttpContext context,
+    IAntiforgery antiforgery,
+    IArchivoPacienteService archivoService,
+    ICurrentUserService currentUserService,
+    ILoggerFactory loggerFactory) =>
+{
+    if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
+    {
+        return RedirigirArchivoConError(pacienteId, "La página expiró. Vuelve a intentar la subida.");
+    }
+
+    // Igual que los PDF: esta petición HTTP no tiene el usuario del circuito de Blazor.
+    var usuario = context.User;
+    currentUserService.Establecer(
+        usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+        usuario.FindFirst(ClaimTypes.GivenName)?.Value
+            ?? usuario.FindFirst(ClaimTypes.Name)?.Value,
+        usuario);
+
+    var form = await context.Request.ReadFormAsync();
+    var archivo = form.Files["archivo"];
+
+    if (archivo is null || archivo.Length == 0)
+    {
+        return RedirigirArchivoConError(pacienteId, "Selecciona un archivo JPG o PNG.");
+    }
+
+    if (archivo.Length > LimitesArchivo.TamanoMaximo)
+    {
+        return RedirigirArchivoConError(pacienteId, "El archivo supera el máximo de 20 MB.");
+    }
+
+    if (!DateOnly.TryParseExact(form["fechaEstudio"].ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fechaEstudio))
+    {
+        return RedirigirArchivoConError(pacienteId, "La fecha del estudio no es válida.");
+    }
+
+    try
+    {
+        byte[] datos;
+        await using (var flujo = archivo.OpenReadStream())
+        using (var memoria = new MemoryStream())
+        {
+            await flujo.CopyToAsync(memoria);
+            datos = memoria.ToArray();
+        }
+
+        await archivoService.SubirAsync(
+            pacienteId,
+            archivo.FileName,
+            datos,
+            fechaEstudio,
+            form["descripcion"].ToString());
+
+        return Results.Redirect($"/odontograma?paciente={pacienteId}&archivo=subido");
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+    {
+        return RedirigirArchivoConError(pacienteId, ex.Message);
+    }
+}).RequireAuthorization("Odontograma.Editar");
+
+// Contenido de un archivo del paciente: la imagen completa o su miniatura. Nunca tiene una URL pública:
+// cada petición pasa por el permiso y la clínica de la sesión, y no se guarda en caché.
+app.MapGet("/archivos/{archivoId:int}", async (
+    int archivoId,
+    bool? miniatura,
+    bool? descargar,
+    HttpContext context,
+    IArchivoPacienteService archivoService,
+    ICurrentUserService currentUserService) =>
+{
+    var usuario = context.User;
+    currentUserService.Establecer(
+        usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+        usuario.FindFirst(ClaimTypes.GivenName)?.Value
+            ?? usuario.FindFirst(ClaimTypes.Name)?.Value,
+        usuario);
+
+    var contenido = await archivoService.ObtenerContenidoAsync(archivoId, miniatura == true);
+    if (contenido is null)
+    {
+        return Results.NotFound();
+    }
+
+    context.Response.Headers["Cache-Control"] = "private, no-store";
+
+    return descargar == true
+        ? Results.File(contenido.Datos, contenido.TipoContenido, contenido.NombreOriginal)
+        : Results.File(contenido.Datos, contenido.TipoContenido);
+}).RequireAuthorization("Odontograma.Ver");
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
@@ -635,6 +733,9 @@ static async Task<bool> AntiforgeryValidoAsync(
         return false;
     }
 }
+
+static IResult RedirigirArchivoConError(int pacienteId, string mensaje) =>
+    Results.Redirect($"/odontograma?paciente={pacienteId}&archivoError={Uri.EscapeDataString(mensaje)}");
 
 static bool CorrelationIdValido(string? valor) =>
     !string.IsNullOrEmpty(valor)
