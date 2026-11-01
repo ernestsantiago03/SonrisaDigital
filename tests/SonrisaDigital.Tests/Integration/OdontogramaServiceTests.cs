@@ -188,6 +188,46 @@ public sealed class OdontogramaServiceTests(SqlServerFixture fixture)
         Assert.Contains("inactivo", excepcion.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task CadaGuardadoQuedaEnElHistorialDeLaPieza()
+    {
+        await using var db = fixture.CreateContext();
+        await OdontogramaCatalogSeeder.SeedAsync(db);
+        var piezas = await db.PiezasDentales.OrderBy(pieza => pieza.Id).Take(2).ToListAsync();
+        var pieza = piezas[0];
+        var otraPieza = piezas[1];
+        var usuarioId = await CrearUsuarioAsync(db, "historial");
+        var odontologo = await TestData.CrearOdontologoAsync(db);
+        var paciente = await TestData.CrearPacienteAsync(db);
+        var servicio = CrearServicio(
+            db,
+            TestSession.Crear(usuarioId, RolesSonrisaDigital.Administrador));
+
+        await servicio.SaveAsync(paciente.Id, pieza.Id, EstadoOdontograma.Caries, "Primera observación", odontologo.Id);
+        await servicio.SaveAsync(paciente.Id, pieza.Id, EstadoOdontograma.Restauracion, "Restaurada", odontologo.Id);
+        await servicio.SaveAsync(paciente.Id, pieza.Id, EstadoOdontograma.Restauracion, "Control de seguimiento", odontologo.Id);
+        await servicio.SaveAsync(paciente.Id, otraPieza.Id, EstadoOdontograma.Ausente, "Otra pieza", odontologo.Id);
+
+        var historial = await servicio.GetHistorialAsync(paciente.Id, pieza.Id);
+
+        Assert.Equal(3, historial.Count);
+
+        // Del más reciente al más antiguo, con el estado anterior y el nuevo de cada guardado.
+        Assert.Equal("Control de seguimiento", historial[0].Observaciones);
+        Assert.Equal(EstadoOdontograma.Restauracion, historial[0].EstadoAnterior);
+        Assert.Equal(EstadoOdontograma.Restauracion, historial[0].EstadoNuevo);
+        Assert.Equal("Restaurada", historial[1].Observaciones);
+        Assert.Equal(EstadoOdontograma.Caries, historial[1].EstadoAnterior);
+        Assert.Equal(EstadoOdontograma.Restauracion, historial[1].EstadoNuevo);
+        Assert.Null(historial[2].EstadoAnterior);
+        Assert.Equal(EstadoOdontograma.Caries, historial[2].EstadoNuevo);
+        Assert.Equal("Primera observación", historial[2].Observaciones);
+
+        var historialOtraPieza = await servicio.GetHistorialAsync(paciente.Id, otraPieza.Id);
+        Assert.Single(historialOtraPieza);
+        Assert.Equal("Otra pieza", historialOtraPieza[0].Observaciones);
+    }
+
     private static OdontogramaService CrearServicio(
         ApplicationDbContext db,
         ICurrentUserService usuario) =>

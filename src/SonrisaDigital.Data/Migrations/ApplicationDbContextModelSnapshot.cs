@@ -379,6 +379,56 @@ namespace SonrisaDigital.Data.Migrations
                     b.ToTable("HistoriasClinicas", (string)null);
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.HistorialOdontograma", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EstadoAnterior")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("EstadoNuevo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("FechaHora")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Observaciones")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OdontologoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PacienteId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PiezaDentalId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicaId");
+
+                    b.HasIndex("PiezaDentalId");
+
+                    b.HasIndex("ClinicaId", "OdontologoId");
+
+                    b.HasIndex("ClinicaId", "PacienteId", "PiezaDentalId", "FechaHora");
+
+                    b.ToTable("HistorialOdontograma", (string)null);
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Odontologo", b =>
                 {
                     b.Property<int>("Id")
@@ -1097,6 +1147,43 @@ namespace SonrisaDigital.Data.Migrations
                     b.Navigation("Clinica");
 
                     b.Navigation("Paciente");
+                });
+
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.HistorialOdontograma", b =>
+                {
+                    b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.PiezaDental", "PiezaDental")
+                        .WithMany()
+                        .HasForeignKey("PiezaDentalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Odontologo", "Odontologo")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId", "OdontologoId")
+                        .HasPrincipalKey("ClinicaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Paciente", "Paciente")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId", "PacienteId")
+                        .HasPrincipalKey("ClinicaId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Clinica");
+
+                    b.Navigation("Odontologo");
+
+                    b.Navigation("Paciente");
+
+                    b.Navigation("PiezaDental");
                 });
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Odontologo", b =>
