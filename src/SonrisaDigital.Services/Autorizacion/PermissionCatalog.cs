@@ -42,7 +42,8 @@ public static class PermissionCatalog
         new("Clinicas.Crear", "Clínicas", "Crear clínicas (solo Dueño)"),
         new("Clinicas.Editar", "Clínicas", "Editar clínicas (solo Dueño)"),
         new("Clinicas.Suspender", "Clínicas", "Suspender o reactivar clínicas (solo Dueño)"),
-        new("AcercaDe.Editar", "Acerca De", "Editar la información de la clínica (Administrador y Dueño)")
+        new("AcercaDe.Editar", "Acerca De", "Editar la información de la clínica (Administrador y Dueño)"),
+        new("Archivos.Ocultar", "Archivos del paciente", "Ocultar y restaurar archivos del paciente (solo Dueño)")
     ];
 
     /// <summary>Permisos del panel de clínicas. Solo los tiene el rol Dueño.</summary>
