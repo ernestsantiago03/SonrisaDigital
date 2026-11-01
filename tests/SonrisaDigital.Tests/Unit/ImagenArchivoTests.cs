@@ -13,6 +13,7 @@ public class ImagenArchivoTests
     [Fact]
     public void DetectaJpgYPngPorSuContenido()
     {
+        if (!RequerirWindows()) return;
         var jpg = CrearJpg();
         var png = CrearPng();
 
@@ -24,6 +25,7 @@ public class ImagenArchivoTests
     [Fact]
     public void QuitaLosMetadatosExifDelJpgSinAlterarLaImagen()
     {
+        if (!RequerirWindows()) return;
         var original = CrearJpg();
         var conExif = InsertarSegmentoJpeg(original, marcador: 0xE1, contenido: Encoding.ASCII.GetBytes("Exif\0\0UbicacionSecreta")).ToArray();
         Assert.True(Contiene(conExif, "UbicacionSecreta"));
@@ -37,6 +39,7 @@ public class ImagenArchivoTests
     [Fact]
     public void QuitaLosTextosDelPng()
     {
+        if (!RequerirWindows()) return;
         var conTexto = InsertarFragmentoPng(CrearPng(), "tEXt", Encoding.ASCII.GetBytes("Autor\0AnaSecreta"));
         Assert.True(Contiene(conTexto, "AnaSecreta"));
 
@@ -49,6 +52,7 @@ public class ImagenArchivoTests
     [Fact]
     public void LaMiniaturaEsUnJpgNoMayorQueElLimite()
     {
+        if (!RequerirWindows()) return;
         var grande = CrearImagen(1200, 800, ImageFormat.Png);
 
         var miniatura = ImagenArchivo.GenerarMiniatura(grande);
@@ -62,10 +66,14 @@ public class ImagenArchivoTests
     [Fact]
     public void RechazaUnContenidoQueNoEsUnaImagenValida()
     {
+        if (!RequerirWindows()) return;
         var falso = new byte[] { 0xFF, 0xD8, 0xFF, 0x00, 0x01, 0x02, 0x03 };
 
         Assert.Throws<InvalidOperationException>(() => ImagenArchivo.GenerarMiniatura(falso));
     }
+
+    /// <summary>System.Drawing solo funciona en Windows: fuera de Windows la prueba no se ejecuta.</summary>
+    internal static bool RequerirWindows() => OperatingSystem.IsWindows();
 
     internal static bool Contiene(byte[] datos, string texto) =>
         datos.AsSpan().IndexOf(Encoding.ASCII.GetBytes(texto)) >= 0;

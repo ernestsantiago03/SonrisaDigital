@@ -85,6 +85,31 @@ jobs:
             tests/SonrisaDigital.Tests/TestResults/**/coverage.cobertura.xml
           if-no-files-found: warn
 
+  # El procesamiento de imágenes (System.Drawing) solo funciona en Windows, que es donde corre
+  # la aplicación. Este job prueba esa parte sin necesitar SQL Server.
+  imagenes-windows:
+    name: Imágenes (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore SonrisaDigital.slnx
+
+      - name: Probar procesamiento de imágenes
+        run: >-
+          dotnet test tests/SonrisaDigital.Tests/SonrisaDigital.Tests.csproj
+          -c Release
+          --filter "FullyQualifiedName~ImagenArchivoTests"
+
   e2e:
     name: Pruebas E2E
     needs: build-test
