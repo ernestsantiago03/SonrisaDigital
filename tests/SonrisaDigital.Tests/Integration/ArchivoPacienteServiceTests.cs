@@ -27,6 +27,7 @@ public sealed class ArchivoPacienteServiceTests(SqlServerFixture fixture)
     [Fact]
     public async Task VariasRadiografiasDelMismoPacienteQuedanTodas()
     {
+        if (!ImagenArchivoTests.RequerirWindows()) return;
         await using var db = fixture.CreateContext();
         var usuarioId = (await TestData.AsegurarUsuarioAsync(db, $"archivos-{Guid.NewGuid():N}")).Id;
         var paciente = await TestData.CrearPacienteAsync(db);
@@ -49,6 +50,7 @@ public sealed class ArchivoPacienteServiceTests(SqlServerFixture fixture)
     [Fact]
     public async Task RechazaUnArchivoQueNoEsJpgNiPng()
     {
+        if (!ImagenArchivoTests.RequerirWindows()) return;
         await using var db = fixture.CreateContext();
         var usuarioId = (await TestData.AsegurarUsuarioAsync(db, $"archivos-{Guid.NewGuid():N}")).Id;
         var paciente = await TestData.CrearPacienteAsync(db);
@@ -63,6 +65,7 @@ public sealed class ArchivoPacienteServiceTests(SqlServerFixture fixture)
     [Fact]
     public async Task OcultarConservaElArchivoYSoloElDuenoLoRestaura()
     {
+        if (!ImagenArchivoTests.RequerirWindows()) return;
         await using var db = fixture.CreateContext();
         var usuarioId = (await TestData.AsegurarUsuarioAsync(db, $"archivos-{Guid.NewGuid():N}")).Id;
         var paciente = await TestData.CrearPacienteAsync(db);
