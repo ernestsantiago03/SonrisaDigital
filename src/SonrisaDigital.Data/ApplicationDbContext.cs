@@ -24,7 +24,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RegistroOdontograma> RegistrosOdontograma => Set<RegistroOdontograma>();
     public DbSet<Tratamiento> Tratamientos => Set<Tratamiento>();
     public DbSet<TratamientoRealizado> TratamientosRealizados => Set<TratamientoRealizado>();
-    public DbSet<PlanTratamientoItem> PlanesTratamiento => Set<PlanTratamientoItem>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<Clinica> Clinicas => Set<Clinica>();
@@ -319,39 +318,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasPrincipalKey(consultation => new { consultation.ClinicaId, consultation.Id })
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(treatment => treatment.ClinicaId == ClinicaActual);
-        });
-
-        modelBuilder.Entity<PlanTratamientoItem>(entity =>
-        {
-            entity.ToTable("PlanesTratamiento");
-            entity.HasKey(item => item.Id);
-            entity.HasAlternateKey(item => new { item.ClinicaId, item.Id });
-            entity.Property(item => item.Precio).HasPrecision(12, 2);
-            entity.Property(item => item.Estado).HasConversion<string>().HasMaxLength(20);
-            entity.Property(item => item.Observaciones).HasMaxLength(500);
-            entity.Property(item => item.FechaRegistro).HasDefaultValueSql("SYSUTCDATETIME()");
-            entity.HasIndex(item => item.ClinicaId);
-            entity.HasIndex(item => new { item.ClinicaId, item.ConsultaId });
-            entity.HasOne(item => item.ConsultaClinica)
-                .WithMany(consultation => consultation.PlanTratamientoItems)
-                .HasForeignKey(item => new { item.ClinicaId, item.ConsultaId })
-                .HasPrincipalKey(consultation => new { consultation.ClinicaId, consultation.Id })
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(item => item.Tratamiento)
-                .WithMany()
-                .HasForeignKey(item => new { item.ClinicaId, item.TratamientoId })
-                .HasPrincipalKey(catalogTreatment => new { catalogTreatment.ClinicaId, catalogTreatment.Id })
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(item => item.PiezaDental)
-                .WithMany()
-                .HasForeignKey(item => item.PiezaDentalId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(item => item.TratamientoRealizado)
-                .WithMany()
-                .HasForeignKey(item => new { item.ClinicaId, item.TratamientoRealizadoId })
-                .HasPrincipalKey(treatment => new { treatment.ClinicaId, treatment.Id })
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasQueryFilter(item => item.ClinicaId == ClinicaActual);
         });
 
         modelBuilder.Entity<Pago>(entity =>

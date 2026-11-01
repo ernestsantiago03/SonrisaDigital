@@ -311,18 +311,6 @@ public sealed class TratamientoService(
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Crear", "No tienes permiso para registrar tratamientos.");
 
         ArgumentNullException.ThrowIfNull(model);
-        // Un ítem del plan de una consulta define el paciente, el tratamiento y el odontólogo.
-        var itemPlan = model.PlanTratamientoItemId is int planItemId
-            ? await CargarItemPlanPendienteAsync(planItemId, cancellationToken)
-            : null;
-
-        if (itemPlan is not null)
-        {
-            model.PacienteId = itemPlan.ConsultaClinica.PacienteId;
-            model.TratamientoId = itemPlan.TratamientoId;
-            model.OdontologoId = itemPlan.ConsultaClinica.OdontologoId;
-        }
-
         ValidadorDto.PrepararYValidar(model);
         ValidateRealizado(model);
 
@@ -370,7 +358,6 @@ public sealed class TratamientoService(
                     TratamientoId = model.TratamientoId,
                     OdontologoId = model.OdontologoId,
                     PiezaDentalId = model.PiezaDentalId,
-                    ConsultaId = itemPlan?.ConsultaId,
                     Fecha = model.Fecha.Date,
                     Precio = model.Precio,
                     Estado = EstadoTratamiento.EnProceso,
@@ -381,21 +368,12 @@ public sealed class TratamientoService(
                 await repository.AddRealizadoAsync(nuevo, cancellationToken);
                 await repository.SaveChangesAsync(cancellationToken);
 
-                // El ítem del plan queda asignado en la misma transacción que el tratamiento.
-                if (itemPlan is not null)
-                {
-                    itemPlan.Estado = EstadoPlanTratamiento.Asignado;
-                    itemPlan.TratamientoRealizadoId = nuevo.Id;
-                    await repository.SaveChangesAsync(cancellationToken);
-                }
-
                 await auditoriaService.RegistrarAsync(
                     "Registró",
                     "Tratamientos",
                     nameof(TratamientoRealizado),
                     nuevo.Id,
-                    $"Registró el tratamiento '{tratamiento.Nombre}' para {NombreCompleto(paciente)} por {Money(nuevo.Precio)}." +
-                    (itemPlan is null ? string.Empty : " Viene del plan de tratamiento de una consulta."),
+                    $"Registró el tratamiento '{tratamiento.Nombre}' para {NombreCompleto(paciente)} por {Money(nuevo.Precio)}.",
                     cancellationToken);
             }, cancellationToken);
         }
@@ -723,58 +701,6 @@ public sealed class TratamientoService(
         if (model.PiezaDentalId is <= 0)
         {
             throw new InvalidOperationException("La pieza dental seleccionada no es válida.");
-        }
-    }
-
-    private async Task<PlanTratamientoItem> CargarItemPlanPendienteAsync(int itemId, CancellationToken cancellationToken)
-    {
-        var item = await dbContext.PlanesTratamiento
-            .Include(planItem => planItem.ConsultaClinica)
-            .SingleOrDefaultAsync(planItem => planItem.Id == itemId, cancellationToken)
-            ?? throw new InvalidOperationException("El tratamiento del plan no existe.");
-
-        if (item.Estado != EstadoPlanTratamiento.Pendiente)
-        {
-            throw new InvalidOperationException("Ese tratamiento del plan ya fue asignado o cancelado.");
-        }
-
-        if (item.ConsultaClinica.Estado != EstadoConsulta.Abierta)
-        {
-            throw new InvalidOperationException("La consulta ya está cerrada; su plan ya no se puede asignar.");
-        }
-
-        await ValidarFirmanteConsultaAsync(item.ConsultaClinica, cancellationToken);
-        return item;
-    }
-
-    /// <summary>
-    /// Solo el odontólogo que firmó la consulta (o un Administrador o Dueño sin perfil de odontólogo)
-    /// puede convertir su plan en tratamientos realizados.
-    /// </summary>
-    private async Task ValidarFirmanteConsultaAsync(ConsultaClinica consulta, CancellationToken cancellationToken)
-    {
-        var usuarioId = currentUserService.UsuarioId;
-        var vinculadoId = string.IsNullOrWhiteSpace(usuarioId)
-            ? null
-            : await dbContext.Odontologos.AsNoTracking()
-                .Where(dentist => dentist.UsuarioId == usuarioId)
-                .Select(dentist => (int?)dentist.Id)
-                .SingleOrDefaultAsync(cancellationToken);
-
-        if (vinculadoId is int id)
-        {
-            if (consulta.OdontologoId != id)
-            {
-                throw new InvalidOperationException("Solo el odontólogo que firmó la consulta puede asignar su plan de tratamiento.");
-            }
-
-            return;
-        }
-
-        var principal = currentUserService.Principal;
-        if (principal?.IsInRole(RolesSonrisaDigital.Administrador) != true && principal?.IsInRole(RolesSonrisaDigital.Dueno) != true)
-        {
-            throw new InvalidOperationException("Tu usuario no tiene un perfil de odontólogo vinculado. Un administrador debe asignarte uno.");
         }
     }
 

@@ -73,19 +73,4 @@ public interface IHistoriaClinicaService
     /// Deja el cambio anotado en la auditoría.
     /// </summary>
     Task CerrarConsultaAsync(int consultaId, CancellationToken cancellationToken = default);
-
-    /// <summary>Tratamientos del catálogo activos para proponerlos en un plan.</summary>
-    Task<IReadOnlyList<TratamientoPlanOptionDto>> GetTratamientosPlanAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Piezas dentales para indicar en un ítem del plan.</summary>
-    Task<IReadOnlyList<PiezaPlanOptionDto>> GetPiezasPlanAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Agrega un tratamiento al plan de una consulta abierta. Queda Pendiente hasta que se asigna
-    /// como tratamiento realizado desde el módulo de Tratamientos.
-    /// </summary>
-    Task AgregarPlanItemAsync(PlanTratamientoItemFormDto model, CancellationToken cancellationToken = default);
-
-    /// <summary>Quita del plan un tratamiento que todavía está pendiente.</summary>
-    Task CancelarPlanItemAsync(int itemId, CancellationToken cancellationToken = default);
 }

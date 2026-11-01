@@ -23,5 +23,4 @@ public class ConsultaClinica : IPerteneceAClinica
     public Cita? Cita { get; set; }
     public HistoriaClinica HistoriaClinica { get; set; } = null!;
     public ICollection<TratamientoRealizado> TratamientosRealizados { get; set; } = [];
-    public ICollection<PlanTratamientoItem> PlanTratamientoItems { get; set; } = [];
 }

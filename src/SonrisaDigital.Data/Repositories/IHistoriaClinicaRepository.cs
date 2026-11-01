@@ -58,24 +58,6 @@ public interface IHistoriaClinicaRepository
     /// <summary>Prepara una consulta clínica nueva para insertarla en la base de datos.</summary>
     Task AddConsultaAsync(ConsultaClinica consulta, CancellationToken cancellationToken = default);
 
-    /// <summary>Un ítem del plan de tratamiento con su consulta, rastreado para poder cambiarlo.</summary>
-    Task<PlanTratamientoItem?> GetPlanItemAsync(int itemId, CancellationToken cancellationToken = default);
-
-    /// <summary>Prepara un ítem nuevo del plan de tratamiento para insertarlo.</summary>
-    Task AddPlanItemAsync(PlanTratamientoItem item, CancellationToken cancellationToken = default);
-
-    /// <summary>Tratamientos del catálogo activos, ordenados por nombre.</summary>
-    Task<IReadOnlyList<Tratamiento>> GetTratamientosActivosAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Un tratamiento del catálogo activo, o null si no existe o está inactivo.</summary>
-    Task<Tratamiento?> GetTratamientoActivoAsync(int tratamientoId, CancellationToken cancellationToken = default);
-
-    /// <summary>Piezas dentales ordenadas por número FDI.</summary>
-    Task<IReadOnlyList<PiezaDental>> GetPiezasAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Una pieza dental por su id, o null si no existe.</summary>
-    Task<PiezaDental?> GetPiezaAsync(int piezaId, CancellationToken cancellationToken = default);
-
     /// <summary>Aplica en la base de datos todos los cambios pendientes.</summary>
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

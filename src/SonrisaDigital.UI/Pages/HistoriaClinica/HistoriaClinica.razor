@@ -5,9 +5,7 @@
 @using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Services.HistoriasClinicas
 @using SonrisaDigital.Services.HistoriasClinicas.DTOs
-@using SonrisaDigital.Services.Tratamientos
 @inject IHistoriaClinicaService HistoriaService
-@inject ITratamientoService TratamientoService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* ============================================================================
@@ -523,41 +521,8 @@
                                         <dt>Diagnóstico</dt>
                                         <dd>@Mostrar(consulta.Diagnostico)</dd>
                                     </div>
-                                    <div class="plan-block">
-                                        <dt>Tratamientos del plan</dt>
-                                        <dd>
-                                            @if (consulta.Plan.Count == 0)
-                                            {
-                                                <span class="plan-empty">Sin tratamientos propuestos.</span>
-                                            }
-                                            else
-                                            {
-                                                <ul class="plan-list">
-                                                    @foreach (var item in consulta.Plan)
-                                                    {
-                                                        <li class="plan-item">
-                                                            <span class="plan-name">@item.Tratamiento</span>
-                                                            <span class="plan-meta">@Mostrar(item.Pieza) · @Money(item.Precio)</span>
-                                                            <span class="status-badge">@PlanEstadoLabel(item.Estado)</span>
-                                                            @if (item.TratamientoRealizadoId.HasValue)
-                                                            {
-                                                                <a href="/tratamientos" class="plan-link">Ver en Tratamientos</a>
-                                                            }
-                                                            @if (item.Estado == EstadoPlanTratamiento.Pendiente && consulta.Estado == EstadoConsulta.Abierta && PuedeModificarConsulta(consulta))
-                                                            {
-                                                                <AuthorizeView Policy="Tratamientos.Crear">
-                                                                    <Authorized>
-                                                                        <button type="button" class="secondary-action plan-action" @onclick="() => AbrirAsignarPlanAsync(item)">Asignar</button>
-                                                                    </Authorized>
-                                                                </AuthorizeView>
-                                                                <button type="button" class="secondary-action plan-action" @onclick="() => QuitarPlanItemAsync(item.Id)">Quitar</button>
-                                                            }
-                                                        </li>
-                                                    }
-                                                </ul>
-                                            }
-                                        </dd>
-                                        <dt>Notas del plan</dt>
+                                    <div>
+                                        <dt>Plan de tratamiento</dt>
                                         <dd>@Mostrar(consulta.PlanTratamiento)</dd>
                                     </div>
                                     @* Si la consulta nació de una cita atendida, se deja el enlace a esa cita. *@
@@ -579,13 +544,6 @@
                                     @if (consulta.Estado == EstadoConsulta.Abierta && PuedeModificarConsulta(consulta))
                                     {
                                         <div class="consultation-actions">
-                                            @if (canEdit)
-                                            {
-                                                <button type="button" class="secondary-action"
-                                                        @onclick="() => AbrirAgregarPlanAsync(consulta)">
-                                                    + Agregar al plan
-                                                </button>
-                                            }
                                             <button type="button" class="secondary-action"
                                                     @onclick="() => AbrirModalConsultaParaCompletar(consulta)">
                                                 Completar consulta
@@ -666,8 +624,8 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="consulta-plan">Notas del plan de tratamiento</label>
-                        <textarea id="consulta-plan" class="form-control" rows="2" @bind="consultaForm.PlanTratamiento" placeholder="Opcional. Los tratamientos se agregan desde la consulta, en Tratamientos del plan."></textarea>
+                        <label class="form-label" for="consulta-plan">Plan de tratamiento</label>
+                        <textarea id="consulta-plan" class="form-control" rows="2" @bind="consultaForm.PlanTratamiento" placeholder="Opcional"></textarea>
                         <ValidationMessage For="@(() => consultaForm.PlanTratamiento)" />
                     </div>
 
@@ -685,122 +643,6 @@
                     </button>
                 </div>
             </EditForm>
-        </section>
-    </div>
-}
-
-@* ---- Ventana para agregar un tratamiento del catálogo al plan de la consulta ---- *@
-@if (mostrarModalPlan)
-{
-    <div class="modal-backdrop">
-        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="plan-modal-title">
-            <div class="modal-header">
-                <h3 class="modal-title" id="plan-modal-title">Agregar al plan de tratamiento</h3>
-                <button type="button" class="modal-close-btn" @onclick="CerrarModalesPlan" aria-label="Cerrar">&times;</button>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(errorPlan))
-            {
-                <div class="alert-error" role="alert">@errorPlan</div>
-            }
-
-            <EditForm Model="planForm" OnValidSubmit="GuardarPlanItemAsync">
-                <DataAnnotationsValidator />
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label class="form-label" for="plan-tratamiento">Tratamiento del catálogo</label>
-                        <select id="plan-tratamiento" class="form-control" @bind="planForm.TratamientoId" @bind:after="OnPlanTratamientoSeleccionado">
-                            <option value="0">Selecciona un tratamiento…</option>
-                            @foreach (var tratamiento in tratamientosPlan)
-                            {
-                                <option value="@tratamiento.Id">@tratamiento.Nombre (@Money(tratamiento.PrecioBase))</option>
-                            }
-                        </select>
-                        <ValidationMessage For="@(() => planForm.TratamientoId)" />
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="plan-pieza">Pieza dental</label>
-                        <select id="plan-pieza" class="form-control" @bind="piezaPlanSeleccionada">
-                            <option value="">Sin pieza específica</option>
-                            @foreach (var pieza in piezasPlan)
-                            {
-                                <option value="@pieza.Id">@pieza.NumeroFdi — @pieza.Nombre</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="plan-precio">Precio (RD$)</label>
-                        <InputNumber id="plan-precio" class="form-control" step="0.01" min="0.01" @bind-Value="planForm.Precio" />
-                        <ValidationMessage For="@(() => planForm.Precio)" />
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="plan-observaciones">Observaciones</label>
-                        <InputTextArea id="plan-observaciones" class="form-control" rows="2" @bind-Value="planForm.Observaciones" placeholder="Opcional" />
-                        <ValidationMessage For="@(() => planForm.Observaciones)" />
-                    </div>
-                    <p class="form-hint">Quedará pendiente. No genera cobros hasta asignarlo como tratamiento realizado.</p>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="secondary-action" @onclick="CerrarModalesPlan">Cancelar</button>
-                    <button type="submit" class="primary-action" disabled="@guardandoPlan">
-                        @(guardandoPlan ? "Guardando..." : "Agregar al plan")
-                    </button>
-                </div>
-            </EditForm>
-        </section>
-    </div>
-}
-
-@* ---- Ventana para asignar un tratamiento pendiente como tratamiento realizado ---- *@
-@if (mostrarModalAsignacion)
-{
-    <div class="modal-backdrop">
-        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="asignacion-modal-title">
-            <div class="modal-header">
-                <h3 class="modal-title" id="asignacion-modal-title">Asignar: @asignacionTratamientoNombre</h3>
-                <button type="button" class="modal-close-btn" @onclick="CerrarModalesPlan" aria-label="Cerrar">&times;</button>
-            </div>
-
-            @if (!string.IsNullOrWhiteSpace(errorPlan))
-            {
-                <div class="alert-error" role="alert">@errorPlan</div>
-            }
-
-            <div class="modal-body">
-                <div class="form-group">
-                    <label class="form-label" for="asignacion-pieza">Pieza dental</label>
-                    <select id="asignacion-pieza" class="form-control" @bind="piezaAsignacionSeleccionada">
-                        <option value="">Sin pieza específica</option>
-                        @foreach (var pieza in piezasPlan)
-                        {
-                            <option value="@pieza.Id">@pieza.NumeroFdi — @pieza.Nombre</option>
-                        }
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="asignacion-fecha">Fecha</label>
-                    <input id="asignacion-fecha" type="date" class="form-control" @bind="asignacionPlan.Fecha" />
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="asignacion-precio">Precio (RD$)</label>
-                    <input id="asignacion-precio" type="number" step="0.01" min="0.01" class="form-control" @bind="asignacionPlan.Precio" />
-                </div>
-
-                <p class="form-hint">Se registrará en Tratamientos como En proceso, con el mismo odontólogo y paciente de la consulta.</p>
-            </div>
-
-            <div class="modal-footer">
-                <button type="button" class="secondary-action" @onclick="CerrarModalesPlan">Cancelar</button>
-                <button type="button" class="primary-action" disabled="@guardandoPlan" @onclick="GuardarAsignacionPlanAsync">
-                    @(guardandoPlan ? "Asignando..." : "Asignar tratamiento")
-                </button>
-            </div>
         </section>
     </div>
 }
@@ -1376,183 +1218,6 @@
             cerrandoConsulta = false;
         }
     }
-
-    // =========================================================================================
-    // PLAN DE TRATAMIENTO  →  agregar, quitar y asignar tratamientos del plan de una consulta
-    // =========================================================================================
-
-    private bool mostrarModalPlan;
-    private bool mostrarModalAsignacion;
-    private bool guardandoPlan;
-    private string? errorPlan;
-    private PlanTratamientoItemFormDto planForm = new();
-    private SonrisaDigital.Services.Tratamientos.DTOs.TratamientoRealizadoFormDto asignacionPlan = new();
-    private string asignacionTratamientoNombre = string.Empty;
-    private string piezaPlanSeleccionada = string.Empty;
-    private string piezaAsignacionSeleccionada = string.Empty;
-    private List<TratamientoPlanOptionDto> tratamientosPlan = [];
-    private List<PiezaPlanOptionDto> piezasPlan = [];
-
-    /// <summary>Abre la ventana para proponer un tratamiento en el plan de una consulta abierta.</summary>
-    private async Task AbrirAgregarPlanAsync(ConsultaClinicaItemDto consulta)
-    {
-        errorPlan = null;
-        planForm = new PlanTratamientoItemFormDto { ConsultaId = consulta.Id };
-        piezaPlanSeleccionada = string.Empty;
-        mostrarModalPlan = true;
-        await CargarOpcionesPlanAsync();
-    }
-
-    /// <summary>
-    /// Abre la ventana para asignar un ítem pendiente como tratamiento realizado, con el precio
-    /// y la pieza que ya tenía el ítem.
-    /// </summary>
-    private async Task AbrirAsignarPlanAsync(PlanTratamientoItemDto item)
-    {
-        errorPlan = null;
-        asignacionPlan = new SonrisaDigital.Services.Tratamientos.DTOs.TratamientoRealizadoFormDto
-        {
-            PlanTratamientoItemId = item.Id,
-            Fecha = DateTime.Today,
-            Precio = item.Precio,
-            PiezaDentalId = item.PiezaDentalId,
-            Estado = EstadoTratamiento.EnProceso
-        };
-        piezaAsignacionSeleccionada = item.PiezaDentalId?.ToString() ?? string.Empty;
-        asignacionTratamientoNombre = item.Tratamiento;
-        mostrarModalAsignacion = true;
-        await CargarOpcionesPlanAsync();
-    }
-
-    /// <summary>Carga una sola vez el catálogo de tratamientos y de piezas para las ventanas del plan.</summary>
-    private async Task CargarOpcionesPlanAsync()
-    {
-        try
-        {
-            if (tratamientosPlan.Count == 0)
-            {
-                tratamientosPlan = [.. await HistoriaService.GetTratamientosPlanAsync()];
-            }
-
-            if (piezasPlan.Count == 0)
-            {
-                piezasPlan = [.. await HistoriaService.GetPiezasPlanAsync()];
-            }
-        }
-        catch (Exception)
-        {
-            errorPlan = "No fue posible cargar el catálogo de tratamientos y piezas.";
-        }
-    }
-
-    /// <summary>Al elegir un tratamiento se propone su precio base, que se puede ajustar.</summary>
-    private void OnPlanTratamientoSeleccionado()
-    {
-        var tratamiento = tratamientosPlan.FirstOrDefault(item => item.Id == planForm.TratamientoId);
-        if (tratamiento is not null)
-        {
-            planForm.Precio = tratamiento.PrecioBase;
-        }
-    }
-
-    private async Task GuardarPlanItemAsync()
-    {
-        guardandoPlan = true;
-        errorPlan = null;
-        try
-        {
-            planForm.PiezaDentalId = int.TryParse(piezaPlanSeleccionada, out var piezaId) && piezaId > 0 ? piezaId : null;
-            await HistoriaService.AgregarPlanItemAsync(planForm);
-
-            mostrarModalPlan = false;
-            await LoadAsync();
-            tabActiva = "consultas";
-            successMessage = "El tratamiento se agregó al plan de la consulta.";
-        }
-        catch (InvalidOperationException exception)
-        {
-            errorPlan = exception.Message;
-        }
-        catch (Exception)
-        {
-            errorPlan = "No fue posible agregar el tratamiento al plan.";
-        }
-        finally
-        {
-            guardandoPlan = false;
-        }
-    }
-
-    private async Task GuardarAsignacionPlanAsync()
-    {
-        guardandoPlan = true;
-        errorPlan = null;
-        try
-        {
-            asignacionPlan.PiezaDentalId = int.TryParse(piezaAsignacionSeleccionada, out var piezaId) && piezaId > 0 ? piezaId : null;
-            await TratamientoService.CreateRealizadoAsync(asignacionPlan);
-
-            mostrarModalAsignacion = false;
-            await LoadAsync();
-            tabActiva = "consultas";
-            successMessage = "El tratamiento se asignó y quedó registrado en Tratamientos.";
-        }
-        catch (InvalidOperationException exception)
-        {
-            errorPlan = exception.Message;
-        }
-        catch (Exception)
-        {
-            errorPlan = "No fue posible asignar el tratamiento.";
-        }
-        finally
-        {
-            guardandoPlan = false;
-        }
-    }
-
-    private async Task QuitarPlanItemAsync(int itemId)
-    {
-        errorMessage = null;
-        successMessage = null;
-        try
-        {
-            await HistoriaService.CancelarPlanItemAsync(itemId);
-            await LoadAsync();
-            tabActiva = "consultas";
-            successMessage = "El tratamiento se quitó del plan.";
-        }
-        catch (InvalidOperationException exception)
-        {
-            errorMessage = exception.Message;
-        }
-        catch (Exception)
-        {
-            errorMessage = "No fue posible quitar el tratamiento del plan.";
-        }
-    }
-
-    private void CerrarModalesPlan()
-    {
-        if (guardandoPlan)
-        {
-            return;
-        }
-
-        mostrarModalPlan = false;
-        mostrarModalAsignacion = false;
-        errorPlan = null;
-    }
-
-    private static string PlanEstadoLabel(EstadoPlanTratamiento estado) => estado switch
-    {
-        EstadoPlanTratamiento.Pendiente => "Pendiente",
-        EstadoPlanTratamiento.Asignado => "Asignado",
-        EstadoPlanTratamiento.Cancelado => "Quitado",
-        _ => estado.ToString()
-    };
-
-    private static string Money(decimal valor) => $"RD${valor:N2}";
 
     // =========================================================================================
     // DETALLE Y PINTADO  →  el acordeón de consultas y los textos que usa el markup

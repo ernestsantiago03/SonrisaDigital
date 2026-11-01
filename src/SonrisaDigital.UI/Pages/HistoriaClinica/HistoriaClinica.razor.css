@@ -233,13 +233,3 @@
 .resultados-nombre:hover { text-decoration: underline; }
 .resultados-badge { display: inline-flex; margin-left: 8px; padding: 3px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: #f1f5f9; color: #64748b; }
 .resultados-vacio { padding: 40px 20px; color: #334155; text-align: center; font-size: 12px; font-weight: 600; }
-
-/* Plan de tratamiento dentro de una consulta */
-.plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.plan-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 4px; background: white; }
-.plan-name { font-weight: 600; color: #1e293b; }
-.plan-meta { color: #64748b; font-size: 11px; }
-.plan-empty { color: #94a3b8; font-size: 12px; }
-.plan-link { color: #2563eb; font-size: 11px; font-weight: 600; text-decoration: none; }
-.plan-link:hover { text-decoration: underline; }
-.plan-action { min-height: 28px; padding: 0 10px; font-size: 11px; }

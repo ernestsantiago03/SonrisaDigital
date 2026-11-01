@@ -101,12 +101,6 @@ public sealed class TratamientoRealizadoFormDto
 
     [StringLength(1000, ErrorMessage = "Las observaciones no pueden superar los 1000 caracteres.")]
     public string? Observaciones { get; set; }
-
-    /// <summary>
-    /// Ítem del plan de una consulta que se asigna como tratamiento realizado. Si viene, el paciente,
-    /// el tratamiento y el odontólogo salen de la consulta y el ítem pasa a Asignado.
-    /// </summary>
-    public int? PlanTratamientoItemId { get; set; }
 }
 
 // ============================================================================

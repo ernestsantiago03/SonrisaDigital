@@ -101,10 +101,6 @@ public sealed class HistoriaClinicaRepository(ApplicationDbContext dbContext) : 
             // Include: trae también la fila del odontólogo relacionado, para poder mostrar su
             // nombre sin hacer una consulta extra por cada consulta.
             .Include(consultation => consultation.Odontologo)
-            .Include(consultation => consultation.PlanTratamientoItems)
-                .ThenInclude(item => item.Tratamiento)
-            .Include(consultation => consultation.PlanTratamientoItems)
-                .ThenInclude(item => item.PiezaDental)
             .Where(consultation => consultation.PacienteId == pacienteId)
             // Las más nuevas primero; si dos son del mismo día, la de Id mayor (la última
             // registrada) va primero.
@@ -122,40 +118,7 @@ public sealed class HistoriaClinicaRepository(ApplicationDbContext dbContext) : 
     /// </summary>
     public Task<ConsultaClinica?> GetConsultaAsync(int consultaId, CancellationToken cancellationToken = default) =>
         dbContext.ConsultasClinicas
-            .Include(consultation => consultation.PlanTratamientoItems)
             .FirstOrDefaultAsync(consultation => consultation.Id == consultaId, cancellationToken);
-
-    /// <summary>
-    /// Un ítem del plan de tratamiento, con su consulta. Se trae rastreado para poder marcarlo
-    /// o cancelarlo.
-    /// </summary>
-    public Task<PlanTratamientoItem?> GetPlanItemAsync(int itemId, CancellationToken cancellationToken = default) =>
-        dbContext.PlanesTratamiento
-            .Include(item => item.ConsultaClinica)
-            .FirstOrDefaultAsync(item => item.Id == itemId, cancellationToken);
-
-    /// <summary>Tratamientos del catálogo activos, para proponerlos en un plan.</summary>
-    public async Task<IReadOnlyList<Tratamiento>> GetTratamientosActivosAsync(CancellationToken cancellationToken = default) =>
-        await dbContext.Tratamientos.AsNoTracking()
-            .Where(treatment => treatment.Estado == EstadoRegistro.Activo)
-            .OrderBy(treatment => treatment.Nombre)
-            .ToListAsync(cancellationToken);
-
-    /// <summary>Un tratamiento del catálogo activo por su id, o null si no existe o está inactivo.</summary>
-    public Task<Tratamiento?> GetTratamientoActivoAsync(int tratamientoId, CancellationToken cancellationToken = default) =>
-        dbContext.Tratamientos.AsNoTracking()
-            .FirstOrDefaultAsync(treatment => treatment.Id == tratamientoId && treatment.Estado == EstadoRegistro.Activo, cancellationToken);
-
-    /// <summary>Piezas dentales, ordenadas por su número FDI.</summary>
-    public async Task<IReadOnlyList<PiezaDental>> GetPiezasAsync(CancellationToken cancellationToken = default) =>
-        await dbContext.PiezasDentales.AsNoTracking()
-            .OrderBy(tooth => tooth.NumeroFDI)
-            .ToListAsync(cancellationToken);
-
-    /// <summary>Una pieza dental por su id (o null si no existe).</summary>
-    public Task<PiezaDental?> GetPiezaAsync(int piezaId, CancellationToken cancellationToken = default) =>
-        dbContext.PiezasDentales.AsNoTracking()
-            .FirstOrDefaultAsync(tooth => tooth.Id == piezaId, cancellationToken);
 
     /// <summary>
     /// La consulta ligada a una cita (la que se creó al marcarla como atendida). Como solo se
@@ -210,10 +173,6 @@ public sealed class HistoriaClinicaRepository(ApplicationDbContext dbContext) : 
     public async Task AddConsultaAsync(ConsultaClinica consulta, CancellationToken cancellationToken = default) =>
         // Igual que AddAsync: la fila queda "en cola" hasta el SaveChangesAsync.
         await dbContext.ConsultasClinicas.AddAsync(consulta, cancellationToken);
-
-    /// <summary>Prepara un ítem nuevo del plan de tratamiento para insertarlo.</summary>
-    public async Task AddPlanItemAsync(PlanTratamientoItem item, CancellationToken cancellationToken = default) =>
-        await dbContext.PlanesTratamiento.AddAsync(item, cancellationToken);
 
     /// <summary>
     /// Aplica en la base de datos todos los cambios que quedaron pendientes.
