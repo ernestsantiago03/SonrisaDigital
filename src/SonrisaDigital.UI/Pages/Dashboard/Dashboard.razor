@@ -13,7 +13,6 @@
 @inject ICitaService CitaService
 @inject IDashboardService DashboardService
 @inject IAuditoriaService AuditoriaService
-@inject IPagoService PagoService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* ============================================================================
@@ -69,23 +68,19 @@
             <small>Disponibles en clínica</small>
         </div>
 
-        @* Solo se muestra a quien tiene permiso de consultar pagos, igual que el módulo de Pagos. *@
-        <AuthorizeView Policy="Pagos.Ver">
-            <Authorized>
-                <div class="stat-card">
-                    <span>Pagos pendientes</span>
-                    <strong>@Money(resumen.SaldoPendiente)</strong>
-                    @if (resumen.TratamientosConSaldo > 0)
-                    {
-                        <small class="negative">@FormatTratamientos(resumen.TratamientosConSaldo)</small>
-                    }
-                    else
-                    {
-                        <small class="positive">Sin saldos pendientes</small>
-                    }
-                </div>
-            </Authorized>
-        </AuthorizeView>
+        @* Visible para todos los usuarios de la clínica. El detalle de pagos sigue en el módulo Pagos. *@
+        <div class="stat-card">
+            <span>Pagos pendientes</span>
+            <strong>@Money(resumen.SaldoPendiente)</strong>
+            @if (resumen.TratamientosConSaldo > 0)
+            {
+                <small class="negative">@FormatTratamientos(resumen.TratamientosConSaldo)</small>
+            }
+            else
+            {
+                <small class="positive">Sin saldos pendientes</small>
+            }
+        </div>
     </div>
 
     @* --- CUADRÍCULA PRINCIPAL DEL PANEL --- *@
@@ -234,7 +229,6 @@
     private bool loading = true;                                    // ¿la página sigue cargando?
     private bool puedeVerAuditoria;                                 // evita consultar la auditoría sin permiso
     private bool puedeVerCitas;                                     // evita consultar las citas sin permiso
-    private bool puedeVerPagos;                                     // evita consultar los pagos sin permiso
 
     // ===== Contadores (métricas) que se calculan al cargar =====
     private int totalCitasHoy = 0;
@@ -271,7 +265,6 @@
 
             puedeVerAuditoria = usuario.HasClaim(PermissionCatalog.ClaimType, "Auditoria.Ver");
             puedeVerCitas = usuario.HasClaim(PermissionCatalog.ClaimType, "Citas.Ver");
-            puedeVerPagos = usuario.HasClaim(PermissionCatalog.ClaimType, "Pagos.Ver");
 
             DateOnly hoy = DateOnly.FromDateTime(DateTime.Now);
 
@@ -307,10 +300,7 @@
             }
 
             // 4. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
-            if (puedeVerPagos)
-            {
-                resumen = await PagoService.GetResumenAsync();
-            }
+            resumen = await DashboardService.GetResumenPagosAsync();
         }
         catch (Exception)
         {

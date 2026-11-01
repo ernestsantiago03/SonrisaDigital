@@ -11,6 +11,7 @@ public sealed class DashboardServiceTests
         var servicio = new DashboardService(
             pacienteRepository: null!,
             odontologoRepository: null!,
+            pagoRepository: null!,
             currentUserService: TestSession.Crear(),
             authorizationService: new FakeAuthorizationService(permitir: false));
 

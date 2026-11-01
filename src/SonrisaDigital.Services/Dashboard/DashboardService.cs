@@ -4,12 +4,14 @@ using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Dashboard.DTOs;
+using SonrisaDigital.Services.Pagos.DTOs;
 
 namespace SonrisaDigital.Services.Dashboard;
 
 public sealed class DashboardService(
     IPacienteRepository pacienteRepository,
     IOdontologoRepository odontologoRepository,
+    IPagoRepository pagoRepository,
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IDashboardService
 {
@@ -57,6 +59,26 @@ public sealed class DashboardService(
             TotalOdontologosActivos: odontologosActivos,
             PacientesRegistradosEstaSemana: pacientesEstaSemana,
             OdontologosRegistradosEstaSemana: odontologosEstaSemana);
+    }
+
+    /// <summary>
+    /// Totales de cobro de la clínica para la tarjeta "Pagos pendientes" del Inicio. Solo exige una
+    /// sesión: el detalle de pagos (módulo Pagos) sigue protegido por Pagos.Ver.
+    /// </summary>
+    public async Task<PagosResumenDto> GetResumenPagosAsync(CancellationToken cancellationToken = default)
+    {
+        if (currentUserService.Principal?.Identity?.IsAuthenticated != true)
+        {
+            throw new UnauthorizedAccessException("Debes iniciar sesión para ver el resumen de pagos.");
+        }
+
+        var totales = await pagoRepository.GetTotalesAsync(cancellationToken);
+
+        return new PagosResumenDto(
+            totales.TotalFacturado,
+            totales.TotalCobrado,
+            totales.TotalFacturado - totales.TotalCobrado,
+            totales.TratamientosConSaldo);
     }
 
     /// <summary>
