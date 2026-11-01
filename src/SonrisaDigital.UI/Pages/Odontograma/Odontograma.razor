@@ -171,7 +171,7 @@
                             <button type="button"
                                     class="tooth is-upper @GetStateClass(piece.Estado) @(selectedPiece?.Id == piece.Id ? "is-selected" : "")"
                                     style="@style"
-                                    @onclick="() => SelectPiece(piece)"
+                                    @onclick="() => SelectPieceAsync(piece)"
                                     title="Pieza @piece.NumeroFDI · @GetStateLabel(piece.Estado)">
                                 <span class="tooth-halo" aria-hidden="true"></span>
                                 <ToothFigure NumeroFdi="@piece.NumeroFDI" IsUpper="true" IdPrefix="@($"u{i}")" />
@@ -194,7 +194,7 @@
                             <button type="button"
                                     class="tooth is-lower @GetStateClass(piece.Estado) @(selectedPiece?.Id == piece.Id ? "is-selected" : "")"
                                     style="@style"
-                                    @onclick="() => SelectPiece(piece)"
+                                    @onclick="() => SelectPieceAsync(piece)"
                                     title="Pieza @piece.NumeroFDI · @GetStateLabel(piece.Estado)">
                                 <span class="tooth-halo" aria-hidden="true"></span>
                                 <ToothFigure NumeroFdi="@piece.NumeroFDI" IsUpper="false" IdPrefix="@($"l{i}")" />
@@ -281,6 +281,33 @@
                             </div>
                         }
 
+                        <div class="tooth-history">
+                            <span class="tooth-history-title">Historial de la pieza</span>
+                            @if (historial.Count == 0)
+                            {
+                                <small>Esta pieza todavía no tiene cambios registrados.</small>
+                            }
+                            else
+                            {
+                                <ol class="tooth-history-list">
+                                    @foreach (var item in historial)
+                                    {
+                                        <li>
+                                            <div class="tooth-history-head">
+                                                <strong>@item.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                                                <span>@item.Odontologo</span>
+                                            </div>
+                                            <div class="tooth-history-state">@DescribirCambio(item)</div>
+                                            @if (!string.IsNullOrWhiteSpace(item.Observaciones))
+                                            {
+                                                <p>@item.Observaciones</p>
+                                            }
+                                        </li>
+                                    }
+                                </ol>
+                            }
+                        </div>
+
                         @if (canEdit)
                         {
                             <button class="save-action" @onclick="SaveSelectedPieceAsync" disabled="@saving">
@@ -329,6 +356,7 @@
     private bool canEdit;
     private OdontogramaEditContextDto? editContext;                 // firma y permisos de la sesión
     private int selectedOdontologoId;                               // firmante elegido por un administrador
+    private IReadOnlyList<OdontogramaHistorialDto> historial = [];  // guardados de la pieza seleccionada
     private string? errorMessage;
     private string? successMessage;
 
@@ -504,24 +532,38 @@
         {
             pieces = [];
             selectedPiece = null;
+            historial = [];
             return;
         }
 
         // Traer las 32 piezas del paciente y quitar cualquier selección anterior.
         pieces = (await OdontogramaService.GetByPatientAsync(selectedPatientId)).ToList();
         selectedPiece = null;
+        historial = [];
         successMessage = null;
     }
 
     /// <summary>
-    /// Marca una pieza como "la que se está editando": el panel lateral muestra sus datos
-    /// y el color de la pieza seleccionada cambia.
+    /// Marca una pieza como "la que se está editando": el panel lateral muestra sus datos,
+    /// su historial completo y el color de la pieza seleccionada cambia.
     /// </summary>
-    private void SelectPiece(OdontogramaPiezaDto piece)
+    private async Task SelectPieceAsync(OdontogramaPiezaDto piece)
     {
         selectedPiece = piece;
         successMessage = null;
+        historial = await OdontogramaService.GetHistorialAsync(selectedPatientId, piece.Id);
     }
+
+    /// <summary>
+    /// Texto de una entrada del historial: registro inicial, sin cambio de estado o el paso
+    /// del estado anterior al nuevo.
+    /// </summary>
+    private static string DescribirCambio(OdontogramaHistorialDto item) =>
+        item.EstadoAnterior is null
+            ? $"Registro inicial: {GetStateLabel(item.EstadoNuevo)}"
+            : item.EstadoAnterior == item.EstadoNuevo
+                ? $"Sin cambio de estado ({GetStateLabel(item.EstadoNuevo)})"
+                : $"{GetStateLabel(item.EstadoAnterior.Value)} → {GetStateLabel(item.EstadoNuevo)}";
 
     /// <summary>
     /// Guarda en la base de datos el estado y las observaciones de la pieza elegida

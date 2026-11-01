@@ -24,6 +24,9 @@ public interface IOdontogramaService
     Task<OdontogramaPacienteDto?> GetActivePatientAsync(int pacienteId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<OdontogramaPiezaDto>> GetByPatientAsync(int pacienteId, CancellationToken cancellationToken = default);
 
+    /// <summary>Todos los guardados de una pieza de un paciente, del más reciente al más antiguo.</summary>
+    Task<IReadOnlyList<OdontogramaHistorialDto>> GetHistorialAsync(int pacienteId, int piezaDentalId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Contexto de edición del odontograma. Indica si el usuario puede guardar, cuál es
     /// su odontólogo vinculado y, si es un administrador sin perfil, qué odontólogos

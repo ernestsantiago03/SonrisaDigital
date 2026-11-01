@@ -120,6 +120,25 @@ public sealed class OdontogramaService(
             .ToList();
     }
 
+    /// <summary>
+    /// Todos los guardados de una pieza de un paciente, del más reciente al más antiguo.
+    /// </summary>
+    public async Task<IReadOnlyList<OdontogramaHistorialDto>> GetHistorialAsync(int pacienteId, int piezaDentalId, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Ver", "No tienes permiso para consultar odontogramas.");
+
+        var historial = await repository.GetHistorialAsync(pacienteId, piezaDentalId, cancellationToken);
+
+        return historial
+            .Select(item => new OdontogramaHistorialDto(
+                item.FechaHora,
+                item.EstadoAnterior,
+                item.EstadoNuevo,
+                item.Observaciones,
+                $"{item.Odontologo.Nombres} {item.Odontologo.Apellidos}"))
+            .ToList();
+    }
+
     // =========================================================================================
     // 3) RESOLVER LA FIRMA DE LA SESIÓN  →  qué puede hacer el usuario en esta pantalla
     // =========================================================================================
@@ -226,6 +245,7 @@ public sealed class OdontogramaService(
 
         // Paso 3: buscar si ya existe un registro de esa pieza para ese paciente.
         var record = await repository.GetRecordAsync(pacienteId, piezaDentalId, cancellationToken);
+        EstadoOdontograma? estadoAnterior = record?.Estado;
 
         // Paso 4: si no existe, se crea la fila nueva (primera vez que se toca la pieza).
         if (record is null)
@@ -272,6 +292,15 @@ public sealed class OdontogramaService(
             Modulo = "Odontograma",
             Entidad = nameof(RegistroOdontograma),
             Descripcion = $"Actualizó la pieza dental {numeroPieza} del paciente {nombrePaciente}."
+        }, new HistorialOdontograma
+        {
+            PacienteId = pacienteId,
+            PiezaDentalId = piezaDentalId,
+            EstadoAnterior = estadoAnterior,
+            EstadoNuevo = estado,
+            Observaciones = record.Observaciones,
+            OdontologoId = odontologoFirmanteId,
+            FechaHora = record.FechaModificacion
         }, cancellationToken);
     }
 

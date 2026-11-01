@@ -149,6 +149,20 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
         dbContext.RegistrosOdontograma
             .FirstOrDefaultAsync(record => record.PacienteId == pacienteId && record.PiezaDentalId == piezaDentalId, cancellationToken);
 
+    /// <summary>
+    /// Todos los guardados de una pieza de un paciente, con el odontólogo que firmó cada uno.
+    /// </summary>
+    public async Task<IReadOnlyList<HistorialOdontograma>> GetHistorialAsync(
+        int pacienteId,
+        int piezaDentalId,
+        CancellationToken cancellationToken = default) =>
+        await dbContext.HistorialesOdontograma.AsNoTracking()
+            .Include(item => item.Odontologo)
+            .Where(item => item.PacienteId == pacienteId && item.PiezaDentalId == piezaDentalId)
+            .OrderByDescending(item => item.FechaHora)
+            .ThenByDescending(item => item.Id)
+            .ToListAsync(cancellationToken);
+
     // =========================================================================================
     // 2) OPERACIONES DE ESCRITURA  →  guardan cambios en la base de datos
     // =========================================================================================
@@ -170,6 +184,7 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
     public async Task SaveChangesWithAuditAsync(
         RegistroOdontograma record,
         RegistroAuditoria audit,
+        HistorialOdontograma historial,
         CancellationToken cancellationToken = default)
     {
         // La transacción se ejecuta con la estrategia de reintentos de EF Core.
@@ -222,6 +237,9 @@ public sealed class OdontogramaRepository(ApplicationDbContext dbContext) : IOdo
                 EntidadId = trabajo.Id,
                 Descripcion = audit.Descripcion
             });
+
+            // Paso 3: el guardado queda en el historial de la pieza, en la misma transacción.
+            dbContext.HistorialesOdontograma.Add(historial);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             // El llamador recibe el Id generado, igual que antes.

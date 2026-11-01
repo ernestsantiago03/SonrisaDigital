@@ -38,6 +38,14 @@ public sealed class OdontogramaEditContextDto
     public IReadOnlyList<OdontogramaOdontologoDto> OdontologosDisponibles { get; init; } = [];
 }
 
+/// <summary>Un guardado de una pieza dental: cuándo, de qué estado a qué estado, con qué observaciones y quién firmó.</summary>
+public sealed record OdontogramaHistorialDto(
+    DateTime FechaHora,
+    EstadoOdontograma? EstadoAnterior,
+    EstadoOdontograma EstadoNuevo,
+    string? Observaciones,
+    string Odontologo);
+
 public sealed class OdontogramaPiezaDto
 {
     public int Id { get; init; }

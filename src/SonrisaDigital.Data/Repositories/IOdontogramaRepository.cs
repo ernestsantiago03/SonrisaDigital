@@ -30,15 +30,19 @@ public interface IOdontogramaRepository
     Task<Odontologo?> GetOdontologoAsync(int odontologoId, CancellationToken cancellationToken = default);
 
     Task<RegistroOdontograma?> GetRecordAsync(int pacienteId, int piezaDentalId, CancellationToken cancellationToken = default);
+
+    /// <summary>Todos los guardados de una pieza, del más reciente al más antiguo.</summary>
+    Task<IReadOnlyList<HistorialOdontograma>> GetHistorialAsync(int pacienteId, int piezaDentalId, CancellationToken cancellationToken = default);
     Task AddAsync(RegistroOdontograma record, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Guarda el registro del odontograma y su auditoría en una sola transacción.
-    /// Recibe también el registro para completar el EntidadId real después del
+    /// Guarda el registro del odontograma, su entrada de historial y su auditoría en una sola
+    /// transacción. Recibe también el registro para completar el EntidadId real después del
     /// primer SaveChanges, cuando una fila nueva ya tiene Id (ODO-03).
     /// </summary>
     Task SaveChangesWithAuditAsync(
         RegistroOdontograma record,
         RegistroAuditoria audit,
+        HistorialOdontograma historial,
         CancellationToken cancellationToken = default);
 }
