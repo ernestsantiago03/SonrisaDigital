@@ -69,6 +69,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 | **Auditoría** | Registro automático de operaciones y actividad reciente en el dashboard. | ✅ |
 | **Centro de ayuda** | Guías, preguntas frecuentes, solución de problemas y contacto de soporte. | ✅ |
 | **Reportes** | Panel de reportes de citas, pacientes atendidos, tratamientos y pagos con filtros, exportación PDF y alcance por odontólogo. | ✅ |
+| **Suscripción** | Prueba de 30 días desde el primer ingreso, mensualidad en USD, registro manual de pagos y bloqueo automático al vencer. | ✅ |
 
 ### Capacidades transversales
 
@@ -78,6 +79,19 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 - **HTTPS** obligatorio y **HSTS** en producción.
 - Página 404 personalizada y manejo controlado de errores.
 - Datos iniciales (roles, permisos, administrador y catálogo odontográfico) creados automáticamente al arrancar.
+
+### Suscripción y facturación
+
+Cada clínica opera con una mensualidad en **USD** (un solo plan mientras se valida el producto) y recibe **30 días de prueba** que empiezan a contar en su **primer ingreso**, no al crearla.
+
+- El **Dueño** registra los pagos manualmente (transferencia, efectivo o tarjeta) desde **Clínicas → Facturación**; no hay pasarela de pago.
+- Un pago extiende el vencimiento un mes desde la fecha de vencimiento actual o desde hoy si ya venció, y deja la clínica activa.
+- Al vencer, la clínica tiene **3 días de gracia** con un aviso visible; después se bloquea el acceso sin borrar datos.
+- El Dueño siempre puede entrar, incluso con la clínica bloqueada, para registrar el pago.
+- La regla se evalúa en cada inicio de sesión, navegación y revalidación de sesión; no depende de un proceso programado.
+- La clínica puede suspenderse manualmente, y esa suspensión prevalece sobre la fecha de pago.
+
+El precio propuesto y los días de aviso se configuran en `Suscripcion` (`PrecioMensualUsd` y `DiasAviso`). El monto real de cada pago queda guardado en su propio registro.
 
 ---
 
@@ -195,6 +209,13 @@ dotnet user-secrets set "Authentication:AdminPassword" "CAMBIA-ESTA-CLAVE" `
 ```
 
 Ajusta `Server=` según tu instancia (por ejemplo `localhost\SQLEXPRESS` o `MI-SERVIDOR`).
+
+La mensualidad se configura en dólares; cambia el precio real antes de facturar:
+
+```powershell
+dotnet user-secrets set "Suscripcion:PrecioMensualUsd" "50" `
+  --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
+```
 
 ### 4. Aplicar las migraciones
 

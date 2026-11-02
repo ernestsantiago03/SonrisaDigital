@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Services.Autenticacion;
 
 namespace SonrisaDigital.UI.Components;
@@ -70,16 +71,33 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
             return false;
         }
 
-        // Suspender una clínica debe cerrar también las sesiones ya abiertas.
+        // Suspender una clínica o dejar vencer su mensualidad debe cerrar también
+        // las sesiones ya abiertas. Se aplica la misma regla que el login y el
+        // middleware para que no haya tres criterios distintos.
         if (user.ClinicaId is int clinicaId)
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var clinicaActiva = await dbContext.Clinicas
-                .Where(clinica => clinica.Id == clinicaId)
-                .Select(clinica => clinica.Estado == EstadoClinica.Activa)
+            var clinica = await dbContext.Clinicas
+                .Where(item => item.Id == clinicaId)
+                .Select(item => new
+                {
+                    item.Estado,
+                    item.EnPrueba,
+                    item.FechaPrimerIngreso,
+                    item.FechaVencimiento
+                })
                 .FirstOrDefaultAsync(cancellationToken);
 
-            if (!clinicaActiva)
+            var acceso = clinica is null
+                ? AccesoClinica.Suspendida
+                : ReglaSuscripcion.Evaluar(
+                    clinica.Estado,
+                    clinica.EnPrueba,
+                    clinica.FechaPrimerIngreso,
+                    clinica.FechaVencimiento,
+                    ReglaSuscripcion.Hoy());
+
+            if (acceso is AccesoClinica.Suspendida or AccesoClinica.Vencida)
             {
                 return false;
             }

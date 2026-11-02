@@ -296,6 +296,9 @@ namespace SonrisaDigital.Data.Migrations
                     b.Property<DateTime>("FechaAlta")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("FechaPrimerIngreso")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("FechaVencimiento")
                         .HasColumnType("datetime2");
 
@@ -687,6 +690,65 @@ namespace SonrisaDigital.Data.Migrations
                     b.HasIndex("TratamientoRealizadoId", "Fecha");
 
                     b.ToTable("Pagos", (string)null);
+                });
+
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.PagoSuscripcion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ClinicaId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FechaPago")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("FechaRegistro")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Metodo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Moneda")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("PeriodoDesde")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodoHasta")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Referencia")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RegistradoPorId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegistradoPorId");
+
+                    b.HasIndex("ClinicaId", "FechaPago");
+
+                    b.ToTable("PagosSuscripcion", (string)null);
                 });
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Permiso", b =>
@@ -1354,6 +1416,25 @@ namespace SonrisaDigital.Data.Migrations
                     b.Navigation("Usuario");
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.PagoSuscripcion", b =>
+                {
+                    b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
+                        .WithMany("PagosSuscripcion")
+                        .HasForeignKey("ClinicaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Usuario", "RegistradoPor")
+                        .WithMany("PagosSuscripcionRegistrados")
+                        .HasForeignKey("RegistradoPorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Clinica");
+
+                    b.Navigation("RegistradoPor");
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.RegistroAuditoria", b =>
                 {
                     b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
@@ -1510,6 +1591,8 @@ namespace SonrisaDigital.Data.Migrations
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.Clinica", b =>
                 {
+                    b.Navigation("PagosSuscripcion");
+
                     b.Navigation("Usuarios");
                 });
 
@@ -1579,6 +1662,8 @@ namespace SonrisaDigital.Data.Migrations
                     b.Navigation("Odontologo");
 
                     b.Navigation("Pagos");
+
+                    b.Navigation("PagosSuscripcionRegistrados");
 
                     b.Navigation("RegistrosAuditoria");
                 });

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Suscripciones;
 
 namespace SonrisaDigital.Services.Clinicas.DTOs;
 
@@ -8,7 +9,13 @@ public sealed record ClinicaListItemDto(
     string Nombre,
     string Codigo,
     EstadoClinica Estado,
-    DateTime FechaAlta);
+    DateTime FechaAlta,
+    string? Plan,
+    bool EnPrueba,
+    DateTime? FechaVencimiento,
+    int LimiteUsuarios,
+    AccesoClinica Acceso,
+    int DiasRestantes);
 
 public sealed class ClinicaFormDto
 {

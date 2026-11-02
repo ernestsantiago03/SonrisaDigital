@@ -1,8 +1,11 @@
 ﻿@inherits LayoutComponentBase
+@using SonrisaDigital.Data.Suscripciones
 @using SonrisaDigital.Services.Autenticacion
 @using SonrisaDigital.Services.Autorizacion
 @using SonrisaDigital.Services.Clinicas
 @using SonrisaDigital.Services.Clinicas.DTOs
+@using SonrisaDigital.Services.Suscripciones
+@using SonrisaDigital.Services.Suscripciones.DTOs
 @using SonrisaDigital.UI.Services
 
 <div class="app-shell">
@@ -149,6 +152,14 @@
     }
 
     <div class="app-main">
+        @if (avisoSuscripcion is not null)
+        {
+            <div class="suscripcion-aviso @ClaseAvisoSuscripcion" role="status">
+                <strong>@TituloAvisoSuscripcion</strong>
+                <span>@DetalleAvisoSuscripcion</span>
+            </div>
+        }
+
         <main class="app-content">
             @if (contenidoListo)
             {
@@ -209,7 +220,14 @@
     [Inject]
     private IClinicaActivaService ClinicaActiva { get; set; } = null!;
 
+    // Aviso de vencimiento para el personal de una clínica (el Dueño lo ve en el panel).
+    // El servicio consulta con su propio DbContext: el del circuito lo está usando la página.
+    [Inject]
+    private ISuscripcionAvisoService SuscripcionAviso { get; set; } = null!;
+
     private IReadOnlyList<ClinicaListItemDto> clinicas = [];
+    private AvisoSuscripcionDto? avisoSuscripcion;
+    private string? avisoCargadoParaUsuario;
     private bool contenidoListo;
     private bool seleccionRestaurada;
 
@@ -284,6 +302,8 @@
             UserRole = "Sin rol";
             UserInitials = "US";
             CurrentUserService.Establecer(null, null, null);
+            avisoSuscripcion = null;
+            avisoCargadoParaUsuario = null;
             contenidoListo = true;
             return;
         }
@@ -301,9 +321,25 @@
         // Deja al usuario actual disponible para los servicios. Además del Id y el
         // nombre (auditoría), se guarda el principal completo para que los servicios
         // puedan evaluar las mismas políticas de autorización que la interfaz.
-        CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName, user);
+        var usuarioId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        CurrentUserService.Establecer(usuarioId, UserName, user);
 
         clinicas = EsDueno ? await CargarClinicasAsync() : [];
+
+        // El Dueño controla la suscripción desde el panel de clínicas; el aviso
+        // es para el personal de la clínica, que no tiene ese permiso.
+        // Se consulta una sola vez por sesión: OnParametersSetAsync se ejecuta en
+        // cada navegación y no hace falta una consulta extra por página.
+        if (EsDueno)
+        {
+            avisoSuscripcion = null;
+            avisoCargadoParaUsuario = null;
+        }
+        else if (avisoCargadoParaUsuario != usuarioId)
+        {
+            avisoSuscripcion = await SuscripcionAviso.ObtenerAsync();
+            avisoCargadoParaUsuario = usuarioId;
+        }
 
         // El Dueño espera a que OnAfterRender restaure la clínica elegida antes
         // de renderizar la página. Los demás usuarios no dependen del selector.
@@ -315,6 +351,38 @@
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
     private void CloseSidebar() => sidebarOpen = false;
+
+    private string ClaseAvisoSuscripcion =>
+        avisoSuscripcion?.Acceso == AccesoClinica.EnGracia ? "gracia" : "proximo";
+
+    private string TituloAvisoSuscripcion =>
+        avisoSuscripcion?.Acceso == AccesoClinica.EnGracia
+            ? "Mensualidad vencida"
+            : avisoSuscripcion?.EnPrueba == true ? "Prueba por vencer" : "Mensualidad por vencer";
+
+    private string DetalleAvisoSuscripcion
+    {
+        get
+        {
+            if (avisoSuscripcion is null)
+            {
+                return string.Empty;
+            }
+
+            if (avisoSuscripcion.Acceso == AccesoClinica.EnGracia)
+            {
+                return $"Tienes {Math.Abs(avisoSuscripcion.DiasRestantes)} día(s) de gracia antes de que se bloquee el acceso. Contacta al administrador para renovar.";
+            }
+
+            var cuando = avisoSuscripcion.DiasRestantes <= 0
+                ? "hoy"
+                : $"en {avisoSuscripcion.DiasRestantes} día(s)";
+
+            return avisoSuscripcion.EnPrueba
+                ? $"El período de prueba vence {cuando}. Al terminar, el acceso se suspende hasta registrar el pago."
+                : $"La mensualidad vence {cuando}. Renueva para evitar la suspensión del acceso.";
+        }
+    }
 
     private bool HasPermission(string permission) =>
         CurrentUser.HasClaim(PermissionCatalog.ClaimType, permission);

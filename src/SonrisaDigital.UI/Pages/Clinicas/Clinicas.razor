@@ -1,6 +1,7 @@
 @page "/clinicas"
 @attribute [Authorize(Policy = "Clinicas.Ver")]
 @using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Data.Suscripciones
 @using SonrisaDigital.Services.Clinicas
 @using SonrisaDigital.Services.Clinicas.DTOs
 @using SonrisaDigital.UI.Services
@@ -32,7 +33,16 @@
         <div class="clinicas-resumen">@clinicas.Count clínica(s)</div>
         <table class="clinicas-tabla">
             <thead>
-                <tr><th>Nombre</th><th>Código</th><th>Estado</th><th>Alta</th><th>Opciones</th></tr>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Código</th>
+                    <th>Estado</th>
+                    <th>Plan</th>
+                    <th>Vence</th>
+                    <th>Acceso</th>
+                    <th>Alta</th>
+                    <th>Opciones</th>
+                </tr>
             </thead>
             <tbody>
                 @foreach (var clinica in clinicas)
@@ -41,6 +51,30 @@
                         <td>@clinica.Nombre</td>
                         <td>@clinica.Codigo</td>
                         <td>@clinica.Estado</td>
+                        <td>
+                            @if (clinica.EnPrueba)
+                            {
+                                <span class="badge badge-prueba">Prueba</span>
+                            }
+                            else
+                            {
+                                <span>@(clinica.Plan ?? "Mensual")</span>
+                            }
+                        </td>
+                        <td>
+                            @if (clinica.FechaVencimiento is DateTime vence)
+                            {
+                                <span>@vence.ToString("dd/MM/yyyy")</span>
+                                <small class="vence-detalle">@TextoDias(clinica)</small>
+                            }
+                            else
+                            {
+                                <span class="sin-fecha">Sin iniciar</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="acceso @ClaseAcceso(clinica.Acceso)">@TextoAcceso(clinica.Acceso)</span>
+                        </td>
                         <td>@clinica.FechaAlta.ToLocalTime().ToString("dd/MM/yyyy")</td>
                         <td class="clinicas-acciones">
                             <AuthorizeView Policy="Clinicas.Editar">
@@ -49,6 +83,11 @@
                             <AuthorizeView Policy="Usuarios.Ver">
                                 <Authorized>
                                     <button type="button" class="enlace-accion" @onclick="() => AbrirUsuariosAsync(clinica)">Usuarios</button>
+                                </Authorized>
+                            </AuthorizeView>
+                            <AuthorizeView Policy="Clinicas.Editar">
+                                <Authorized>
+                                    <a href="/clinicas/facturacion/@clinica.Id">Facturación</a>
                                 </Authorized>
                             </AuthorizeView>
                             <AuthorizeView Policy="Clinicas.Suspender">
@@ -114,5 +153,36 @@
         {
             mensaje = ex.Message;
         }
+    }
+
+    private static string TextoAcceso(AccesoClinica acceso) => acceso switch
+    {
+        AccesoClinica.Permitido => "Al día",
+        AccesoClinica.EnGracia => "En gracia",
+        AccesoClinica.Vencida => "Vencida",
+        _ => "Suspendida"
+    };
+
+    private static string ClaseAcceso(AccesoClinica acceso) => acceso switch
+    {
+        AccesoClinica.Permitido => "ok",
+        AccesoClinica.EnGracia => "gracia",
+        AccesoClinica.Vencida => "vencida",
+        _ => "suspendida"
+    };
+
+    private static string TextoDias(ClinicaListItemDto clinica)
+    {
+        if (clinica.EnPrueba && clinica.FechaVencimiento is null)
+        {
+            return "Empieza en el primer ingreso";
+        }
+
+        return clinica.DiasRestantes switch
+        {
+            < 0 => $"Vencida hace {Math.Abs(clinica.DiasRestantes)} día(s)",
+            0 => "Vence hoy",
+            _ => $"{clinica.DiasRestantes} día(s) restantes"
+        };
     }
 }

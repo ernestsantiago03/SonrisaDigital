@@ -1,0 +1,344 @@
+@page "/clinicas/facturacion/{Id:int}"
+@attribute [Authorize(Policy = "Clinicas.Ver")]
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Data.Suscripciones
+@using SonrisaDigital.Services.Suscripciones
+@using SonrisaDigital.Services.Suscripciones.DTOs
+@inject ISuscripcionService SuscripcionService
+
+<PageTitle>Facturación · Sonrisa Digital</PageTitle>
+
+<div class="facturacion-page">
+    <header class="form-header">
+        <a class="back-link" href="/clinicas">← Clínicas</a>
+        <span class="page-eyebrow">Suscripción</span>
+        <h1>@(resumen?.Nombre ?? "Facturación de la clínica")</h1>
+        <p>Registra la mensualidad, revisa el historial y controla el vencimiento.</p>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="feedback error" role="alert">@errorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="feedback success" role="alert">@successMessage</div>
+    }
+
+    @if (notFound)
+    {
+        <div class="feedback error" role="alert">La clínica solicitada no existe.</div>
+    }
+    else if (resumen is not null)
+    {
+        <section class="resumen-panel">
+            <div class="resumen-item">
+                <span>Acceso</span>
+                <strong class="acceso @ClaseAcceso(resumen.Acceso)">@TextoAcceso(resumen.Acceso)</strong>
+            </div>
+            <div class="resumen-item">
+                <span>Plan</span>
+                <strong>@(resumen.Plan ?? "Sin plan")</strong>
+            </div>
+            <div class="resumen-item">
+                <span>Vence</span>
+                <strong>@Fecha(resumen.FechaVencimiento)</strong>
+            </div>
+            <div class="resumen-item">
+                <span>Situación</span>
+                <strong>@TextoSituacion(resumen)</strong>
+            </div>
+            <div class="resumen-item">
+                <span>Primer ingreso</span>
+                <strong>@Fecha(resumen.FechaPrimerIngreso)</strong>
+            </div>
+            <div class="resumen-item">
+                <span>Límite de usuarios</span>
+                <strong>@resumen.LimiteUsuarios</strong>
+            </div>
+        </section>
+
+        @if (resumen.EnPrueba)
+        {
+            <div class="form-note">
+                Esta clínica está en prueba. Los 30 días empiezan con el primer ingreso de un usuario de la clínica;
+                al registrar el primer pago, la prueba termina y el plan pasa a mensual.
+            </div>
+        }
+
+        <div class="facturacion-grid">
+            <AuthorizeView Policy="Clinicas.Editar">
+                <Authorized Context="auth">
+                    <section class="form-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-kicker">01</span>
+                                <h2>Registrar pago</h2>
+                            </div>
+                            <span>Mensualidad en USD</span>
+                        </div>
+
+                        <EditForm Model="pago" OnValidSubmit="RegistrarPagoAsync">
+                            <DataAnnotationsValidator />
+                            <div class="form-grid">
+                                <div class="field">
+                                    <label for="pago-monto">Monto (USD)</label>
+                                    <InputNumber id="pago-monto" @bind-Value="pago.Monto" step="0.01" min="0.01" />
+                                    <ValidationMessage For="@(() => pago.Monto)" />
+                                </div>
+                                <div class="field">
+                                    <label for="pago-meses">Meses que cubre</label>
+                                    <InputNumber id="pago-meses" @bind-Value="pago.Meses" min="1" max="36" />
+                                    <small class="field-help">1 es la mensualidad normal.</small>
+                                    <ValidationMessage For="@(() => pago.Meses)" />
+                                </div>
+                                <div class="field">
+                                    <label for="pago-metodo">Método</label>
+                                    <InputSelect id="pago-metodo" @bind-Value="pago.Metodo">
+                                        @foreach (var metodo in Enum.GetValues<MetodoPagoSuscripcion>())
+                                        {
+                                            <option value="@metodo">@TextoMetodo(metodo)</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="field">
+                                    <label for="pago-referencia">Referencia</label>
+                                    <InputText id="pago-referencia" @bind-Value="pago.Referencia" placeholder="Transferencia, autorización o recibo" />
+                                    <ValidationMessage For="@(() => pago.Referencia)" />
+                                </div>
+                                <div class="field field-wide">
+                                    <label for="pago-notas">Notas</label>
+                                    <InputText id="pago-notas" @bind-Value="pago.Notas" placeholder="Opcional" />
+                                    <ValidationMessage For="@(() => pago.Notas)" />
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="primary-action" disabled="@guardandoPago">
+                                    @(guardandoPago ? "Registrando..." : "Registrar pago")
+                                </button>
+                            </div>
+                        </EditForm>
+                    </section>
+
+                    <section class="form-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-kicker">02</span>
+                                <h2>Extender días</h2>
+                            </div>
+                            <span>Caso especial auditado</span>
+                        </div>
+
+                        <EditForm Model="extension" OnValidSubmit="ExtenderAsync">
+                            <DataAnnotationsValidator />
+                            <div class="form-grid">
+                                <div class="field">
+                                    <label for="extension-dias">Días</label>
+                                    <InputNumber id="extension-dias" @bind-Value="extension.Dias" min="1" max="365" />
+                                    <ValidationMessage For="@(() => extension.Dias)" />
+                                </div>
+                                <div class="field field-wide">
+                                    <label for="extension-motivo">Motivo</label>
+                                    <InputText id="extension-motivo" @bind-Value="extension.Motivo" placeholder="Ej. Compensación por una caída del servicio" />
+                                    <ValidationMessage For="@(() => extension.Motivo)" />
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="secondary-action" disabled="@guardandoExtension">
+                                    @(guardandoExtension ? "Extendiendo..." : "Extender suscripción")
+                                </button>
+                            </div>
+                        </EditForm>
+                    </section>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <section class="form-panel">
+            <div class="section-heading">
+                <div>
+                    <span class="section-kicker">03</span>
+                    <h2>Historial de pagos</h2>
+                </div>
+                <span>@resumen.Pagos.Count pago(s)</span>
+            </div>
+
+            @if (resumen.Pagos.Count == 0)
+            {
+                <p class="sin-pagos">Todavía no hay pagos registrados para esta clínica.</p>
+            }
+            else
+            {
+                <table class="tabla-pagos">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Período cubierto</th>
+                            <th>Monto</th>
+                            <th>Método</th>
+                            <th>Referencia</th>
+                            <th>Registró</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in resumen.Pagos)
+                        {
+                            <tr>
+                                <td>@item.FechaPago.ToString("dd/MM/yyyy")</td>
+                                <td>@item.PeriodoDesde.ToString("dd/MM/yyyy") — @item.PeriodoHasta.ToString("dd/MM/yyyy")</td>
+                                <td>@item.Monto.ToString("0.00") @item.Moneda</td>
+                                <td>@TextoMetodo(item.Metodo)</td>
+                                <td>
+                                    @(item.Referencia ?? "—")
+                                    @if (!string.IsNullOrWhiteSpace(item.Notas))
+                                    {
+                                        <small class="nota-pago">@item.Notas</small>
+                                    }
+                                </td>
+                                <td>@item.RegistradoPor</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private ResumenSuscripcionDto? resumen;
+    private RegistrarPagoSuscripcionDto pago = new();
+    private ExtenderSuscripcionDto extension = new();
+    private bool notFound;
+    private bool guardandoPago;
+    private bool guardandoExtension;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnParametersSetAsync() => await CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            resumen = await SuscripcionService.ObtenerAsync(Id);
+            if (resumen is null)
+            {
+                notFound = true;
+                return;
+            }
+
+            notFound = false;
+            pago = new RegistrarPagoSuscripcionDto
+            {
+                ClinicaId = Id,
+                Monto = resumen.PrecioMensualUsd
+            };
+            extension = new ExtenderSuscripcionDto
+            {
+                ClinicaId = Id,
+                Dias = 7
+            };
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task RegistrarPagoAsync()
+    {
+        guardandoPago = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            pago.ClinicaId = Id;
+            await SuscripcionService.RegistrarPagoAsync(pago);
+            await CargarAsync();
+            successMessage = resumen?.Estado == EstadoClinica.Suspendida
+                ? "Pago registrado. La clínica sigue suspendida manualmente; reactívala para habilitar el acceso."
+                : $"Pago registrado. El nuevo vencimiento es {resumen?.FechaVencimiento:dd/MM/yyyy}.";
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            guardandoPago = false;
+        }
+    }
+
+    private async Task ExtenderAsync()
+    {
+        guardandoExtension = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            extension.ClinicaId = Id;
+            await SuscripcionService.ExtenderAsync(extension);
+            successMessage = "Suscripción extendida.";
+            await CargarAsync();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            guardandoExtension = false;
+        }
+    }
+
+    private static string Fecha(DateTime? fecha) =>
+        fecha?.ToString("dd/MM/yyyy") ?? "Sin definir";
+
+    private static string TextoAcceso(AccesoClinica acceso) => acceso switch
+    {
+        AccesoClinica.Permitido => "Al día",
+        AccesoClinica.EnGracia => "En gracia",
+        AccesoClinica.Vencida => "Vencida",
+        _ => "Suspendida"
+    };
+
+    private static string ClaseAcceso(AccesoClinica acceso) => acceso switch
+    {
+        AccesoClinica.Permitido => "ok",
+        AccesoClinica.EnGracia => "gracia",
+        AccesoClinica.Vencida => "vencida",
+        _ => "suspendida"
+    };
+
+    private static string TextoSituacion(ResumenSuscripcionDto item)
+    {
+        if (item.EnPrueba && item.FechaPrimerIngreso is null)
+        {
+            return "Prueba sin iniciar";
+        }
+
+        return item.DiasRestantes switch
+        {
+            < 0 => $"Vencida hace {Math.Abs(item.DiasRestantes)} día(s)",
+            0 => "Vence hoy",
+            _ => $"{item.DiasRestantes} día(s) restantes"
+        };
+    }
+
+    private static string TextoMetodo(MetodoPagoSuscripcion metodo) => metodo switch
+    {
+        MetodoPagoSuscripcion.Transferencia => "Transferencia",
+        MetodoPagoSuscripcion.Efectivo => "Efectivo",
+        MetodoPagoSuscripcion.Tarjeta => "Tarjeta",
+        _ => "Otro"
+    };
+}
