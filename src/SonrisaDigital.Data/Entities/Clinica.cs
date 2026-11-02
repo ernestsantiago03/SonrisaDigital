@@ -17,6 +17,14 @@ public class Clinica
     public string? Eslogan { get; set; }
     public string? LogoUrl { get; set; }
     public EstadoClinica Estado { get; set; } = EstadoClinica.Activa;
+
+    /// <summary>
+    /// Motivo de la suspensión manual. Es <c>null</c> mientras la clínica está activa.
+    /// Se conserva para distinguir una suspensión por impago, que un pago puede
+    /// resolver, de una decisión administrativa, que exige reactivación explícita.
+    /// </summary>
+    public MotivoSuspension? MotivoSuspension { get; set; }
+
     public DateTime FechaAlta { get; set; } = DateTime.UtcNow;
     public string? Plan { get; set; }
 
@@ -36,4 +44,15 @@ public enum EstadoClinica
     Activa,
     Suspendida,
     Vencida
+}
+
+/// <summary>
+/// Razón por la que el Dueño suspendió una clínica. Un pago reactiva solo
+/// <see cref="FaltaDePago"/>; una suspensión administrativa requiere que el
+/// Dueño la levante de forma explícita.
+/// </summary>
+public enum MotivoSuspension
+{
+    FaltaDePago,
+    DecisionAdministrativa
 }

@@ -65,7 +65,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 | **Tratamientos** | Catálogo y registro de tratamientos asociados al flujo clínico. | ✅ |
 | **Pagos** | Registro de pagos, historial y control de saldos pendientes. | ✅ |
 | **Usuarios** | Administración de cuentas, roles y estado de acceso. | ✅ |
-| **Roles y permisos** | Asignación granular de permisos por rol (32 permisos en 11 módulos). | ✅ |
+| **Roles y permisos** | Asignación granular de permisos por rol (38 permisos en 11 módulos). | ✅ |
 | **Auditoría** | Registro automático de operaciones y actividad reciente en el dashboard. | ✅ |
 | **Centro de ayuda** | Guías, preguntas frecuentes, solución de problemas y contacto de soporte. | ✅ |
 | **Reportes** | Panel de reportes de citas, pacientes atendidos, tratamientos y pagos con filtros, exportación PDF y alcance por odontólogo. | ✅ |
@@ -85,11 +85,13 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 Cada clínica opera con una mensualidad en **USD** (un solo plan mientras se valida el producto) y recibe **30 días de prueba** que empiezan a contar en su **primer ingreso**, no al crearla.
 
 - El **Dueño** registra los pagos manualmente (transferencia, efectivo o tarjeta) desde **Clínicas → Facturación**; no hay pasarela de pago.
-- Un pago extiende el vencimiento un mes desde la fecha de vencimiento actual o desde hoy si ya venció, y deja la clínica activa.
+- Un pago extiende el vencimiento un mes desde la fecha de vencimiento actual o desde hoy si ya venció.
 - Al vencer, la clínica tiene **3 días de gracia** con un aviso visible; después se bloquea el acceso sin borrar datos.
 - El Dueño siempre puede entrar, incluso con la clínica bloqueada, para registrar el pago.
 - La regla se evalúa en cada inicio de sesión, navegación y revalidación de sesión; no depende de un proceso programado.
-- La clínica puede suspenderse manualmente, y esa suspensión prevalece sobre la fecha de pago.
+- Una clínica suspendida por **falta de pago** se reactiva automáticamente al registrar el pago.
+- Una clínica suspendida por **decisión administrativa** conserva el bloqueo después del pago; el Dueño debe reactivarla explícitamente.
+- Un vencimiento nulo no concede acceso: una clínica comercial o una prueba ya iniciada sin fecha queda vencida.
 
 El precio propuesto y los días de aviso se configuran en `Suscripcion` (`PrecioMensualUsd` y `DiasAviso`). El monto real de cada pago queda guardado en su propio registro.
 
@@ -213,7 +215,7 @@ Ajusta `Server=` según tu instancia (por ejemplo `localhost\SQLEXPRESS` o `MI-S
 La mensualidad se configura en dólares; cambia el precio real antes de facturar:
 
 ```powershell
-dotnet user-secrets set "Suscripcion:PrecioMensualUsd" "50" `
+dotnet user-secrets set "Suscripcion:PrecioMensualUsd" "20" `
   --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
 ```
 
@@ -244,7 +246,7 @@ También puedes iniciar el proyecto `SonrisaDigital.UI` desde Visual Studio o VS
 Al arrancar por primera vez, la aplicación crea automáticamente:
 
 - Los roles **Administrador**, **Recepcionista** y **Odontólogo**.
-- Los 32 permisos del catálogo y su asignación inicial.
+- Los 38 permisos del catálogo y su asignación inicial.
 - El usuario administrador definido en `Authentication:AdminEmail` / `Authentication:AdminPassword`. Ambas claves son obligatorias; no hay correo ni contraseña predeterminados.
 - El catálogo base del odontograma.
 

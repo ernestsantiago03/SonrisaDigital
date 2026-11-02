@@ -70,9 +70,11 @@ public static class ReglaSuscripcion
 
         if (fechaVencimiento is null)
         {
-            // Clínicas anteriores a la suscripción (por ejemplo, la clínica demo)
-            // siguen operando hasta que se les asigne una fecha.
-            return AccesoClinica.Permitido;
+            // Una clínica comercial o una prueba ya iniciada sin vencimiento no
+            // tiene un período válido que justifique el acceso. La prueba que aún
+            // no ha empezado se atiende arriba; las clínicas exentas de cobro
+            // deben modelarse con una fecha vigente, no con un nulo permanente.
+            return AccesoClinica.Vencida;
         }
 
         var vence = fechaVencimiento.Value.Date;
@@ -120,6 +122,26 @@ public static class ReglaSuscripcion
         fechaVencimiento is DateTime vencimiento
             ? (int)(vencimiento.Date - hoy.Date).TotalDays
             : 0;
+
+    /// <summary>
+    /// Días de gracia que quedan desde hoy. Si aún no ha vencido, devuelve el
+    /// total configurado; si la gracia ya se agotó, devuelve cero.
+    /// </summary>
+    public static int DiasGraciaRestantes(
+        DateTime? fechaVencimiento,
+        DateTime hoy,
+        int diasGracia = DiasGracia)
+    {
+        if (fechaVencimiento is not DateTime vencimiento || diasGracia <= 0)
+        {
+            return 0;
+        }
+
+        var diasVencida = (int)(hoy.Date - vencimiento.Date).TotalDays;
+        return diasVencida <= 0
+            ? diasGracia
+            : Math.Max(0, diasGracia - diasVencida);
+    }
 
     private static TimeZoneInfo ResolverZonaNegocio()
     {

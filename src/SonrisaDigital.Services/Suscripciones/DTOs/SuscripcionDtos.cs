@@ -11,6 +11,7 @@ public sealed record ResumenSuscripcionDto(
     string Codigo,
     string? Plan,
     EstadoClinica Estado,
+    MotivoSuspension? MotivoSuspension,
     bool EnPrueba,
     DateTime? FechaPrimerIngreso,
     DateTime? FechaVencimiento,
@@ -72,4 +73,5 @@ public sealed class ExtenderSuscripcionDto
 public sealed record AvisoSuscripcionDto(
     AccesoClinica Acceso,
     int DiasRestantes,
-    bool EnPrueba);
+    bool EnPrueba,
+    DateTime? FechaVencimiento);

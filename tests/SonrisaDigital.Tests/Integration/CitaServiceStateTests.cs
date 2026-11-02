@@ -217,6 +217,27 @@ public sealed class CitaServiceStateTests(SqlServerFixture fixture)
         await AssertEstadoAsync(cita.Id, EstadoCita.Cancelada);
     }
 
+    [Fact]
+    public async Task PermiteAgendarUnaCitaElSabado()
+    {
+        await using var db = fixture.CreateContext();
+        var paciente = await TestData.CrearPacienteAsync(db);
+        var odontologo = await TestData.CrearOdontologoAsync(db);
+        var servicio = CrearServicio(db);
+
+        var citaId = await servicio.CreateAsync(new CitaFormDto
+        {
+            PacienteId = paciente.Id,
+            OdontologoId = odontologo.Id,
+            Fecha = ProximoSabado(),
+            HoraInicio = new TimeOnly(9, 0),
+            HoraFin = new TimeOnly(9, 30),
+            Motivo = "Consulta de sábado"
+        });
+
+        Assert.True(citaId > 0);
+    }
+
     private static CitaService CrearServicio(
         ApplicationDbContext db,
         FakeHistoriaClinicaService? historia = null,
@@ -273,6 +294,17 @@ public sealed class CitaServiceStateTests(SqlServerFixture fixture)
         var cita = await db.Citas.FindAsync(citaId);
         Assert.NotNull(cita);
         Assert.Equal(esperado, cita.Estado);
+    }
+
+    private static DateOnly ProximoSabado()
+    {
+        var fecha = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
+        while (fecha.DayOfWeek != DayOfWeek.Saturday)
+        {
+            fecha = fecha.AddDays(1);
+        }
+
+        return fecha;
     }
 
     private static DateOnly ProximoDiaHabil()

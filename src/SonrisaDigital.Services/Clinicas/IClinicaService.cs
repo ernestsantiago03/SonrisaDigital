@@ -15,6 +15,13 @@ public interface IClinicaService
     /// <summary>Actualiza los datos de identidad. El código de la clínica no cambia después de creada.</summary>
     Task ActualizarAsync(ClinicaFormDto model, CancellationToken cancellationToken = default);
 
-    /// <summary>Marca la clínica como activa o suspendida. El bloqueo real de sus usuarios llega en la fase 7.</summary>
-    Task CambiarEstadoAsync(int id, EstadoClinica estado, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Suspende una clínica indicando el motivo, o la reactiva limpiando ese motivo.
+    /// El estado calculado <see cref="EstadoClinica.Vencida"/> no se asigna a mano.
+    /// </summary>
+    Task CambiarEstadoAsync(
+        int id,
+        EstadoClinica estado,
+        MotivoSuspension? motivoSuspension = null,
+        CancellationToken cancellationToken = default);
 }

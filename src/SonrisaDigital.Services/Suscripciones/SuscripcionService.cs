@@ -74,6 +74,7 @@ public sealed class SuscripcionService(
             clinica.Codigo,
             clinica.Plan,
             clinica.Estado,
+            clinica.MotivoSuspension,
             clinica.EnPrueba,
             clinica.FechaPrimerIngreso,
             clinica.FechaVencimiento,
@@ -126,15 +127,19 @@ public sealed class SuscripcionService(
                 FechaRegistro = DateTime.UtcNow
             };
 
-            // Un pago reactiva la clínica y termina la prueba: desde aquí paga mensualidad.
-            // La suspensión manual es la excepción: si el Dueño la suspendió por otro
-            // motivo, cobrar no debe devolverle el acceso sin una reactivación explícita.
+            // Un pago reactiva una suspensión por impago y termina la prueba.
+            // Si la suspensión fue una decisión administrativa, el pago se guarda
+            // pero el acceso sigue bloqueado hasta que el Dueño reactive a mano.
+            var reactivaPorPago = clinica.Estado == EstadoClinica.Suspendida
+                && clinica.MotivoSuspension == MotivoSuspension.FaltaDePago;
+
             clinica.FechaVencimiento = periodoHasta;
             clinica.FechaPrimerIngreso ??= hoy;
             clinica.EnPrueba = false;
-            if (clinica.Estado != EstadoClinica.Suspendida)
+            if (clinica.Estado != EstadoClinica.Suspendida || reactivaPorPago)
             {
                 clinica.Estado = EstadoClinica.Activa;
+                clinica.MotivoSuspension = null;
             }
             if (string.IsNullOrWhiteSpace(clinica.Plan) || clinica.Plan == PlanPrueba)
             {
@@ -144,10 +149,15 @@ public sealed class SuscripcionService(
             dbContext.PagosSuscripcion.Add(pago);
             await dbContext.SaveChangesAsync(cancellationToken);
 
+            var detallePago = $"Registró {model.Meses} mes(es) de suscripción de {clinica.Nombre} por {model.Monto:0.00} USD. Nuevo vencimiento: {periodoHasta:dd/MM/yyyy}.";
+            if (reactivaPorPago)
+            {
+                detallePago += " La clínica se reactivó automáticamente porque la suspensión era por falta de pago.";
+            }
+
             await auditoriaService.RegistrarAsync(
                 "Registró pago", Modulo, nameof(PagoSuscripcion), pago.Id,
-                $"Registró {model.Meses} mes(es) de suscripción de {clinica.Nombre} por {model.Monto:0.00} USD. Nuevo vencimiento: {periodoHasta:dd/MM/yyyy}.",
-                cancellationToken, clinica.Id);
+                detallePago, cancellationToken, clinica.Id);
         }, IsolationLevel.Serializable, cancellationToken);
     }
 
@@ -170,6 +180,14 @@ public sealed class SuscripcionService(
             clinica.FechaVencimiento = inicio.AddDays(model.Dias);
             clinica.FechaPrimerIngreso ??= hoy;
 
+            // La extensión sirve tanto para una clínica comercial como para una
+            // prueba: se conserva el modo (EnPrueba/Plan) y solo se devuelve el
+            // acceso si la clínica no está suspendida manualmente.
+            if (clinica.Estado != EstadoClinica.Suspendida)
+            {
+                clinica.Estado = EstadoClinica.Activa;
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
 
             await auditoriaService.RegistrarAsync(
@@ -184,21 +202,34 @@ public sealed class SuscripcionService(
         // Se ejecuta desde el login, cuando todavía no hay una sesión de Blazor.
         // Por eso no valida permisos ni audita: el evento es del sistema y la
         // fecha queda registrada en la propia clínica.
-        var clinica = await dbContext.Clinicas
-            .SingleOrDefaultAsync(item => item.Id == clinicaId, cancellationToken);
+        //
+        // Serializable y con relectura: si el Dueño registra un pago al mismo
+        // tiempo, el inicio de prueba no puede sobrescribir el vencimiento pagado.
+        var iniciada = false;
 
-        if (clinica is null || !clinica.EnPrueba || clinica.FechaPrimerIngreso is not null)
+        await dbContext.ExecuteInTransactionAsync(async () =>
         {
-            return false;
-        }
+            var clinica = await dbContext.Clinicas
+                .SingleOrDefaultAsync(item => item.Id == clinicaId, cancellationToken);
 
-        var hoy = ReglaSuscripcion.Hoy();
-        clinica.FechaPrimerIngreso = hoy;
-        clinica.FechaVencimiento = ReglaSuscripcion.VencimientoDePrueba(hoy);
-        clinica.Plan ??= PlanPrueba;
+            if (clinica is null
+                || !clinica.EnPrueba
+                || clinica.FechaPrimerIngreso is not null
+                || clinica.FechaVencimiento is not null)
+            {
+                return;
+            }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+            var hoy = ReglaSuscripcion.Hoy();
+            clinica.FechaPrimerIngreso = hoy;
+            clinica.FechaVencimiento = ReglaSuscripcion.VencimientoDePrueba(hoy);
+            clinica.Plan ??= PlanPrueba;
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            iniciada = true;
+        }, IsolationLevel.Serializable, cancellationToken);
+
+        return iniciada;
     }
 
     /// <summary>Usuario que registra el pago. Si el circuito aún no lo cargó, sale del principal.</summary>

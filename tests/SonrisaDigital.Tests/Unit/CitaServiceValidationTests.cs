@@ -78,16 +78,17 @@ public sealed class CitaServiceValidationTests
     }
 
     [Fact]
-    public async Task RechazaFinDeSemana()
+    public async Task RechazaDomingo()
     {
         var modelo = ModeloValido();
-        modelo.Fecha = ProximoDia(DayOfWeek.Saturday);
+        modelo.Fecha = ProximoDia(DayOfWeek.Sunday);
 
         var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
             () => CrearServicio().CreateAsync(modelo));
 
-        Assert.Equal("Las citas solo pueden programarse de lunes a viernes.", excepcion.Message);
+        Assert.Equal("Las citas solo pueden programarse de lunes a sábado.", excepcion.Message);
     }
+
 
     [Fact]
     public async Task RechazaHorarioFueraDeAtencion()
@@ -170,7 +171,7 @@ public sealed class CitaServiceValidationTests
     private static DateOnly ProximoDiaHabil()
     {
         var fecha = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
-        while (fecha.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        while (fecha.DayOfWeek is DayOfWeek.Sunday)
         {
             fecha = fecha.AddDays(1);
         }

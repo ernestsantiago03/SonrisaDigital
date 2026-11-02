@@ -130,7 +130,15 @@ public static class DependencyInjection
         services.AddScoped<IClinicaService, ClinicaService>();
         services.AddScoped<IIdentidadClinicaService, IdentidadClinicaService>();
         services.AddScoped<ISelectorClinicasService, SelectorClinicasService>();
-        services.Configure<SuscripcionOptions>(configuration.GetSection(SuscripcionOptions.SectionName));
+        services.AddOptions<SuscripcionOptions>()
+            .Bind(configuration.GetSection(SuscripcionOptions.SectionName))
+            .Validate(
+                options => options.PrecioMensualUsd > 0,
+                "Suscripcion:PrecioMensualUsd debe ser mayor que cero.")
+            .Validate(
+                options => options.DiasAviso >= 0,
+                "Suscripcion:DiasAviso no puede ser negativo.")
+            .ValidateOnStart();
         services.AddScoped<ISuscripcionService, SuscripcionService>();
         services.AddScoped<ISuscripcionAvisoService, SuscripcionAvisoService>();
 

@@ -96,14 +96,38 @@ public sealed class ReglaSuscripcionTests
     }
 
     [Fact]
-    public void UnaClinicaSinFechaDeVencimientoSiguePermitida()
+    public void UnaClinicaSinFechaDeVencimientoQuedaVencida()
     {
-        // Clínicas anteriores a la suscripción (la clínica demo, por ejemplo).
+        // Sin un período válido no hay derecho de acceso. Las clínicas exentas
+        // deben tener una fecha vigente, no un vencimiento nulo permanente.
         var acceso = ReglaSuscripcion.Evaluar(
             EstadoClinica.Activa, enPrueba: false, fechaPrimerIngreso: null,
             fechaVencimiento: null, Hoy);
 
-        Assert.Equal(AccesoClinica.Permitido, acceso);
+        Assert.Equal(AccesoClinica.Vencida, acceso);
+    }
+
+    [Fact]
+    public void UnaPruebaIniciadaSinFechaDeVencimientoQuedaVencida()
+    {
+        var acceso = ReglaSuscripcion.Evaluar(
+            EstadoClinica.Activa, enPrueba: true, fechaPrimerIngreso: Hoy.AddDays(-1),
+            fechaVencimiento: null, Hoy);
+
+        Assert.Equal(AccesoClinica.Vencida, acceso);
+    }
+
+    [Theory]
+    [InlineData(-1, 3)]
+    [InlineData(0, 3)]
+    [InlineData(1, 2)]
+    [InlineData(2, 1)]
+    [InlineData(3, 0)]
+    public void LosDiasDeGraciaRestantesSeCalculanDesdeElVencimiento(int diasVencida, int esperados)
+    {
+        var dias = ReglaSuscripcion.DiasGraciaRestantes(Hoy.AddDays(-diasVencida), Hoy);
+
+        Assert.Equal(esperados, dias);
     }
 
     [Fact]

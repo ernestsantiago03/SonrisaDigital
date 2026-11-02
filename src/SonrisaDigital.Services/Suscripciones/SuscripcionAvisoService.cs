@@ -72,7 +72,7 @@ public sealed class SuscripcionAvisoService(
                 && dias <= options.Value.DiasAviso);
 
         return avisar
-            ? new AvisoSuscripcionDto(acceso, dias, clinica.EnPrueba)
+            ? new AvisoSuscripcionDto(acceso, dias, clinica.EnPrueba, clinica.FechaVencimiento)
             : null;
     }
 }

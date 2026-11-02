@@ -1,6 +1,8 @@
 .clinicas-page .page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
 .clinicas-page .page-header h1 { margin: 0; font-size: 22px; }
 .clinicas-page .page-header p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.feedback { margin-bottom: 12px; padding: 10px 12px; border-radius: 4px; font-size: 12px; }
+.feedback.error { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; }
 .clinicas-panel { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 4px; background: white; }
 .clinicas-resumen { padding: 11px 13px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 11px; }
 .clinicas-tabla { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -24,6 +26,96 @@
 
 .vence-detalle { display: block; margin-top: 2px; color: #94a3b8; font-size: 10px; }
 .sin-fecha { color: #94a3b8; font-size: 11px; }
+.motivo-suspension { display: block; margin-top: 2px; color: #94a3b8; font-size: 10px; }
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(15, 23, 42, .45);
+}
+
+.modal-card {
+    width: 100%;
+    max-width: 480px;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, .1);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.modal-title { margin: 0; color: #1e293b; font-size: 18px; }
+
+.modal-close-btn {
+    border: 0;
+    background: none;
+    color: #64748b;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 24px;
+}
+
+.modal-body p { margin: 0; color: #475569; font-size: 12px; line-height: 1.5; }
+
+.motivo-opcion {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.motivo-opcion:hover { background: #f8fafc; }
+.motivo-opcion input { margin-top: 3px; }
+.motivo-opcion span { display: flex; flex-direction: column; gap: 3px; }
+.motivo-opcion strong { color: #1e293b; font-size: 12px; }
+.motivo-opcion small { color: #64748b; font-size: 11px; line-height: 1.4; }
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid #f1f5f9;
+    background-color: #f8fafc;
+}
+
+.primary-action,
+.secondary-action {
+    min-height: 36px;
+    padding: 0 15px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.primary-action { border: 1px solid #1d4ed8; background: #2563eb; color: white; }
+.primary-action:hover { background: #1d4ed8; }
+.secondary-action { border: 1px solid #cbd5e1; background: white; color: #334155; }
+.secondary-action:hover { background: #f8fafc; }
+.primary-action:disabled,
+.secondary-action:disabled { cursor: wait; opacity: .65; }
 
 .acceso {
     display: inline-block;

@@ -36,6 +36,10 @@
             <div class="resumen-item">
                 <span>Acceso</span>
                 <strong class="acceso @ClaseAcceso(resumen.Acceso)">@TextoAcceso(resumen.Acceso)</strong>
+                @if (resumen.Estado == EstadoClinica.Suspendida && resumen.MotivoSuspension is not null)
+                {
+                    <small class="motivo-suspension">@TextoMotivo(resumen.MotivoSuspension)</small>
+                }
             </div>
             <div class="resumen-item">
                 <span>Plan</span>
@@ -260,12 +264,20 @@
 
         try
         {
+            var estabaSuspendidaPorImpago = resumen?.Estado == EstadoClinica.Suspendida
+                && resumen.MotivoSuspension == MotivoSuspension.FaltaDePago;
+
             pago.ClinicaId = Id;
             await SuscripcionService.RegistrarPagoAsync(pago);
             await CargarAsync();
+
             successMessage = resumen?.Estado == EstadoClinica.Suspendida
-                ? "Pago registrado. La clínica sigue suspendida manualmente; reactívala para habilitar el acceso."
-                : $"Pago registrado. El nuevo vencimiento es {resumen?.FechaVencimiento:dd/MM/yyyy}.";
+                ? resumen.MotivoSuspension == MotivoSuspension.DecisionAdministrativa
+                    ? "Pago registrado. La clínica sigue suspendida por decisión administrativa; reactívala explícitamente para habilitar el acceso."
+                    : "Pago registrado. La clínica sigue suspendida; reactívala explícitamente para habilitar el acceso."
+                : estabaSuspendidaPorImpago
+                    ? $"Pago registrado. La clínica se reactivó automáticamente. El nuevo vencimiento es {resumen?.FechaVencimiento:dd/MM/yyyy}."
+                    : $"Pago registrado. El nuevo vencimiento es {resumen?.FechaVencimiento:dd/MM/yyyy}.";
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
         {
@@ -326,6 +338,17 @@
             return "Prueba sin iniciar";
         }
 
+        if (item.FechaVencimiento is null)
+        {
+            return "Sin vencimiento";
+        }
+
+        if (item.Acceso == AccesoClinica.EnGracia)
+        {
+            var diasGracia = ReglaSuscripcion.DiasGraciaRestantes(item.FechaVencimiento, ReglaSuscripcion.Hoy());
+            return diasGracia == 0 ? "Último día de gracia" : $"{diasGracia} día(s) de gracia";
+        }
+
         return item.DiasRestantes switch
         {
             < 0 => $"Vencida hace {Math.Abs(item.DiasRestantes)} día(s)",
@@ -333,6 +356,13 @@
             _ => $"{item.DiasRestantes} día(s) restantes"
         };
     }
+
+    private static string TextoMotivo(MotivoSuspension? motivo) => motivo switch
+    {
+        MotivoSuspension.FaltaDePago => "Suspendida por falta de pago",
+        MotivoSuspension.DecisionAdministrativa => "Suspendida por decisión administrativa",
+        _ => "Suspendida"
+    };
 
     private static string TextoMetodo(MetodoPagoSuscripcion metodo) => metodo switch
     {

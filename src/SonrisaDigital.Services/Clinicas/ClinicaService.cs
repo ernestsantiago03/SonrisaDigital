@@ -39,6 +39,7 @@ public sealed class ClinicaService(
                 clinic.Nombre,
                 clinic.Codigo,
                 clinic.Estado,
+                clinic.MotivoSuspension,
                 clinic.FechaAlta,
                 clinic.Plan,
                 clinic.EnPrueba,
@@ -54,6 +55,7 @@ public sealed class ClinicaService(
                 clinic.Nombre,
                 clinic.Codigo,
                 clinic.Estado,
+                clinic.MotivoSuspension,
                 clinic.FechaAlta,
                 clinic.Plan,
                 clinic.EnPrueba,
@@ -111,7 +113,8 @@ public sealed class ClinicaService(
             Estado = EstadoClinica.Activa,
             FechaAlta = DateTime.UtcNow,
             // La prueba no empieza al crear la clínica sino en su primer ingreso.
-            // Mientras no haya fecha de vencimiento, la regla permite entrar.
+            // La regla solo permite el acceso porque EnPrueba es true y aún no
+            // hay primer ingreso; al iniciar la prueba se asigna el vencimiento.
             Plan = PlanPrueba,
             EnPrueba = true,
             FechaPrimerIngreso = null,
@@ -153,25 +156,53 @@ public sealed class ClinicaService(
             $"Modificó los datos de la clínica {clinica.Nombre}.", cancellationToken, clinica.Id);
     }
 
-    public async Task CambiarEstadoAsync(int id, EstadoClinica estado, CancellationToken cancellationToken = default)
+    public async Task CambiarEstadoAsync(
+        int id,
+        EstadoClinica estado,
+        MotivoSuspension? motivoSuspension = null,
+        CancellationToken cancellationToken = default)
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Clinicas.Suspender", "No tienes permiso para suspender o reactivar clínicas.");
+
+        if (estado == EstadoClinica.Vencida)
+        {
+            throw new InvalidOperationException("El estado vencida se calcula por la fecha de vencimiento y no se asigna manualmente.");
+        }
+
+        if (estado == EstadoClinica.Suspendida && motivoSuspension is null)
+        {
+            throw new InvalidOperationException("Indica si la suspensión es por falta de pago o por decisión administrativa.");
+        }
 
         var clinica = await dbContext.Clinicas.SingleOrDefaultAsync(clinic => clinic.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("La clínica no existe.");
 
-        if (clinica.Estado == estado)
+        var motivoNuevo = estado == EstadoClinica.Suspendida ? motivoSuspension : null;
+        if (clinica.Estado == estado && clinica.MotivoSuspension == motivoNuevo)
         {
             return;
         }
 
         clinica.Estado = estado;
+        clinica.MotivoSuspension = motivoNuevo;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var detalle = estado == EstadoClinica.Suspendida
+            ? $"Suspendió la clínica {clinica.Nombre}. Motivo: {TextoMotivo(motivoSuspension)}."
+            : $"Reactivó la clínica {clinica.Nombre}.";
+
         await auditoriaService.RegistrarAsync(
-            "Cambió estado", Modulo, nameof(Clinica), clinica.Id,
-            $"Cambió el estado de la clínica {clinica.Nombre} a {estado}.", cancellationToken, clinica.Id);
+            estado == EstadoClinica.Suspendida ? "Suspendió" : "Reactivó",
+            Modulo, nameof(Clinica), clinica.Id,
+            detalle, cancellationToken, clinica.Id);
     }
+
+    private static string TextoMotivo(MotivoSuspension? motivo) => motivo switch
+    {
+        MotivoSuspension.FaltaDePago => "falta de pago",
+        MotivoSuspension.DecisionAdministrativa => "decisión administrativa",
+        _ => "sin motivo"
+    };
 
     private static string NormalizarCodigo(string codigo) =>
         codigo.Trim().ToLowerInvariant().Replace(' ', '-');

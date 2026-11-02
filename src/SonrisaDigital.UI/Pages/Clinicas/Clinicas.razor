@@ -50,7 +50,13 @@
                     <tr>
                         <td>@clinica.Nombre</td>
                         <td>@clinica.Codigo</td>
-                        <td>@clinica.Estado</td>
+                        <td>
+                            @clinica.Estado
+                            @if (clinica.Estado == EstadoClinica.Suspendida && clinica.MotivoSuspension is not null)
+                            {
+                                <small class="motivo-suspension">@TextoMotivo(clinica.MotivoSuspension)</small>
+                            }
+                        </td>
                         <td>
                             @if (clinica.EnPrueba)
                             {
@@ -69,7 +75,7 @@
                             }
                             else
                             {
-                                <span class="sin-fecha">Sin iniciar</span>
+                                <span class="sin-fecha">@(clinica.EnPrueba ? "Sin iniciar" : "Sin vencimiento")</span>
                             }
                         </td>
                         <td>
@@ -105,9 +111,61 @@
     </section>
 </div>
 
+@if (clinicaPendienteSuspension is not null)
+{
+    <div class="modal-backdrop" @onclick="CerrarSuspension">
+        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="suspension-modal-title" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title" id="suspension-modal-title">Suspender clínica</h2>
+                <button type="button" class="modal-close-btn" aria-label="Cerrar" @onclick="CerrarSuspension">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Vas a suspender <strong>@clinicaPendienteSuspension.Nombre</strong>.
+                    Elige el motivo para que el sistema sepa si un pago puede reactivarla.
+                </p>
+
+                <label class="motivo-opcion">
+                    <input type="radio" name="motivo-suspension" value="@MotivoSuspension.FaltaDePago"
+                           checked="@(motivoSuspension == MotivoSuspension.FaltaDePago)"
+                           @onchange="() => motivoSuspension = MotivoSuspension.FaltaDePago" />
+                    <span>
+                        <strong>Falta de pago</strong>
+                        <small>Un pago registrado reactivará la clínica automáticamente.</small>
+                    </span>
+                </label>
+
+                <label class="motivo-opcion">
+                    <input type="radio" name="motivo-suspension" value="@MotivoSuspension.DecisionAdministrativa"
+                           checked="@(motivoSuspension == MotivoSuspension.DecisionAdministrativa)"
+                           @onchange="() => motivoSuspension = MotivoSuspension.DecisionAdministrativa" />
+                    <span>
+                        <strong>Decisión administrativa</strong>
+                        <small>Un pago no devuelve el acceso; la reactivación debe ser explícita.</small>
+                    </span>
+                </label>
+
+                @if (!string.IsNullOrWhiteSpace(mensaje))
+                {
+                    <div class="feedback error" role="alert">@mensaje</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="secondary-action" @onclick="CerrarSuspension" disabled="@guardandoEstado">Cancelar</button>
+                <button type="button" class="primary-action" @onclick="SuspenderAsync" disabled="@guardandoEstado">
+                    @(guardandoEstado ? "Suspendiendo..." : "Suspender clínica")
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
 @code {
     private IReadOnlyList<ClinicaListItemDto> clinicas = [];
     private string? mensaje;
+    private ClinicaListItemDto? clinicaPendienteSuspension;
+    private MotivoSuspension motivoSuspension = MotivoSuspension.FaltaDePago;
+    private bool guardandoEstado;
 
     protected override async Task OnInitializedAsync() => await CargarAsync();
 
@@ -125,10 +183,48 @@
 
     private async Task CambiarEstadoAsync(ClinicaListItemDto clinica)
     {
-        var nuevo = clinica.Estado == EstadoClinica.Activa ? EstadoClinica.Suspendida : EstadoClinica.Activa;
+        if (clinica.Estado == EstadoClinica.Suspendida)
+        {
+            await ReactivarAsync(clinica);
+            return;
+        }
+
+        mensaje = null;
+        clinicaPendienteSuspension = clinica;
+        motivoSuspension = MotivoSuspension.FaltaDePago;
+    }
+
+    private async Task SuspenderAsync()
+    {
+        if (clinicaPendienteSuspension is null)
+        {
+            return;
+        }
+
+        guardandoEstado = true;
+        mensaje = null;
         try
         {
-            await ClinicaService.CambiarEstadoAsync(clinica.Id, nuevo);
+            await ClinicaService.CambiarEstadoAsync(
+                clinicaPendienteSuspension.Id, EstadoClinica.Suspendida, motivoSuspension);
+            clinicaPendienteSuspension = null;
+            await CargarAsync();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException)
+        {
+            mensaje = ex.Message;
+        }
+        finally
+        {
+            guardandoEstado = false;
+        }
+    }
+
+    private async Task ReactivarAsync(ClinicaListItemDto clinica)
+    {
+        try
+        {
+            await ClinicaService.CambiarEstadoAsync(clinica.Id, EstadoClinica.Activa);
             mensaje = null;
             await CargarAsync();
         }
@@ -137,6 +233,19 @@
             mensaje = ex.Message;
         }
     }
+
+    private void CerrarSuspension()
+    {
+        clinicaPendienteSuspension = null;
+        mensaje = null;
+    }
+
+    private static string TextoMotivo(MotivoSuspension? motivo) => motivo switch
+    {
+        MotivoSuspension.FaltaDePago => "Falta de pago",
+        MotivoSuspension.DecisionAdministrativa => "Decisión administrativa",
+        _ => "Sin motivo"
+    };
 
     /// <summary>
     /// Selecciona la clínica en esta pestaña y abre su gestión de usuarios. Así el
@@ -176,6 +285,17 @@
         if (clinica.EnPrueba && clinica.FechaVencimiento is null)
         {
             return "Empieza en el primer ingreso";
+        }
+
+        if (clinica.FechaVencimiento is null)
+        {
+            return "Sin vencimiento";
+        }
+
+        if (clinica.Acceso == AccesoClinica.EnGracia)
+        {
+            var diasGracia = ReglaSuscripcion.DiasGraciaRestantes(clinica.FechaVencimiento, ReglaSuscripcion.Hoy());
+            return diasGracia == 0 ? "Último día de gracia" : $"{diasGracia} día(s) de gracia";
         }
 
         return clinica.DiasRestantes switch

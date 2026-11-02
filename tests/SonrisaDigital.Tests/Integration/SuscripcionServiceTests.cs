@@ -154,12 +154,48 @@ public sealed class SuscripcionServiceTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task UnPagoNoReactivaUnaClinicaSuspendidaManualmente()
+    public async Task UnPagoReactivaUnaClinicaSuspendidaPorFaltaDePago()
     {
         await using var db = fixture.CreateContext();
         var hoy = ReglaSuscripcion.Hoy();
         var clinica = await CrearClinicaAsync(
-            db, enPrueba: false, fechaVencimiento: hoy.AddDays(-10), estado: EstadoClinica.Suspendida);
+            db,
+            enPrueba: false,
+            fechaVencimiento: hoy.AddDays(-10),
+            estado: EstadoClinica.Suspendida,
+            motivoSuspension: MotivoSuspension.FaltaDePago);
+        var (provider, _) = await CrearProveedorAsync();
+
+        await using (provider)
+        {
+            var servicio = provider.GetRequiredService<ISuscripcionService>();
+
+            await servicio.RegistrarPagoAsync(new RegistrarPagoSuscripcionDto
+            {
+                ClinicaId = clinica.Id,
+                Monto = 75m,
+                Metodo = MetodoPagoSuscripcion.Efectivo
+            });
+
+            var actualizada = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
+            Assert.Equal(EstadoClinica.Activa, actualizada.Estado);
+            Assert.Null(actualizada.MotivoSuspension);
+            Assert.True(actualizada.FechaVencimiento > hoy);
+            Assert.False(actualizada.EnPrueba);
+        }
+    }
+
+    [Fact]
+    public async Task UnPagoNoReactivaUnaClinicaSuspendidaPorDecisionAdministrativa()
+    {
+        await using var db = fixture.CreateContext();
+        var hoy = ReglaSuscripcion.Hoy();
+        var clinica = await CrearClinicaAsync(
+            db,
+            enPrueba: false,
+            fechaVencimiento: hoy.AddDays(-10),
+            estado: EstadoClinica.Suspendida,
+            motivoSuspension: MotivoSuspension.DecisionAdministrativa);
         var (provider, _) = await CrearProveedorAsync();
 
         await using (provider)
@@ -175,8 +211,38 @@ public sealed class SuscripcionServiceTests(SqlServerFixture fixture)
 
             var actualizada = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
             Assert.Equal(EstadoClinica.Suspendida, actualizada.Estado);
+            Assert.Equal(MotivoSuspension.DecisionAdministrativa, actualizada.MotivoSuspension);
             Assert.True(actualizada.FechaVencimiento > hoy);
             Assert.False(actualizada.EnPrueba);
+        }
+    }
+
+    [Fact]
+    public async Task UnPagoNoReactivaUnaSuspensionSinMotivoRegistrado()
+    {
+        await using var db = fixture.CreateContext();
+        var hoy = ReglaSuscripcion.Hoy();
+        var clinica = await CrearClinicaAsync(
+            db,
+            enPrueba: false,
+            fechaVencimiento: hoy.AddDays(-10),
+            estado: EstadoClinica.Suspendida);
+        var (provider, _) = await CrearProveedorAsync();
+
+        await using (provider)
+        {
+            var servicio = provider.GetRequiredService<ISuscripcionService>();
+
+            await servicio.RegistrarPagoAsync(new RegistrarPagoSuscripcionDto
+            {
+                ClinicaId = clinica.Id,
+                Monto = 75m,
+                Metodo = MetodoPagoSuscripcion.Efectivo
+            });
+
+            var actualizada = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
+            Assert.Equal(EstadoClinica.Suspendida, actualizada.Estado);
+            Assert.Null(actualizada.MotivoSuspension);
         }
     }
 
@@ -222,11 +288,97 @@ public sealed class SuscripcionServiceTests(SqlServerFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task ExtenderDiasEnPruebaConservaElModoDePrueba()
+    {
+        await using var db = fixture.CreateContext();
+        var hoy = ReglaSuscripcion.Hoy();
+        var clinica = await CrearClinicaAsync(db, enPrueba: true, fechaVencimiento: hoy.AddDays(5));
+        var (provider, _) = await CrearProveedorAsync();
+
+        await using (provider)
+        {
+            var servicio = provider.GetRequiredService<ISuscripcionService>();
+
+            await servicio.ExtenderAsync(new ExtenderSuscripcionDto
+            {
+                ClinicaId = clinica.Id,
+                Dias = 7,
+                Motivo = "Compensación durante la prueba"
+            });
+
+            var actualizada = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
+            Assert.True(actualizada.EnPrueba);
+            Assert.Equal("Prueba", actualizada.Plan);
+            Assert.Equal(EstadoClinica.Activa, actualizada.Estado);
+            Assert.Equal(hoy.AddDays(12), actualizada.FechaVencimiento);
+        }
+    }
+
+    [Fact]
+    public async Task ExtenderDiasEnComercialConservaElPlanMensual()
+    {
+        await using var db = fixture.CreateContext();
+        var hoy = ReglaSuscripcion.Hoy();
+        var clinica = await CrearClinicaAsync(db, enPrueba: false, fechaVencimiento: hoy.AddDays(5));
+        var (provider, _) = await CrearProveedorAsync();
+
+        await using (provider)
+        {
+            var servicio = provider.GetRequiredService<ISuscripcionService>();
+
+            await servicio.ExtenderAsync(new ExtenderSuscripcionDto
+            {
+                ClinicaId = clinica.Id,
+                Dias = 7,
+                Motivo = "Compensación por soporte técnico"
+            });
+
+            var actualizada = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
+            Assert.False(actualizada.EnPrueba);
+            Assert.Equal("Mensual", actualizada.Plan);
+            Assert.Equal(EstadoClinica.Activa, actualizada.Estado);
+            Assert.Equal(hoy.AddDays(12), actualizada.FechaVencimiento);
+        }
+    }
+
+    [Fact]
+    public async Task UnPagoNoSeSobrescribeConElInicioDePrueba()
+    {
+        await using var db = fixture.CreateContext();
+        var clinica = await CrearClinicaAsync(db, enPrueba: true);
+        var (provider, _) = await CrearProveedorAsync();
+
+        await using (provider)
+        {
+            var servicio = provider.GetRequiredService<ISuscripcionService>();
+
+            await servicio.RegistrarPagoAsync(new RegistrarPagoSuscripcionDto
+            {
+                ClinicaId = clinica.Id,
+                Monto = 20m,
+                Meses = 1,
+                Metodo = MetodoPagoSuscripcion.Efectivo
+            });
+
+            var despuesDelPago = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
+
+            var iniciada = await servicio.IniciarPruebaSiCorrespondeAsync(clinica.Id);
+
+            var final = await db.Clinicas.AsNoTracking().SingleAsync(item => item.Id == clinica.Id);
+            Assert.False(iniciada);
+            Assert.False(final.EnPrueba);
+            Assert.Equal(despuesDelPago.FechaVencimiento, final.FechaVencimiento);
+            Assert.Equal(despuesDelPago.FechaPrimerIngreso, final.FechaPrimerIngreso);
+        }
+    }
+
     private static async Task<Clinica> CrearClinicaAsync(
         ApplicationDbContext db,
         bool enPrueba = true,
         DateTime? fechaVencimiento = null,
-        EstadoClinica estado = EstadoClinica.Activa)
+        EstadoClinica estado = EstadoClinica.Activa,
+        MotivoSuspension? motivoSuspension = null)
     {
         var sufijo = Guid.NewGuid().ToString("N")[..10];
         var clinica = new Clinica
@@ -234,6 +386,7 @@ public sealed class SuscripcionServiceTests(SqlServerFixture fixture)
             Nombre = $"Clínica {sufijo}",
             Codigo = $"test-{sufijo}",
             Estado = estado,
+            MotivoSuspension = motivoSuspension,
             FechaAlta = DateTime.UtcNow,
             Plan = enPrueba ? "Prueba" : "Mensual",
             EnPrueba = enPrueba,

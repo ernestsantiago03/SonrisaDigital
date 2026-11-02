@@ -28,6 +28,10 @@ public sealed class UsuarioService(
     // Límite de filas por página que acepta el servicio, aunque la pantalla pida más.
     private const int MaxPageSize = 50;
 
+    // Las clínicas heredadas tienen el límite en cero; se les aplica el mismo
+    // límite del plan actual en lugar de dejarlas sin restricción.
+    private const int LimiteUsuariosPredeterminado = 10;
+
     /// <summary>
     /// Página de usuarios para la tabla principal. Primero cuenta en SQL y después
     /// trae solo los usuarios de la página; los roles se consultan en un solo viaje.
@@ -164,6 +168,10 @@ public sealed class UsuarioService(
                     $"La clínica {clinica.Nombre} está suspendida. Actívala antes de crear usuarios.");
             }
 
+            // El límite se comprueba dentro de la transacción serializable para que
+            // dos altas simultáneas en el último cupo no superen el máximo.
+            await AsegurarCupoDeUsuariosAsync(clinica, cancellationToken);
+
             // El usuario se crea dentro de la transacción para que, si la
             // estrategia de reintentos vuelve a ejecutar el bloque, parta de
             // una entidad nueva y no reutilice una que ya quedó marcada.
@@ -190,7 +198,7 @@ public sealed class UsuarioService(
             await auditoriaService.RegistrarAsync(
                 "Creó", "Usuarios", nameof(Usuario), null,
                 $"Creó el usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken, clinica.Id);
-        }, cancellationToken);
+        }, IsolationLevel.Serializable, cancellationToken);
     }
 
     public async Task UpdateAsync(UsuarioFormDto model, CancellationToken cancellationToken = default)
@@ -220,6 +228,15 @@ public sealed class UsuarioService(
             }
 
             await EnsureNotLastActiveAdminAsync(user, model.Estado, model.Roles, cancellationToken);
+
+            // Reactivar una cuenta ocupa un cupo nuevo. Sin esta comprobación se
+            // podría superar el límite desactivando y reactivando usuarios.
+            if (model.Estado == EstadoRegistro.Activo && user.Estado != EstadoRegistro.Activo)
+            {
+                var clinica = await BuscarClinicaActualAsync(cancellationToken)
+                    ?? throw new InvalidOperationException("No hay una clínica activa seleccionada.");
+                await AsegurarCupoDeUsuariosAsync(clinica, cancellationToken);
+            }
 
             var estadoAnterior = user.Estado;
             var emailAnterior = user.Email;
@@ -273,6 +290,13 @@ public sealed class UsuarioService(
             var user = await BuscarUsuarioDeLaClinicaAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
             await EnsureNotLastActiveAdminAsync(user, estado, await userManager.GetRolesAsync(user), cancellationToken);
 
+            if (estado == EstadoRegistro.Activo && user.Estado != EstadoRegistro.Activo)
+            {
+                var clinica = await BuscarClinicaActualAsync(cancellationToken)
+                    ?? throw new InvalidOperationException("No hay una clínica activa seleccionada.");
+                await AsegurarCupoDeUsuariosAsync(clinica, cancellationToken);
+            }
+
             user.Estado = estado;
             EnsureSucceeded(await userManager.UpdateAsync(user));
 
@@ -313,6 +337,31 @@ public sealed class UsuarioService(
         return user is not null && tenant.ClinicaId is int clinicaId && user.ClinicaId == clinicaId ? user : null;
     }
 
+    /// <summary>
+    /// Impide que la clínica supere su límite de usuarios activos. Se llama
+    /// dentro de una transacción serializable, tanto al crear como al reactivar.
+    /// </summary>
+    private async Task AsegurarCupoDeUsuariosAsync(
+        ClinicaActivaDto clinica,
+        CancellationToken cancellationToken)
+    {
+        var limite = clinica.LimiteUsuarios > 0
+            ? clinica.LimiteUsuarios
+            : LimiteUsuariosPredeterminado;
+
+        var activos = await dbContext.Users.CountAsync(
+            usuario => usuario.ClinicaId == clinica.Id
+                && usuario.Estado == EstadoRegistro.Activo,
+            cancellationToken);
+
+        if (activos >= limite)
+        {
+            throw new InvalidOperationException(
+                $"La clínica {clinica.Nombre} alcanzó el límite de {limite} usuarios activos. " +
+                "Desactiva un usuario o amplía el límite antes de continuar.");
+        }
+    }
+
     /// <summary>Clínica de la sesión consultada en la base, para validar su existencia y estado.</summary>
     private async Task<ClinicaActivaDto?> BuscarClinicaActualAsync(CancellationToken cancellationToken)
     {
@@ -324,7 +373,7 @@ public sealed class UsuarioService(
         return await dbContext.Clinicas
             .AsNoTracking()
             .Where(clinica => clinica.Id == clinicaId)
-            .Select(clinica => new ClinicaActivaDto(clinica.Id, clinica.Nombre, clinica.Estado))
+            .Select(clinica => new ClinicaActivaDto(clinica.Id, clinica.Nombre, clinica.Estado, clinica.LimiteUsuarios))
             .SingleOrDefaultAsync(cancellationToken);
     }
 

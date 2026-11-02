@@ -9,6 +9,7 @@ public sealed record ClinicaListItemDto(
     string Nombre,
     string Codigo,
     EstadoClinica Estado,
+    MotivoSuspension? MotivoSuspension,
     DateTime FechaAlta,
     string? Plan,
     bool EnPrueba,

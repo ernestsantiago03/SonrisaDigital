@@ -313,6 +313,10 @@ namespace SonrisaDigital.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("MotivoSuspension")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(150)

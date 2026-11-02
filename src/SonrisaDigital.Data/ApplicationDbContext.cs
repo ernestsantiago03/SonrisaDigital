@@ -93,6 +93,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(clinic => clinic.Eslogan).HasMaxLength(300);
             entity.Property(clinic => clinic.LogoUrl).HasMaxLength(300);
             entity.Property(clinic => clinic.Estado).HasConversion<string>().HasMaxLength(20);
+            entity.Property(clinic => clinic.MotivoSuspension).HasConversion<string>().HasMaxLength(30);
             entity.Property(clinic => clinic.Plan).HasMaxLength(30);
         });
 

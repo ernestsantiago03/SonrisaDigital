@@ -345,8 +345,8 @@ public sealed class CitaService(
         if (model.HoraFin <= model.HoraInicio)
             throw new InvalidOperationException("La hora de fin debe ser posterior a la hora de inicio.");
 
-        if (model.Fecha.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-            throw new InvalidOperationException("Las citas solo pueden programarse de lunes a viernes.");
+        if (model.Fecha.DayOfWeek is DayOfWeek.Sunday)
+            throw new InvalidOperationException("Las citas solo pueden programarse de lunes a sábado.");
 
         if (model.HoraInicio < HoraApertura || model.HoraFin > HoraCierre)
             throw new InvalidOperationException("El horario de atención es de 8:00 a.m. a 6:00 p.m.");

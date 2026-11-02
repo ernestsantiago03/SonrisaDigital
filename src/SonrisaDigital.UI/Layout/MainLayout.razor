@@ -371,7 +371,12 @@
 
             if (avisoSuscripcion.Acceso == AccesoClinica.EnGracia)
             {
-                return $"Tienes {Math.Abs(avisoSuscripcion.DiasRestantes)} día(s) de gracia antes de que se bloquee el acceso. Contacta al administrador para renovar.";
+                var diasGracia = ReglaSuscripcion.DiasGraciaRestantes(
+                    avisoSuscripcion.FechaVencimiento, ReglaSuscripcion.Hoy());
+
+                return diasGracia == 0
+                    ? "Hoy es el último día de gracia antes de que se bloquee el acceso. Contacta al administrador para renovar."
+                    : $"Te quedan {diasGracia} día(s) de gracia antes de que se bloquee el acceso. Contacta al administrador para renovar.";
             }
 
             var cuando = avisoSuscripcion.DiasRestantes <= 0

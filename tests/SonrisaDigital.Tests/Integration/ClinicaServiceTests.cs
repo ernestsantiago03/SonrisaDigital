@@ -53,16 +53,45 @@ public sealed class ClinicaServiceTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task SuspenderUnaClinicaCambiaSuEstado()
+    public async Task SuspenderUnaClinicaCambiaSuEstadoYGuardaElMotivo()
     {
         await using var provider = await CrearProveedorAsync(new FakeAuthorizationService());
         var servicio = provider.GetRequiredService<IClinicaService>();
         var id = await servicio.CrearAsync(ModeloClinica("Para suspender", $"sus-{Guid.NewGuid():N}"[..20]));
 
-        await servicio.CambiarEstadoAsync(id, EstadoClinica.Suspendida);
+        await servicio.CambiarEstadoAsync(id, EstadoClinica.Suspendida, MotivoSuspension.FaltaDePago);
 
         var clinica = (await servicio.ListarAsync()).Single(item => item.Id == id);
         Assert.Equal(EstadoClinica.Suspendida, clinica.Estado);
+        Assert.Equal(MotivoSuspension.FaltaDePago, clinica.MotivoSuspension);
+    }
+
+    [Fact]
+    public async Task NoSePuedeSuspenderSinIndicarElMotivo()
+    {
+        await using var provider = await CrearProveedorAsync(new FakeAuthorizationService());
+        var servicio = provider.GetRequiredService<IClinicaService>();
+        var id = await servicio.CrearAsync(ModeloClinica("Sin motivo", $"sin-{Guid.NewGuid():N}"[..20]));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.CambiarEstadoAsync(id, EstadoClinica.Suspendida));
+
+        Assert.Contains("suspensión", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ReactivarUnaClinicaLimpiaElMotivoDeSuspension()
+    {
+        await using var provider = await CrearProveedorAsync(new FakeAuthorizationService());
+        var servicio = provider.GetRequiredService<IClinicaService>();
+        var id = await servicio.CrearAsync(ModeloClinica("Para reactivar", $"rea-{Guid.NewGuid():N}"[..20]));
+        await servicio.CambiarEstadoAsync(id, EstadoClinica.Suspendida, MotivoSuspension.DecisionAdministrativa);
+
+        await servicio.CambiarEstadoAsync(id, EstadoClinica.Activa);
+
+        var clinica = (await servicio.ListarAsync()).Single(item => item.Id == id);
+        Assert.Equal(EstadoClinica.Activa, clinica.Estado);
+        Assert.Null(clinica.MotivoSuspension);
     }
 
     private static ClinicaFormDto ModeloClinica(string nombre, string codigo) =>

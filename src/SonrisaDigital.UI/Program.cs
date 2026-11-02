@@ -367,61 +367,11 @@ app.Use(async (context, next) =>
 app.UseHttpsRedirection();
 app.UseAuthentication();
 
-// Una cookie emitida antes de suspender la clínica seguiría siendo válida hasta
-// su vencimiento. En cada navegación se comprueba el estado de la clínica y, si
-// ya no está activa, se cierra la sesión y se explica el motivo en /login.
-app.Use(async (context, next) =>
-{
-    var esNavegacion = context.Request.Headers.Accept
-        .Any(valor => valor?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
-
-    if (!esNavegacion || context.User.Identity?.IsAuthenticated != true)
-    {
-        await next();
-        return;
-    }
-
-    var clinicaIdClaim = context.User.FindFirst(ReclamacionesClinica.ClinicaId);
-    if (clinicaIdClaim is null || !int.TryParse(clinicaIdClaim.Value, out var clinicaId))
-    {
-        // El Dueño del sistema no pertenece a ninguna clínica.
-        await next();
-        return;
-    }
-
-    var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
-    var clinica = await dbContext.Clinicas
-        .Where(item => item.Id == clinicaId)
-        .Select(item => new
-        {
-            item.Estado,
-            item.EnPrueba,
-            item.FechaPrimerIngreso,
-            item.FechaVencimiento
-        })
-        .FirstOrDefaultAsync(context.RequestAborted);
-
-    // Una clínica inexistente se trata como suspendida: cierre por defecto.
-    var acceso = clinica is null
-        ? AccesoClinica.Suspendida
-        : ReglaSuscripcion.Evaluar(
-            clinica.Estado,
-            clinica.EnPrueba,
-            clinica.FechaPrimerIngreso,
-            clinica.FechaVencimiento,
-            ReglaSuscripcion.Hoy());
-
-    if (acceso is AccesoClinica.Suspendida or AccesoClinica.Vencida)
-    {
-        await context.SignOutAsync(IdentityConstants.ApplicationScheme);
-        context.Response.Redirect(acceso == AccesoClinica.Vencida
-            ? "/login?error=clinic-expired"
-            : "/login?error=clinic");
-        return;
-    }
-
-    await next();
-});
+// Una cookie emitida antes de suspender o vencer la clínica seguiría siendo
+// válida hasta su vencimiento. El middleware comprueba la suscripción en toda
+// petición autenticada (páginas, archivos, PDF y handshake de Blazor) y cierra
+// la sesión si la clínica ya no puede operar.
+app.UseMiddleware<SuscripcionAccessMiddleware>();
 
 app.UseAuthorization();
 

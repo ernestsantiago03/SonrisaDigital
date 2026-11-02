@@ -90,6 +90,85 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
     }
 
     [Fact]
+    public async Task NoPermiteSuperarElLimiteDeUsuariosActivos()
+    {
+        await using var db = fixture.CreateContext();
+        var sufijo = Guid.NewGuid().ToString("N")[..10];
+        var clinica = new Clinica
+        {
+            Nombre = $"Clínica límite {sufijo}",
+            Codigo = $"limite-{sufijo}",
+            Estado = EstadoClinica.Activa,
+            FechaAlta = DateTime.UtcNow,
+            Plan = "Mensual",
+            EnPrueba = false,
+            LimiteUsuarios = 2
+        };
+        db.Clinicas.Add(clinica);
+        await db.SaveChangesAsync();
+
+        await using var provider = await CrearProveedorParaClinicaAsync(clinica.Id);
+        await CrearUsuarioAsync(provider, "Usuario uno", RolesSonrisaDigital.Recepcionista);
+        await CrearUsuarioAsync(provider, "Usuario dos", RolesSonrisaDigital.Recepcionista);
+
+        using var scope = provider.CreateScope();
+        var servicio = scope.ServiceProvider.GetRequiredService<IUsuarioService>();
+        var modelo = new UsuarioFormDto
+        {
+            Nombre = "Usuario tres",
+            Email = $"usuario-{sufijo}@sonrisadigital.local",
+            Password = "Prueba123",
+            Estado = EstadoRegistro.Activo,
+            Roles = [RolesSonrisaDigital.Recepcionista]
+        };
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.CreateAsync(modelo));
+
+        Assert.Contains("límite de 2 usuarios activos", excepcion.Message);
+
+        await using var comprobacion = fixture.CreateContext();
+        var total = await comprobacion.Users.CountAsync(usuario =>
+            usuario.ClinicaId == clinica.Id && usuario.Estado == EstadoRegistro.Activo);
+        Assert.Equal(2, total);
+    }
+
+    [Fact]
+    public async Task NoPermiteReactivarUnUsuarioSiLaClinicaYaEstaEnElLimite()
+    {
+        await using var db = fixture.CreateContext();
+        var sufijo = Guid.NewGuid().ToString("N")[..10];
+        var clinica = new Clinica
+        {
+            Nombre = $"Clínica reactivación {sufijo}",
+            Codigo = $"reactivar-{sufijo}",
+            Estado = EstadoClinica.Activa,
+            FechaAlta = DateTime.UtcNow,
+            Plan = "Mensual",
+            EnPrueba = false,
+            LimiteUsuarios = 2
+        };
+        db.Clinicas.Add(clinica);
+        await db.SaveChangesAsync();
+
+        await using var provider = await CrearProveedorParaClinicaAsync(clinica.Id);
+        await CrearUsuarioAsync(provider, "Usuario uno", RolesSonrisaDigital.Recepcionista);
+        var usuarioDos = await CrearUsuarioAsync(provider, "Usuario dos", RolesSonrisaDigital.Recepcionista);
+
+        using var scope = provider.CreateScope();
+        var servicio = scope.ServiceProvider.GetRequiredService<IUsuarioService>();
+        await servicio.SetStatusAsync(usuarioDos.Id, EstadoRegistro.Inactivo);
+
+        // Ocupa el cupo que dejó libre el usuario desactivado.
+        await CrearUsuarioAsync(provider, "Usuario tres", RolesSonrisaDigital.Recepcionista);
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => servicio.SetStatusAsync(usuarioDos.Id, EstadoRegistro.Activo));
+
+        Assert.Contains("límite de 2 usuarios activos", excepcion.Message);
+    }
+
+    [Fact]
     public async Task QuitarRolOdontologoDejaPerfilHuerfanoEInactivo()
     {
         await using var provider = await CrearProveedorAsync();
@@ -249,7 +328,12 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
     private Task<ServiceProvider> CrearProveedorAsync(params string[] permisosDenegados) =>
         CrearProveedorConAutorizacionAsync(new FakeAuthorizationService(true, permisosDenegados));
 
-    private async Task<ServiceProvider> CrearProveedorConAutorizacionAsync(IAuthorizationService autorizacion)
+    private Task<ServiceProvider> CrearProveedorParaClinicaAsync(int clinicaId) =>
+        CrearProveedorConAutorizacionAsync(new FakeAuthorizationService(), clinicaId);
+
+    private async Task<ServiceProvider> CrearProveedorConAutorizacionAsync(
+        IAuthorizationService autorizacion,
+        int? clinicaId = null)
     {
         await using var db = fixture.CreateContext();
         var cadenaConexion = db.Database.GetConnectionString()
@@ -277,15 +361,14 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
 
-        // La base de prueba ya tiene la clínica demo creada por la migración.
-        int clinicaId;
-        await using (var dbDemo = new ApplicationDbContext(
-            new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlServer(cadenaConexion).Options,
-            SinClinica.Instancia))
-        {
-            clinicaId = await dbDemo.Clinicas.Where(clinic => clinic.Codigo == "clinica-demo").Select(clinic => clinic.Id).SingleAsync();
-        }
-        services.AddScoped<ITenantProvider>(_ => new TenantFijo(clinicaId));
+        // Por defecto se usa la clínica demo creada por la migración. Las pruebas
+        // que necesitan un límite propio pasan otra clínica.
+        var clinicaFinal = clinicaId ?? await db.Clinicas
+            .Where(clinic => clinic.Codigo == "clinica-demo")
+            .Select(clinic => clinic.Id)
+            .SingleAsync();
+
+        services.AddScoped<ITenantProvider>(_ => new TenantFijo(clinicaFinal));
 
         services.AddSingleton<ICurrentUserService>(TestSession.Crear());
         services.AddSingleton(autorizacion);
