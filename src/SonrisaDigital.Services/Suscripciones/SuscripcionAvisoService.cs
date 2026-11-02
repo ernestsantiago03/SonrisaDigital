@@ -18,8 +18,14 @@ public interface ISuscripcionAvisoService
     Task<AvisoSuscripcionDto?> ObtenerAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Usa su propio DbContext: el layout consulta el aviso al abrir cada página y,
+/// si compartiera el contexto del circuito, competiría con la consulta que la
+/// propia página está ejecutando (el mismo problema que resuelve el selector
+/// de clínicas del menú).
+/// </summary>
 public sealed class SuscripcionAvisoService(
-    ApplicationDbContext dbContext,
+    DbContextOptions<ApplicationDbContext> dbOptions,
     ITenantProvider tenantProvider,
     IOptions<SuscripcionOptions> options) : ISuscripcionAvisoService
 {
@@ -29,6 +35,10 @@ public sealed class SuscripcionAvisoService(
         {
             return null;
         }
+
+        // La tabla Clinicas no lleva el filtro del inquilino y aquí siempre se
+        // filtra por el id de la sesión, así que el contexto se crea sin clínica.
+        await using var dbContext = new ApplicationDbContext(dbOptions, SinClinica.Instancia);
 
         var clinica = await dbContext.Clinicas
             .AsNoTracking()

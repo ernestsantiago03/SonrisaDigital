@@ -221,11 +221,13 @@
     private IClinicaActivaService ClinicaActiva { get; set; } = null!;
 
     // Aviso de vencimiento para el personal de una clínica (el Dueño lo ve en el panel).
+    // El servicio consulta con su propio DbContext: el del circuito lo está usando la página.
     [Inject]
     private ISuscripcionAvisoService SuscripcionAviso { get; set; } = null!;
 
     private IReadOnlyList<ClinicaListItemDto> clinicas = [];
     private AvisoSuscripcionDto? avisoSuscripcion;
+    private string? avisoCargadoParaUsuario;
     private bool contenidoListo;
     private bool seleccionRestaurada;
 
@@ -301,6 +303,7 @@
             UserInitials = "US";
             CurrentUserService.Establecer(null, null, null);
             avisoSuscripcion = null;
+            avisoCargadoParaUsuario = null;
             contenidoListo = true;
             return;
         }
@@ -318,13 +321,25 @@
         // Deja al usuario actual disponible para los servicios. Además del Id y el
         // nombre (auditoría), se guarda el principal completo para que los servicios
         // puedan evaluar las mismas políticas de autorización que la interfaz.
-        CurrentUserService.Establecer(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, UserName, user);
+        var usuarioId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        CurrentUserService.Establecer(usuarioId, UserName, user);
 
         clinicas = EsDueno ? await CargarClinicasAsync() : [];
 
         // El Dueño controla la suscripción desde el panel de clínicas; el aviso
         // es para el personal de la clínica, que no tiene ese permiso.
-        avisoSuscripcion = EsDueno ? null : await SuscripcionAviso.ObtenerAsync();
+        // Se consulta una sola vez por sesión: OnParametersSetAsync se ejecuta en
+        // cada navegación y no hace falta una consulta extra por página.
+        if (EsDueno)
+        {
+            avisoSuscripcion = null;
+            avisoCargadoParaUsuario = null;
+        }
+        else if (avisoCargadoParaUsuario != usuarioId)
+        {
+            avisoSuscripcion = await SuscripcionAviso.ObtenerAsync();
+            avisoCargadoParaUsuario = usuarioId;
+        }
 
         // El Dueño espera a que OnAfterRender restaure la clínica elegida antes
         // de renderizar la página. Los demás usuarios no dependen del selector.

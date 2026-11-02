@@ -199,6 +199,29 @@ public sealed class SuscripcionServiceTests(SqlServerFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task ElAvisoNoUsaElContextoDelCircuito()
+    {
+        await using var db = fixture.CreateContext();
+        var clinica = await CrearClinicaAsync(
+            db, enPrueba: false, fechaVencimiento: ReglaSuscripcion.Hoy().AddDays(2));
+        var (provider, _) = await CrearProveedorAsync(clinicaId: clinica.Id);
+
+        await using (provider)
+        {
+            // El layout de Blazor consulta el aviso mientras la página está usando
+            // el DbContext del circuito. Si compartieran contexto, una de las dos
+            // consultas fallaría ("A second operation was started...").
+            var contextoDelCircuito = provider.GetRequiredService<ApplicationDbContext>();
+            await contextoDelCircuito.DisposeAsync();
+
+            var aviso = await provider.GetRequiredService<ISuscripcionAvisoService>().ObtenerAsync();
+
+            Assert.NotNull(aviso);
+            Assert.Equal(2, aviso.DiasRestantes);
+        }
+    }
+
     private static async Task<Clinica> CrearClinicaAsync(
         ApplicationDbContext db,
         bool enPrueba = true,

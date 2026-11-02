@@ -138,6 +138,10 @@ jobs:
       SONRISADIGITAL_E2E_EMAIL: "e2e.admin@sonrisadigital.test"
       SONRISADIGITAL_E2E_PASSWORD: "E2E_Admin_2026!Segura"
       SONRISADIGITAL_E2E_BASE_URL: "http://localhost:5175"
+      # La suite inicia sesión más de 5 veces por minuto desde la misma IP (un
+      # login por prueba más los reintentos). Sin este límite el POST de login
+      # recibe 429 y el navegador se queda en /account/login.
+      Authentication__LoginPermitLimit: "50"
 
     steps:
       - name: Descargar código
