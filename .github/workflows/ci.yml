@@ -197,6 +197,8 @@ jobs:
           export Dueno__Password="$SONRISADIGITAL_E2E_DUENO_PASSWORD"
           export ASPNETCORE_ENVIRONMENT=Development
           export ASPNETCORE_URLS="$SONRISADIGITAL_E2E_BASE_URL"
+          # Solo para las pruebas E2E: el Dueño de prueba entra sin segundo factor.
+          export Seguridad__MfaDuenoObligatorio=false
 
           nohup dotnet run \
             --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj \

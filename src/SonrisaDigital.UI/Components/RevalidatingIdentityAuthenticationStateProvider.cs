@@ -10,6 +10,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Autorizacion;
 
 namespace SonrisaDigital.UI.Components;
 
@@ -29,6 +30,7 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
     private readonly IServiceScopeFactory scopeFactory = scopeFactory;
     private readonly IdentityOptions identityOptions = optionsAccessor.Value;
     private readonly ICurrentUserService currentUserService = currentUserService;
+    private readonly DateTimeOffset circuitoIniciado = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Intervalo máximo para detectar cambios en una sesión ya abierta.
@@ -67,6 +69,13 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
     {
         var user = await userManager.GetUserAsync(principal);
         if (user is null || user.Estado != EstadoRegistro.Activo)
+        {
+            return false;
+        }
+
+        // Un circuito abierto no vuelve a leer la cookie: la sesión del Dueño se mide desde que se abrió.
+        if (principal.IsInRole(RolesSonrisaDigital.Dueno)
+            && DateTimeOffset.UtcNow - circuitoIniciado > SeguridadDueno.DuracionSesion)
         {
             return false;
         }

@@ -40,6 +40,7 @@ public static class ValidadorConfiguracionProduccion
         ValidarProxy(configuration, errores, advertencias);
         ValidarDataProtection(configuration, errores, advertencias);
         ValidarArchivos(configuration, errores, advertencias);
+        ValidarSeguridad(configuration, errores, advertencias);
         ValidarSeeding(configuration, errores, advertencias);
 
         return new ResultadoValidacionConfiguracion(errores, advertencias);
@@ -182,6 +183,20 @@ public static class ValidadorConfiguracionProduccion
             advertencias.Add(
                 "DataProtection:KeysPath es una ruta relativa. " +
                 "En producción se recomienda una ruta absoluta fuera de la publicación.");
+        }
+    }
+
+    /// <summary>El segundo factor del Dueño no puede apagarse en un despliegue real.</summary>
+    private static void ValidarSeguridad(
+        IConfiguration configuration,
+        List<string> errores,
+        List<string> advertencias)
+    {
+        if (configuration.GetValue<bool?>("Seguridad:MfaDuenoObligatorio") == false)
+        {
+            errores.Add(
+                "Seguridad:MfaDuenoObligatorio no puede ser false en producción. " +
+                "El Dueño debe usar segundo factor.");
         }
     }
 

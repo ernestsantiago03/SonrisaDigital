@@ -1,0 +1,55 @@
+@page "/login/dos-pasos"
+@layout LoginLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+
+<PageTitle>Verificación en dos pasos · Sonrisa Digital</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-form-section">
+            <center>
+                <h1 class="auth-title">Verificación en dos pasos</h1>
+                <p class="login-subtitle">Escribe el código de 6 dígitos de tu app autenticadora.</p>
+            </center>
+
+            <form method="post" action="/account/login-2fa">
+                <AntiforgeryToken />
+                <input type="hidden" name="ReturnUrl" value="@ReturnUrl" />
+
+                <div class="form-field">
+                    <label for="codigo">Código de la app</label>
+                    <input id="codigo" name="Codigo" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+                </div>
+
+                <div class="form-field">
+                    <label for="codigo-recuperacion">o código de recuperación</label>
+                    <input id="codigo-recuperacion" name="CodigoRecuperacion" type="text" autocomplete="off" placeholder="Solo si perdiste el acceso a la app" />
+                </div>
+
+                <button class="login-submit" type="submit">Verificar</button>
+            </form>
+
+            @if (Error == "invalid")
+            {
+                <div class="login-error">El código no es correcto. Revisa la hora de tu teléfono e inténtalo de nuevo.</div>
+            }
+            else if (Error == "locked")
+            {
+                <div class="login-error">La cuenta está bloqueada temporalmente por demasiados intentos.</div>
+            }
+            else if (Error == "expired")
+            {
+                <div class="login-error">La verificación expiró. Vuelve a iniciar sesión.</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
+}

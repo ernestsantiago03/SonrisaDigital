@@ -249,6 +249,8 @@ public sealed class UsuarioService(
             user.Email = email;
             user.UserName = email;
 
+            await AsegurarClaveDuenoAsync(user, model.Password);
+
             var result = await userManager.UpdateAsync(user);
             EnsureSucceeded(result);
             var rolesChanged = await ReplaceRolesAsync(user, model.Roles, cancellationToken);
@@ -318,6 +320,7 @@ public sealed class UsuarioService(
         await dbContext.ExecuteInTransactionAsync(async () =>
         {
             var user = await BuscarUsuarioDeLaClinicaAsync(id) ?? throw new InvalidOperationException("El usuario no existe.");
+            await AsegurarClaveDuenoAsync(user, password);
             var token = await userManager.GeneratePasswordResetTokenAsync(user);
             EnsureSucceeded(await userManager.ResetPasswordAsync(user, token, password));
 
@@ -328,6 +331,21 @@ public sealed class UsuarioService(
                 "Restableció", "Usuarios", nameof(Usuario), null,
                 $"Restableció la contraseña del usuario: {await ObtenerNombreCompletoAsync(user, cancellationToken)}", cancellationToken);
         }, cancellationToken);
+    }
+
+    /// <summary>Las cuentas Dueño exigen una contraseña más larga que el resto de usuarios.</summary>
+    private async Task AsegurarClaveDuenoAsync(Usuario user, string? clave)
+    {
+        if (string.IsNullOrEmpty(clave) || !await userManager.IsInRoleAsync(user, RolesSonrisaDigital.Dueno))
+        {
+            return;
+        }
+
+        var error = SeguridadDueno.ValidarClave(clave);
+        if (error is not null)
+        {
+            throw new InvalidOperationException(error);
+        }
     }
 
     /// <summary>Usuario por Id solo si pertenece a la clínica de la sesión; si no, null (como si no existiera).</summary>
