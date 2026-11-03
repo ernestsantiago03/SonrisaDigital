@@ -1,0 +1,93 @@
+@page "/seguridad/cuenta"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Identity
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Autenticacion
+@using SonrisaDigital.Services.Autorizacion
+@inject UserManager<Usuario> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Mi cuenta · Sonrisa Digital</PageTitle>
+
+<div class="mfa-page">
+    <header>
+        <span class="page-eyebrow">Seguridad de la cuenta</span>
+        <h1>Cambiar contraseña</h1>
+    </header>
+
+    @if (noDisponible)
+    {
+        <div class="feedback error" role="alert">Esta pantalla solo está disponible para el rol Dueño.</div>
+    }
+    else if (!segundoFactorActivo)
+    {
+        <div class="feedback error" role="alert">Activa primero el segundo factor para poder cambiar la contraseña.</div>
+        <p><a href="/seguridad/mfa">Ir a activar el segundo factor</a></p>
+    }
+    else
+    {
+        <section class="mfa-panel">
+            <p>Por seguridad necesitas la contraseña actual y un código de tu app autenticadora.
+               La nueva contraseña debe tener al menos @SeguridadDueno.LongitudMinimaClave caracteres.
+               Al cambiarla se cerrarán todas tus sesiones.</p>
+
+            <form method="post" action="/seguridad/cuenta/clave" class="mfa-confirmar">
+                <AntiforgeryToken />
+
+                <label for="clave-actual">Contraseña actual</label>
+                <input id="clave-actual" name="ClaveActual" type="password" autocomplete="current-password" required />
+
+                <label for="clave-nueva">Contraseña nueva</label>
+                <input id="clave-nueva" name="ClaveNueva" type="password" autocomplete="new-password" minlength="@SeguridadDueno.LongitudMinimaClave" required />
+
+                <label for="clave-confirmar">Repite la contraseña nueva</label>
+                <input id="clave-confirmar" name="ClaveConfirmar" type="password" autocomplete="new-password" minlength="@SeguridadDueno.LongitudMinimaClave" required />
+
+                <label for="codigo">Código de 6 dígitos de la app</label>
+                <input id="codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required />
+
+                <button type="submit" class="primary-action">Cambiar contraseña</button>
+            </form>
+
+            @if (!string.IsNullOrWhiteSpace(mensajeError))
+            {
+                <div class="feedback error" role="alert">@mensajeError</div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private bool noDisponible;
+    private bool segundoFactorActivo;
+    private string? mensajeError;
+
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var usuario = await UserManager.GetUserAsync(estado.User);
+
+        if (usuario is null || !estado.User.IsInRole(RolesSonrisaDigital.Dueno))
+        {
+            noDisponible = true;
+            return;
+        }
+
+        segundoFactorActivo = usuario.TwoFactorEnabled;
+
+        mensajeError = Error switch
+        {
+            "current" => "La contraseña actual no es correcta.",
+            "mismatch" => "La contraseña nueva y su repetición no coinciden.",
+            "weak" => $"La contraseña nueva debe tener al menos {SeguridadDueno.LongitudMinimaClave} caracteres.",
+            "code" => "El código de la app no es correcto. Revisa la hora de tu teléfono.",
+            "locked" => "La cuenta está bloqueada temporalmente por demasiados intentos.",
+            "policy" => "La contraseña nueva no cumple los requisitos del sistema.",
+            "expired" => "La página expiró. Vuelve a intentarlo.",
+            _ => null
+        };
+    }
+}

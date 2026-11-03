@@ -479,6 +479,82 @@ app.MapPost("/seguridad/mfa/activar", async (
     return Results.Content(html, "text/html; charset=utf-8");
 }).RequireAuthorization();
 
+// Cambio de contraseña del Dueño. Exige la contraseña actual y un código de la app, así que una sesión
+// abierta por sí sola no alcanza. Al cambiarla se invalidan todas las sesiones y se vuelve a iniciar sesión.
+app.MapPost("/seguridad/cuenta/clave", async (
+    HttpContext context,
+    IAntiforgery antiforgery,
+    UserManager<Usuario> userManager,
+    SignInManager<Usuario> signInManager,
+    ILoggerFactory loggerFactory) =>
+{
+    if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
+    {
+        return Results.Redirect("/seguridad/cuenta?error=expired");
+    }
+
+    var user = await userManager.GetUserAsync(context.User);
+    if (user is null || !context.User.IsInRole(RolesSonrisaDigital.Dueno))
+    {
+        return Results.Forbid();
+    }
+
+    if (!user.TwoFactorEnabled)
+    {
+        return Results.Redirect("/seguridad/mfa");
+    }
+
+    var form = await context.Request.ReadFormAsync();
+    var actual = form["ClaveActual"].ToString();
+    var nueva = form["ClaveNueva"].ToString();
+    var confirmacion = form["ClaveConfirmar"].ToString();
+    var codigo = new string(form["Codigo"].ToString().Where(char.IsDigit).ToArray());
+
+    if (nueva != confirmacion)
+    {
+        return Results.Redirect("/seguridad/cuenta?error=mismatch");
+    }
+
+    if (SeguridadDueno.ValidarClave(nueva) is not null)
+    {
+        return Results.Redirect("/seguridad/cuenta?error=weak");
+    }
+
+    // Esta comprobación cuenta los fallos para el bloqueo de la cuenta, igual que el login.
+    var resultado = await signInManager.CheckPasswordSignInAsync(user, actual, lockoutOnFailure: true);
+    if (resultado.IsLockedOut)
+    {
+        return Results.Redirect("/seguridad/cuenta?error=locked");
+    }
+
+    if (!resultado.Succeeded)
+    {
+        return Results.Redirect("/seguridad/cuenta?error=current");
+    }
+
+    if (!await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, codigo))
+    {
+        await userManager.AccessFailedAsync(user);
+        return Results.Redirect(await userManager.IsLockedOutAsync(user)
+            ? "/seguridad/cuenta?error=locked"
+            : "/seguridad/cuenta?error=code");
+    }
+
+    var cambio = await userManager.ChangePasswordAsync(user, actual, nueva);
+    if (!cambio.Succeeded)
+    {
+        return Results.Redirect("/seguridad/cuenta?error=policy");
+    }
+
+    await userManager.ResetAccessFailedCountAsync(user);
+
+    // Cerrar las demás sesiones: la nueva clave invalida cualquier cookie abierta con la anterior.
+    await userManager.UpdateSecurityStampAsync(user);
+    await signInManager.SignOutAsync();
+
+    return Results.Redirect("/login?cambio=clave");
+}).RequireAuthorization();
+
 // Acceso al sistema. El orden es: contraseña, segundo factor (si está activo) y, por último, la clínica.
 // La sesión del Dueño dura 2 horas (ver SeguridadDueno).
 app.MapPost("/account/login", async (

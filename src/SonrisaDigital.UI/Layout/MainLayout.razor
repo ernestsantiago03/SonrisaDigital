@@ -123,6 +123,13 @@
                 <span class="nav-icon">⌸</span>
                 Acerca De
             </NavLink>
+            @if (EsDueno)
+            {
+                <NavLink href="/seguridad/cuenta" class="nav-item">
+                    <span class="nav-icon">⚿</span>
+                    Mi cuenta
+                </NavLink>
+            }
 
             @* --- SECCIÓN DE AYUDA --- *@
             <span class="nav-section"> Ayuda </span>

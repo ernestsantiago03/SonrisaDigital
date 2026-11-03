@@ -46,7 +46,13 @@
                 <button class="login-submit" type="submit">Ingresar</button>
             </form>
 
-            @if (Error == "invalid")
+            @if (Cambio == "clave")
+            {
+                <div class="login-error" style="background:#ecfdf5;border-color:#a7f3d0;color:#065f46">
+                    Tu contraseña se cambió. Inicia sesión con la nueva.
+                </div>
+            }
+            else if (Error == "invalid")
             {
                 <div class="login-error">Correo o contraseña incorrectos.</div>
             }
@@ -99,4 +105,7 @@
 
     [SupplyParameterFromQuery(Name = "error")]
     private string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cambio")]
+    private string? Cambio { get; set; }
 }
