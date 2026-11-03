@@ -86,7 +86,8 @@ $variables = @(
     'SONRISADIGITAL_E2E_EMAIL',
     'SONRISADIGITAL_E2E_PASSWORD',
     'SONRISADIGITAL_E2E_DUENO_EMAIL',
-    'SONRISADIGITAL_E2E_DUENO_PASSWORD'
+    'SONRISADIGITAL_E2E_DUENO_PASSWORD',
+    'Seguridad__MfaDuenoObligatorio'
 )
 $valoresOriginales = @{}
 foreach ($nombre in $variables) {
@@ -119,6 +120,9 @@ try {
     $env:Authentication__LoginPermitLimit = '50'
     $env:Dueno__Email = $correoDueno
     $env:Dueno__Password = $claveDueno
+    # Solo para las pruebas E2E: el Dueño de prueba entra sin segundo factor. En producción la
+    # validación de configuración rechaza este valor.
+    $env:Seguridad__MfaDuenoObligatorio = 'false'
 
     $procesoApp = Start-Process `
         -FilePath 'dotnet' `

@@ -21,6 +21,8 @@ using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Configuracion;
 using SonrisaDigital.Services.Odontograma;
+using SonrisaDigital.Services.Autorizacion;
+using Microsoft.Extensions.Options;
 using SonrisaDigital.Services.Archivos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Reportes.DTOs;
@@ -189,6 +191,15 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider>();
 
 var app = builder.Build();
+
+// Comandos de administración desde la consola del servidor. No se exponen en la web.
+//   dotnet SonrisaDigital.UI.dll crear-dueno <correo> <nombre>
+//   dotnet SonrisaDigital.UI.dll desactivar-dueno <correo>
+if (args is ["crear-dueno" or "desactivar-dueno", ..])
+{
+    Environment.ExitCode = await CliDueno.EjecutarAsync(app.Services, args);
+    return;
+}
 
 using (var scope = app.Services.CreateScope())
 {
@@ -389,6 +400,9 @@ app.UseAuthentication();
 // la sesión si la clínica ya no puede operar.
 app.UseMiddleware<SuscripcionAccessMiddleware>();
 
+// El Dueño debe activar el segundo factor antes de usar el sistema.
+app.UseMiddleware<MfaDuenoMiddleware>();
+
 app.UseAuthorization();
 
 // El limitador va antes de UseStatusCodePagesWithReExecute: si estuviera dentro, la
@@ -410,13 +424,70 @@ app.UseStatusCodePagesWithReExecute("/404");
 app.MapStaticAssets().AllowAnonymous();
 app.UseAntiforgery();
 
+// Activación del segundo factor. Va por un formulario normal y no por el circuito de Blazor: activar
+// cambia el sello de seguridad y cierra la sesión actual, así que los códigos de recuperación deben
+// entregarse en esta misma respuesta.
+app.MapPost("/seguridad/mfa/activar", async (
+    HttpContext context,
+    IAntiforgery antiforgery,
+    UserManager<Usuario> userManager,
+    ILoggerFactory loggerFactory) =>
+{
+    if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
+    {
+        return Results.Redirect("/seguridad/mfa?error=expired");
+    }
+
+    var user = await userManager.GetUserAsync(context.User);
+    if (user is null || !context.User.IsInRole(RolesSonrisaDigital.Dueno))
+    {
+        return Results.Forbid();
+    }
+
+    if (user.TwoFactorEnabled)
+    {
+        return Results.Redirect("/seguridad/mfa");
+    }
+
+    var form = await context.Request.ReadFormAsync();
+    var codigo = new string(form["Codigo"].ToString().Where(char.IsDigit).ToArray());
+    if (!await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, codigo))
+    {
+        return Results.Redirect("/seguridad/mfa?error=invalid");
+    }
+
+    await userManager.SetTwoFactorEnabledAsync(user, true);
+    var codigosRecuperacion = (await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10))?.ToList() ?? [];
+
+    var items = string.Concat(codigosRecuperacion.Select(item => $"<li><code>{WebUtility.HtmlEncode(item)}</code></li>"));
+    var html = $$"""
+        <!doctype html>
+        <html lang="es">
+        <head><meta charset="utf-8" /><title>Segundo factor activo · Sonrisa Digital</title></head>
+        <body style="font-family:Segoe UI,system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#0f172a">
+            <h1>Segundo factor activo</h1>
+            <p>Guarda estos códigos de recuperación fuera de este equipo, por ejemplo en un gestor de contraseñas o en papel.
+               Cada código sirve una sola vez y <strong>no volverán a mostrarse</strong>.</p>
+            <ul style="font-family:Consolas,monospace;font-size:16px;line-height:1.9">{{items}}</ul>
+            <p>Por seguridad, tu sesión anterior se cerró. Inicia sesión de nuevo con tu contraseña y el código de la app.</p>
+            <p><a href="/login">Ir a iniciar sesión</a></p>
+        </body>
+        </html>
+        """;
+
+    context.Response.Headers["Cache-Control"] = "no-store";
+    return Results.Content(html, "text/html; charset=utf-8");
+}).RequireAuthorization();
+
+// Acceso al sistema. El orden es: contraseña, segundo factor (si está activo) y, por último, la clínica.
+// La sesión del Dueño dura 2 horas (ver SeguridadDueno).
 app.MapPost("/account/login", async (
     HttpContext context,
     IAntiforgery antiforgery,
     SignInManager<Usuario> signInManager,
     UserManager<Usuario> userManager,
-    ApplicationDbContext dbContext,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IOptions<SeguridadOptions> seguridad) =>
 {
     // Un token vencido no es un error del servidor: la página de login quedó
     // obsoleta. Se devuelve al formulario con un aviso y un token nuevo.
@@ -443,52 +514,101 @@ app.MapPost("/account/login", async (
         return Results.Redirect(result.IsLockedOut ? "/login?error=locked" : "/login?error=invalid");
     }
 
-    if (user.ClinicaId is int clinicaId)
+    // Con segundo factor activo, la sesión no se abre todavía: se pide el código en un paso aparte.
+    if (user.TwoFactorEnabled)
     {
-        var clinica = await dbContext.Clinicas
-            .Where(item => item.Id == clinicaId)
-            .Select(item => new
-            {
-                item.Estado,
-                item.EnPrueba,
-                item.FechaPrimerIngreso,
-                item.FechaVencimiento
-            })
-            .FirstOrDefaultAsync();
+        // Identity lee el id de esta cookie desde ClaimTypes.Name (GetTwoFactorAuthenticationUserAsync).
+        var identidad = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
+        identidad.AddClaim(new Claim(ClaimTypes.Name, user.Id));
+        await context.SignInAsync(IdentityConstants.TwoFactorUserIdScheme, new ClaimsPrincipal(identidad));
 
-        var acceso = clinica is null
-            ? AccesoClinica.Suspendida
-            : ReglaSuscripcion.Evaluar(
-                clinica.Estado,
-                clinica.EnPrueba,
-                clinica.FechaPrimerIngreso,
-                clinica.FechaVencimiento,
-                ReglaSuscripcion.Hoy());
-
-        if (acceso is AccesoClinica.Suspendida or AccesoClinica.Vencida)
-        {
-            return Results.Redirect(acceso == AccesoClinica.Vencida
-                ? "/login?error=clinic-expired"
-                : "/login?error=clinic");
-        }
-
-        // La prueba de 30 días empieza con el primer ingreso, no al crear la clínica.
-        // Si no se puede guardar la fecha se niega el acceso: una prueba sin
-        // vencimiento dejaría a la clínica operando gratis de forma indefinida.
-        try
-        {
-            var suscripcionService = context.RequestServices.GetRequiredService<ISuscripcionService>();
-            await suscripcionService.IniciarPruebaSiCorrespondeAsync(clinicaId);
-        }
-        catch (Exception exception)
-        {
-            loggerFactory.CreateLogger("Login").LogError(
-                exception, "No se pudo iniciar la prueba de la clínica {ClinicaId}.", clinicaId);
-            return Results.Redirect("/login?error=clinic");
-        }
+        return Results.Redirect(DestinoSegundoPaso(returnUrl));
     }
 
-    await signInManager.SignInAsync(user, isPersistent: false);
+    // El Dueño sin segundo factor entra solo para configurarlo. MfaDuenoMiddleware no le deja
+    // usar nada más hasta que lo active.
+    if (seguridad.Value.MfaDuenoObligatorio && await userManager.IsInRoleAsync(user, RolesSonrisaDigital.Dueno))
+    {
+        // La clave se genera aquí, antes de abrir la sesión: Identity cambia el sello de seguridad
+        // al crearla, y hacerlo después invalidaría la cookie recién emitida.
+        if (await userManager.GetAuthenticatorKeyAsync(user) is null)
+        {
+            await userManager.ResetAuthenticatorKeyAsync(user);
+        }
+
+        await signInManager.SignInAsync(user, PropiedadesSesion());
+        return Results.Redirect("/seguridad/mfa");
+    }
+
+    var redireccionClinica = await ValidarAccesoClinicaAsync(user, context, loggerFactory);
+    if (redireccionClinica is not null)
+    {
+        return Results.Redirect(redireccionClinica);
+    }
+
+    await signInManager.SignInAsync(user, PropiedadesSesion());
+    return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
+}).AllowAnonymous().RequireRateLimiting("login");
+
+// Segundo paso del acceso: código de la app o código de recuperación. Un intento fallido cuenta
+// para el bloqueo de la cuenta, igual que una contraseña mal escrita.
+app.MapPost("/account/login-2fa", async (
+    HttpContext context,
+    IAntiforgery antiforgery,
+    SignInManager<Usuario> signInManager,
+    UserManager<Usuario> userManager,
+    ILoggerFactory loggerFactory) =>
+{
+    if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
+    {
+        return Results.Redirect("/login/dos-pasos?error=expired");
+    }
+
+    var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
+    if (user is null)
+    {
+        return Results.Redirect("/login?error=expired");
+    }
+
+    var form = await context.Request.ReadFormAsync();
+    var codigo = new string(form["Codigo"].ToString().Where(char.IsLetterOrDigit).ToArray());
+    // Identity guarda los códigos como "XXXXX-XXXXX". Se acepta con o sin guion y en cualquier mayúscula.
+    var soloLetras = new string(form["CodigoRecuperacion"].ToString().Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+    var codigoRecuperacion = soloLetras.Length == 10 ? $"{soloLetras[..5]}-{soloLetras[5..]}" : string.Empty;
+    var returnUrl = form["ReturnUrl"].ToString();
+
+    if (await userManager.IsLockedOutAsync(user))
+    {
+        return Results.Redirect(ErrorSegundoPaso(returnUrl, "locked"));
+    }
+
+    var valido = false;
+    if (codigoRecuperacion.Length > 0)
+    {
+        valido = (await userManager.RedeemTwoFactorRecoveryCodeAsync(user, codigoRecuperacion)).Succeeded;
+    }
+    else if (codigo.Length > 0)
+    {
+        valido = await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, codigo);
+    }
+
+    if (!valido)
+    {
+        await userManager.AccessFailedAsync(user);
+        var bloqueada = await userManager.IsLockedOutAsync(user);
+        return Results.Redirect(ErrorSegundoPaso(returnUrl, bloqueada ? "locked" : "invalid"));
+    }
+
+    await userManager.ResetAccessFailedCountAsync(user);
+    await context.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+
+    var redireccionClinica = await ValidarAccesoClinicaAsync(user, context, loggerFactory);
+    if (redireccionClinica is not null)
+    {
+        return Results.Redirect(redireccionClinica);
+    }
+
+    await signInManager.SignInAsync(user, PropiedadesSesion());
     return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
 }).AllowAnonymous().RequireRateLimiting("login");
 
@@ -758,6 +878,75 @@ static IResult RedirigirArchivoConError(int pacienteId, string mensaje) =>
 static bool CorrelationIdValido(string? valor) =>
     !string.IsNullOrEmpty(valor)
     && System.Text.RegularExpressions.Regex.IsMatch(valor, "^[A-Za-z0-9-]{8,64}$");
+
+static AuthenticationProperties PropiedadesSesion()
+{
+    var propiedades = new AuthenticationProperties { IsPersistent = false };
+    SeguridadDueno.MarcarInicioSesion(propiedades, DateTimeOffset.UtcNow);
+    return propiedades;
+}
+
+static string DestinoSegundoPaso(string? returnUrl) =>
+    IsLocalUrl(returnUrl)
+        ? $"/login/dos-pasos?returnUrl={Uri.EscapeDataString(returnUrl!)}"
+        : "/login/dos-pasos";
+
+static string ErrorSegundoPaso(string? returnUrl, string error) =>
+    IsLocalUrl(returnUrl)
+        ? $"/login/dos-pasos?returnUrl={Uri.EscapeDataString(returnUrl!)}&error={error}"
+        : $"/login/dos-pasos?error={error}";
+
+// Devuelve a dónde redirigir si la clínica del usuario no puede operar; null si puede entrar.
+static async Task<string?> ValidarAccesoClinicaAsync(Usuario user, HttpContext context, ILoggerFactory loggerFactory)
+{
+    if (user.ClinicaId is not int clinicaId)
+    {
+        return null;
+    }
+
+    var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+    var clinica = await dbContext.Clinicas
+        .Where(item => item.Id == clinicaId)
+        .Select(item => new
+        {
+            item.Estado,
+            item.EnPrueba,
+            item.FechaPrimerIngreso,
+            item.FechaVencimiento
+        })
+        .FirstOrDefaultAsync();
+
+    var acceso = clinica is null
+        ? AccesoClinica.Suspendida
+        : ReglaSuscripcion.Evaluar(
+            clinica.Estado,
+            clinica.EnPrueba,
+            clinica.FechaPrimerIngreso,
+            clinica.FechaVencimiento,
+            ReglaSuscripcion.Hoy());
+
+    if (acceso is AccesoClinica.Suspendida or AccesoClinica.Vencida)
+    {
+        return acceso == AccesoClinica.Vencida ? "/login?error=clinic-expired" : "/login?error=clinic";
+    }
+
+    // La prueba de 30 días empieza con el primer ingreso, no al crear la clínica.
+    // Si no se puede guardar la fecha se niega el acceso: una prueba sin
+    // vencimiento dejaría a la clínica operando gratis de forma indefinida.
+    try
+    {
+        var suscripcionService = context.RequestServices.GetRequiredService<ISuscripcionService>();
+        await suscripcionService.IniciarPruebaSiCorrespondeAsync(clinicaId);
+    }
+    catch (Exception exception)
+    {
+        loggerFactory.CreateLogger("Login").LogError(
+            exception, "No se pudo iniciar la prueba de la clínica {ClinicaId}.", clinicaId);
+        return "/login?error=clinic";
+    }
+
+    return null;
+}
 
 static bool IsLocalUrl(string? url) =>
     !string.IsNullOrWhiteSpace(url) && url.StartsWith('/') && !url.StartsWith("//") && !url.Contains('\\');

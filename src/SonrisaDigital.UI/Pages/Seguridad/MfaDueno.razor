@@ -1,0 +1,86 @@
+@page "/seguridad/mfa"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Identity
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Autorizacion
+@inject UserManager<Usuario> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Segundo factor · Sonrisa Digital</PageTitle>
+
+<div class="mfa-page">
+    <header>
+        <span class="page-eyebrow">Seguridad de la cuenta</span>
+        <h1>Segundo factor</h1>
+    </header>
+
+    @if (noDisponible)
+    {
+        <div class="feedback error" role="alert">Esta configuración solo está disponible para el rol Dueño.</div>
+    }
+    else if (activo)
+    {
+        <div class="feedback success" role="status">El segundo factor está activo en tu cuenta.</div>
+    }
+    else
+    {
+        <section class="mfa-panel">
+            <ol>
+                <li>Abre tu app autenticadora (Google Authenticator, Microsoft Authenticator o similar).</li>
+                <li>Agrega una cuenta nueva, de tipo <strong>basada en tiempo</strong>, con esta clave:
+                    <div class="mfa-clave"><code>@claveFormateada</code></div>
+                </li>
+                <li>Escribe el código de 6 dígitos que muestra la app y confirma.</li>
+            </ol>
+
+            <form method="post" action="/seguridad/mfa/activar" class="mfa-confirmar">
+                <AntiforgeryToken />
+                <label for="mfa-codigo">Código de 6 dígitos</label>
+                <input id="mfa-codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required />
+                <button type="submit" class="primary-action">Activar segundo factor</button>
+            </form>
+
+            @if (Error == "invalid")
+            {
+                <div class="feedback error" role="alert">El código no es correcto. Revisa que la hora de tu teléfono esté sincronizada e inténtalo de nuevo.</div>
+            }
+            else if (Error == "expired")
+            {
+                <div class="feedback error" role="alert">La página expiró. Vuelve a intentarlo.</div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private bool noDisponible;
+    private bool activo;
+    private string claveRaw = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var usuario = await UserManager.GetUserAsync(estado.User);
+
+        if (usuario is null || !estado.User.IsInRole(RolesSonrisaDigital.Dueno))
+        {
+            noDisponible = true;
+            return;
+        }
+
+        // La clave la crea el login. Esta pantalla solo la lee.
+        activo = usuario.TwoFactorEnabled;
+        if (!activo)
+        {
+            claveRaw = await UserManager.GetAuthenticatorKeyAsync(usuario) ?? string.Empty;
+        }
+    }
+
+    // Agrupa la clave en bloques de 4 para que sea legible al copiarla a mano.
+    private string claveFormateada =>
+        string.Join(" ", Enumerable.Range(0, (claveRaw.Length + 3) / 4)
+            .Select(i => claveRaw.Substring(i * 4, Math.Min(4, claveRaw.Length - i * 4))));
+}

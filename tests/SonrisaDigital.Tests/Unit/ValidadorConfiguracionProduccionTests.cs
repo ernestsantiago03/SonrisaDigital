@@ -49,6 +49,19 @@ public class ValidadorConfiguracionProduccionTests
     }
 
     [Fact]
+    public void Validar_EnProduccion_NoPermiteApagarElSegundoFactorDelDueno()
+    {
+        var configuracion = new ConfigurationBuilder()
+            .AddConfiguration(CrearConfiguracionValida())
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Seguridad:MfaDuenoObligatorio"] = "false" })
+            .Build();
+
+        var resultado = ValidadorConfiguracionProduccion.Validar(configuracion, esDesarrollo: false);
+
+        Assert.Contains(resultado.Errores, error => error.Contains("MfaDuenoObligatorio", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Validar_EnProduccion_ConConfiguracionValida_NoDevuelveErrores()
     {
         var configuracion = CrearConfiguracionValida();

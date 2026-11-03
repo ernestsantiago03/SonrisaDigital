@@ -10,6 +10,7 @@ using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Services.Archivos;
+using SonrisaDigital.Services.Configuracion;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Clinicas;
 using SonrisaDigital.Services.Autorizacion;
@@ -76,7 +77,17 @@ public static class DependencyInjection
                 cookieOptions.AccessDeniedPath = "/acceso-denegado";
                 // Revalida la cookie en cada petición HTTP. Los circuitos Blazor ya
                 // abiertos se cubren con RevalidatingIdentityAuthenticationStateProvider.
-                cookieOptions.Events.OnValidatePrincipal = SecurityStampValidator.ValidatePrincipalAsync;
+                cookieOptions.Events.OnValidatePrincipal = async context =>
+                {
+                    await SecurityStampValidator.ValidatePrincipalAsync(context);
+
+                    // Las sesiones del Dueño duran 2 horas desde el inicio de sesión, no lo que dure la cookie.
+                    if (context.Principal?.IsInRole(RolesSonrisaDigital.Dueno) == true
+                        && SeguridadDueno.SesionVencida(context.Properties, DateTimeOffset.UtcNow))
+                    {
+                        context.RejectPrincipal();
+                    }
+                };
 
                 // Endurecimiento de la cookie de sesión.
                 // HttpOnly evita que JavaScript (XSS) lea la cookie.
@@ -164,6 +175,7 @@ public static class DependencyInjection
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IOdontogramaRepository, OdontogramaRepository>();
         services.AddScoped<IOdontogramaService, OdontogramaService>();
+        services.Configure<SeguridadOptions>(configuration.GetSection(SeguridadOptions.SectionName));
         services.AddScoped<IArchivoStorage, ArchivoStorage>();
 #pragma warning disable CA1416 // El módulo de archivos usa System.Drawing, que la aplicación solo soporta en Windows.
         services.AddScoped<IArchivoPacienteService, ArchivoPacienteService>();
