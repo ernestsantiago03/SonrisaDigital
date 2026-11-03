@@ -357,7 +357,7 @@
             else
             {
                 // Para una nueva cita, empezamos buscando el próximo día laborable
-                var defaultDate = DateOnly.FromDateTime(DateTime.Now);
+                var defaultDate = RelojNegocio.HoyDateOnly();
                 if (defaultDate.DayOfWeek == DayOfWeek.Saturday) defaultDate = defaultDate.AddDays(2);
                 else if (defaultDate.DayOfWeek == DayOfWeek.Sunday) defaultDate = defaultDate.AddDays(1);
 

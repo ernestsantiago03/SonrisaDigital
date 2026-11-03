@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Dashboard.DTOs;
@@ -15,11 +16,6 @@ public sealed class DashboardService(
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IDashboardService
 {
-    // La clínica trabaja con la hora de República Dominicana, pero las fechas de registro
-    // se guardan en UTC. Esta zona se usa para encontrar el lunes de la semana actual.
-    private static readonly TimeZoneInfo ZonaHorariaClinica = TimeZoneInfo.FindSystemTimeZoneById(
-        OperatingSystem.IsWindows() ? "SA Western Standard Time" : "America/Santo_Domingo");
-
     public async Task<DashboardStatsDto> GetStatsAsync(CancellationToken cancellationToken = default)
     {
         // Las cifras de pacientes y odontólogos solo se entregan con sus permisos de lectura.
@@ -87,12 +83,8 @@ public sealed class DashboardService(
     /// </summary>
     private static DateTime ObtenerInicioSemanaUtc()
     {
-        var ahoraLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaHorariaClinica);
+        var ahoraLocal = RelojNegocio.Ahora();
         var diasDesdeLunes = ((int)ahoraLocal.DayOfWeek + 6) % 7;
-        var inicioSemanaLocal = DateTime.SpecifyKind(
-            ahoraLocal.Date.AddDays(-diasDesdeLunes),
-            DateTimeKind.Unspecified);
-
-        return TimeZoneInfo.ConvertTimeToUtc(inicioSemanaLocal, ZonaHorariaClinica);
+        return RelojNegocio.AUtc(ahoraLocal.Date.AddDays(-diasDesdeLunes));
     }
 }

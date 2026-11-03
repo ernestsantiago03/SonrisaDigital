@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.Pagos.DTOs;
 using SonrisaDigital.Tests.Support;
@@ -34,7 +35,7 @@ public sealed class PagoConcurrencyTests(SqlServerFixture fixture)
         var modelo = new RegistrarPagoDto
         {
             TratamientoRealizadoId = tratamiento.Id,
-            Fecha = DateTime.Today,
+            Fecha = RelojNegocio.Hoy(),
             Monto = 60m,
             MetodoPago = MetodoPago.Efectivo,
             Observaciones = "Cobro simultáneo"

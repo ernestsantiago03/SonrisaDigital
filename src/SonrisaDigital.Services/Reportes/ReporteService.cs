@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
 using SonrisaDigital.Services.Reportes.DTOs;
@@ -366,14 +367,11 @@ public sealed class ReporteService(
         DateOnly desde,
         DateOnly hasta)
     {
-        var desdeLocal = DateTime.SpecifyKind(
-            desde.ToDateTime(TimeOnly.MinValue),
-            DateTimeKind.Local);
-        var hastaLocalExclusivo = DateTime.SpecifyKind(
-            hasta.AddDays(1).ToDateTime(TimeOnly.MinValue),
-            DateTimeKind.Local);
+        var desdeUtc = RelojNegocio.AUtc(desde.ToDateTime(TimeOnly.MinValue));
+        var hastaUtcExclusivo = RelojNegocio.AUtc(
+            hasta.AddDays(1).ToDateTime(TimeOnly.MinValue));
 
-        return (desdeLocal.ToUniversalTime(), hastaLocalExclusivo.ToUniversalTime());
+        return (desdeUtc, hastaUtcExclusivo);
     }
 
     private static string NombreCompleto(Paciente paciente) =>

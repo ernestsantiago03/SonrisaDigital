@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Archivos;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -33,8 +34,8 @@ public sealed class ArchivoPacienteServiceTests(SqlServerFixture fixture)
         var paciente = await TestData.CrearPacienteAsync(db);
         var servicio = CrearServicio(db, TestSession.Crear(usuarioId, RolesSonrisaDigital.Odontologo), new FakeAuthorizationService());
 
-        await servicio.SubirAsync(paciente.Id, "panoramica.jpg", ImagenArchivoTests.CrearJpg(), DateOnly.FromDateTime(DateTime.Today.AddMonths(-7)), "Radiografía anterior");
-        await servicio.SubirAsync(paciente.Id, "periapical.png", ImagenArchivoTests.CrearPng(), DateOnly.FromDateTime(DateTime.Today), "Radiografía de hoy");
+        await servicio.SubirAsync(paciente.Id, "panoramica.jpg", ImagenArchivoTests.CrearJpg(), RelojNegocio.HoyDateOnly().AddMonths(-7), "Radiografía anterior");
+        await servicio.SubirAsync(paciente.Id, "periapical.png", ImagenArchivoTests.CrearPng(), RelojNegocio.HoyDateOnly(), "Radiografía de hoy");
 
         var lista = await servicio.ListarAsync(paciente.Id);
 
@@ -57,7 +58,7 @@ public sealed class ArchivoPacienteServiceTests(SqlServerFixture fixture)
         var servicio = CrearServicio(db, TestSession.Crear(usuarioId, RolesSonrisaDigital.Odontologo), new FakeAuthorizationService());
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            servicio.SubirAsync(paciente.Id, "radiografia.jpg", System.Text.Encoding.ASCII.GetBytes("no soy una imagen"), DateOnly.FromDateTime(DateTime.Today), null));
+            servicio.SubirAsync(paciente.Id, "radiografia.jpg", System.Text.Encoding.ASCII.GetBytes("no soy una imagen"), RelojNegocio.HoyDateOnly(), null));
 
         Assert.Contains("JPG o PNG", error.Message);
     }
@@ -72,7 +73,7 @@ public sealed class ArchivoPacienteServiceTests(SqlServerFixture fixture)
         var dueno = CrearServicio(db, TestSession.Crear(usuarioId, RolesSonrisaDigital.Dueno), new FakeAuthorizationService());
         var odontologo = CrearServicio(db, TestSession.Crear(usuarioId, RolesSonrisaDigital.Odontologo), new FakeAuthorizationService(permitir: true, "Archivos.Ocultar"));
 
-        var subido = await dueno.SubirAsync(paciente.Id, "panoramica.jpg", ImagenArchivoTests.CrearJpg(), DateOnly.FromDateTime(DateTime.Today), null);
+        var subido = await dueno.SubirAsync(paciente.Id, "panoramica.jpg", ImagenArchivoTests.CrearJpg(), RelojNegocio.HoyDateOnly(), null);
 
         var noPuedeOcultar = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => odontologo.OcultarAsync(subido.Id));
         Assert.Contains("Solo el Dueño", noPuedeOcultar.Message);

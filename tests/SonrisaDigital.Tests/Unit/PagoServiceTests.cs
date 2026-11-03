@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging.Abstractions;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.Pagos.DTOs;
@@ -125,7 +126,7 @@ public sealed class PagoServiceTests
     private static RegistrarPagoDto ModeloValido() => new()
     {
         TratamientoRealizadoId = 1,
-        Fecha = DateTime.Today,
+        Fecha = RelojNegocio.Hoy(),
         Monto = 100m,
         MetodoPago = MetodoPago.Efectivo
     };

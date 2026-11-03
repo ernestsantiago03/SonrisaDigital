@@ -81,7 +81,7 @@
                         <td>
                             <span class="acceso @ClaseAcceso(clinica.Acceso)">@TextoAcceso(clinica.Acceso)</span>
                         </td>
-                        <td>@clinica.FechaAlta.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td>@RelojNegocio.DeUtc(clinica.FechaAlta).ToString("dd/MM/yyyy")</td>
                         <td class="clinicas-acciones">
                             <AuthorizeView Policy="Clinicas.Editar">
                                 <Authorized><a href="/clinicas/editar/@clinica.Id">Editar</a></Authorized>

@@ -6,6 +6,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -678,7 +679,7 @@ public sealed class TratamientoService(
             throw new InvalidOperationException("La fecha del tratamiento es obligatoria.");
         }
 
-        if (model.Fecha.Date > DateTime.Today)
+        if (model.Fecha.Date > RelojNegocio.Hoy())
         {
             throw new InvalidOperationException("La fecha del tratamiento no puede ser futura.");
         }

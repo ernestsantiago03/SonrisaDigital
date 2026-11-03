@@ -1,4 +1,5 @@
 using SonrisaDigital.Data.Tenancy;
+using SonrisaDigital.Data.Tiempo;
 namespace SonrisaDigital.Data.Entities;
 
 public class TratamientoRealizado : IPerteneceAClinica
@@ -12,7 +13,7 @@ public class TratamientoRealizado : IPerteneceAClinica
     public int OdontologoId { get; set; }
     public int? PiezaDentalId { get; set; }
     public int? ConsultaId { get; set; }
-    public DateTime Fecha { get; set; } = DateTime.UtcNow;
+    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
     public decimal Precio { get; set; }
     public EstadoTratamiento Estado { get; set; } = EstadoTratamiento.EnProceso;
     public string? Observaciones { get; set; }

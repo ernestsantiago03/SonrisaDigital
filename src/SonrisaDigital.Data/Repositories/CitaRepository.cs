@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 
 namespace SonrisaDigital.Data.Repositories;
 
@@ -144,7 +145,7 @@ public sealed class CitaRepository(ApplicationDbContext dbContext) : ICitaReposi
 
     public async Task<Cita> UpdateAsync(Cita cita, CancellationToken cancellationToken = default)
     {
-        cita.FechaModificacion = DateTime.UtcNow;
+        cita.FechaModificacion = RelojNegocio.Ahora();
         dbContext.Citas.Update(cita);
         await SaveChangesAsync(cancellationToken);
         return cita;

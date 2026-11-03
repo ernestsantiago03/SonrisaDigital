@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Tests.Support;
 
 namespace SonrisaDigital.Tests.Integration;
@@ -244,7 +245,7 @@ public sealed class CitaRepositoryTests(SqlServerFixture fixture)
 
     private static DateOnly ProximoDiaHabil()
     {
-        var fecha = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
+        var fecha = RelojNegocio.HoyDateOnly().AddDays(1);
         while (fecha.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
         {
             fecha = fecha.AddDays(1);

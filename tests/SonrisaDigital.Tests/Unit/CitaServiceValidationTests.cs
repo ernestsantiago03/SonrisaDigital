@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging.Abstractions;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Citas;
 using SonrisaDigital.Services.Citas.DTOs;
@@ -170,7 +171,7 @@ public sealed class CitaServiceValidationTests
 
     private static DateOnly ProximoDiaHabil()
     {
-        var fecha = DateOnly.FromDateTime(DateTime.Today).AddDays(1);
+        var fecha = RelojNegocio.HoyDateOnly().AddDays(1);
         while (fecha.DayOfWeek is DayOfWeek.Sunday)
         {
             fecha = fecha.AddDays(1);
@@ -181,7 +182,7 @@ public sealed class CitaServiceValidationTests
 
     private static DateOnly ProximoDia(DayOfWeek dia)
     {
-        var fecha = DateOnly.FromDateTime(DateTime.Today);
+        var fecha = RelojNegocio.HoyDateOnly();
         while (fecha.DayOfWeek != dia)
         {
             fecha = fecha.AddDays(1);

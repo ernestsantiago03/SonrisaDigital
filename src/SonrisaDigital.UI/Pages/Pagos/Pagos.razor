@@ -391,7 +391,7 @@
         nuevoPago = new RegistrarPagoDto
         {
             TratamientoRealizadoId = row.TratamientoRealizadoId,
-            Fecha = DateTime.Today,
+            Fecha = RelojNegocio.Hoy(),
             MetodoPago = MetodoPago.Efectivo
         };
     }

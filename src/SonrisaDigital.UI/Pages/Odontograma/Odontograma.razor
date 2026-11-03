@@ -278,7 +278,7 @@
                         {
                             <div class="last-change">
                                 <span>Última modificación</span>
-                                <strong>@selectedPiece.FechaModificacion.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                                <strong>@RelojNegocio.DeUtc(selectedPiece.FechaModificacion.Value).ToString("dd/MM/yyyy HH:mm")</strong>
                                 <small>@(selectedPiece.Odontologo ?? "Odontólogo no disponible")</small>
                             </div>
                         }
@@ -296,7 +296,7 @@
                                     {
                                         <li>
                                             <div class="tooth-history-head">
-                                                <strong>@item.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                                                <strong>@RelojNegocio.DeUtc(item.FechaHora).ToString("dd/MM/yyyy HH:mm")</strong>
                                                 <span>@item.Odontologo</span>
                                             </div>
                                             <div class="tooth-history-state">@DescribirCambio(item)</div>
@@ -355,7 +355,7 @@
                     </div>
                     <div class="field">
                         <label for="archivo-fecha">Fecha del estudio</label>
-                        <input id="archivo-fecha" name="fechaEstudio" type="date" value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                        <input id="archivo-fecha" name="fechaEstudio" type="date" value="@RelojNegocio.Hoy().ToString("yyyy-MM-dd")" max="@RelojNegocio.Hoy().ToString("yyyy-MM-dd")" required />
                     </div>
                     <div class="field field-wide">
                         <label for="archivo-descripcion">Descripción (opcional)</label>
@@ -389,7 +389,7 @@
                             <figcaption>
                                 <strong>@(archivo.Descripcion ?? archivo.NombreOriginal)</strong>
                                 <small>Estudio: @archivo.FechaEstudio.ToString("dd/MM/yyyy")</small>
-                                <small>Subido por @archivo.SubidoPor · @archivo.FechaSubida.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                <small>Subido por @archivo.SubidoPor · @RelojNegocio.DeUtc(archivo.FechaSubida).ToString("dd/MM/yyyy HH:mm")</small>
                                 @if (archivo.Oculto)
                                 {
                                     <span class="archivo-oculto-tag">Oculto</span>

@@ -135,7 +135,7 @@
                         {
                             <tr>
                                 <td class="audit-date">
-                                    @registro.FechaHora.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    @RelojNegocio.DeUtc(registro.FechaHora).ToString("dd/MM/yyyy HH:mm")
                                 </td>
                                 <td>
                                     <strong class="audit-user">@registro.Usuario</strong>
@@ -299,7 +299,7 @@
     /// en UTC. La base guarda FechaHora en UTC.
     /// </summary>
     private static DateTime ConvertirFechaLocalAUtc(DateTime fecha) =>
-        DateTime.SpecifyKind(fecha, DateTimeKind.Local).ToUniversalTime();
+        RelojNegocio.AUtc(fecha);
 
     /// <summary>Color del distintivo según la acción auditada.</summary>
     private static string GetAccionClass(string accion) => accion switch

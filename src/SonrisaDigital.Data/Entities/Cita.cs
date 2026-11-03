@@ -1,4 +1,5 @@
 using SonrisaDigital.Data.Tenancy;
+using SonrisaDigital.Data.Tiempo;
 namespace SonrisaDigital.Data.Entities;
 
 public class Cita : IPerteneceAClinica
@@ -17,20 +18,10 @@ public class Cita : IPerteneceAClinica
     public EstadoCita Estado { get; set; } = EstadoCita.Programada;
 
     // Se inicializa automáticamente con la hora exacta de República Dominicana
-    public DateTime FechaCreacion { get; set; } = ObtenerHoraLocal();
+    public DateTime FechaCreacion { get; set; } = RelojNegocio.Ahora();
     public DateTime? FechaModificacion { get; set; }
 
     public Paciente Paciente { get; set; } = null!;
     public Odontologo Odontologo { get; set; } = null!;
     public ConsultaClinica? ConsultaClinica { get; set; }
-
-    private static DateTime ObtenerHoraLocal()
-    {
-        var timeZoneId = OperatingSystem.IsWindows()
-            ? "SA Western Standard Time"
-            : "America/Santo_Domingo";
-
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
-        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone);
-    }
 }

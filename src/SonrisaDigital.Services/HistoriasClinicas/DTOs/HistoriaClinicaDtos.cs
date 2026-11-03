@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 
 namespace SonrisaDigital.Services.HistoriasClinicas.DTOs;
 
@@ -104,7 +105,7 @@ public sealed class ConsultaClinicaFormDto
     public int OdontologoId { get; set; }
 
     /// <summary>Fecha en que se atendió al paciente. Por defecto, hoy.</summary>
-    public DateTime Fecha { get; set; } = DateTime.Today;
+    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
 
     /// <summary>Motivo de la consulta (obligatorio): qué trajo al paciente a la clínica.</summary>
     [Required(ErrorMessage = "El motivo de la consulta es obligatorio.")]

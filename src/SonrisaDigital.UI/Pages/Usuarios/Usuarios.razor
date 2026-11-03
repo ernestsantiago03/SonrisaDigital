@@ -124,7 +124,7 @@
                                         }
                                     </div>
                                 </td>
-                                <td class="date-cell">@user.FechaCreacion.ToLocalTime().ToString("dd MMM yyyy")</td>
+                                <td class="date-cell">@RelojNegocio.DeUtc(user.FechaCreacion).ToString("dd MMM yyyy")</td>
                                 <td>
                                     <span class="status-badge @(user.Estado == EstadoRegistro.Activo ? "active" : "inactive")">
                                         <span class="status-dot"></span>

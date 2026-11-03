@@ -79,6 +79,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 - **HTTPS** obligatorio y **HSTS** en producción.
 - Página 404 personalizada y manejo controlado de errores.
 - Datos iniciales (roles, permisos, Dueño y catálogo odontográfico) creados automáticamente al arrancar. La clínica demo y su administrador solo se crean en Development/E2E.
+- **Fechas y horas del negocio** centralizadas en `RelojNegocio` (`America/Santo_Domingo`). Las fechas de calendario se calculan con la hora local de la clínica y las marcas de tiempo se guardan en UTC, aunque el servidor opere en otra zona horaria.
 
 ### Suscripción y facturación
 

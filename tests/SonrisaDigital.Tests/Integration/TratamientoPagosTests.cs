@@ -5,6 +5,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
 using SonrisaDigital.Data.Tenancy;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -92,7 +93,7 @@ public sealed class TratamientoPagosTests(SqlServerFixture fixture)
             db.Pagos.Add(new Pago
             {
                 TratamientoRealizadoId = realizado.Id,
-                Fecha = DateTime.Today,
+                Fecha = RelojNegocio.Hoy(),
                 Monto = montoPagado,
                 MetodoPago = MetodoPago.Efectivo,
                 UsuarioId = usuario.Id
@@ -109,7 +110,7 @@ public sealed class TratamientoPagosTests(SqlServerFixture fixture)
         PacienteId = realizado.PacienteId,
         TratamientoId = realizado.TratamientoId,
         OdontologoId = realizado.OdontologoId,
-        Fecha = DateTime.Today,
+        Fecha = RelojNegocio.Hoy(),
         Precio = precio,
         Estado = EstadoTratamiento.EnProceso,
         Observaciones = "Editado en prueba"

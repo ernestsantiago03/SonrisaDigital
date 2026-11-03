@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 
 namespace SonrisaDigital.Services.Tratamientos.DTOs;
 
@@ -92,7 +93,7 @@ public sealed class TratamientoRealizadoFormDto
 
     public int? PiezaDentalId { get; set; }
 
-    public DateTime Fecha { get; set; } = DateTime.Today;
+    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
 
     [Range(0.01, 9999999.99, ErrorMessage = "El precio debe ser mayor que cero.")]
     public decimal Precio { get; set; }

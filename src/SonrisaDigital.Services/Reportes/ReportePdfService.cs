@@ -3,6 +3,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Reportes.DTOs;
 
@@ -58,7 +59,7 @@ public sealed class ReportePdfService(
             Usuario: string.IsNullOrWhiteSpace(currentUserService.Nombre)
                 ? currentUserService.Principal?.Identity?.Name ?? "Usuario"
                 : currentUserService.Nombre,
-            Generado: DateTime.Now.ToString("dd/MM/yyyy HH:mm", Cultura),
+            Generado: RelojNegocio.Ahora().ToString("dd/MM/yyyy HH:mm", Cultura),
             Odontologo: ResolverOdontologo(filtro, opciones),
             Estado: ObtenerEstadoFiltro(tipo, filtro),
             Metodo: tipo == TipoReportePdf.Pagos
@@ -222,7 +223,7 @@ public sealed class ReportePdfService(
                 paciente.Nombre,
                 string.IsNullOrWhiteSpace(paciente.Identificacion) ? "—" : paciente.Identificacion,
                 string.IsNullOrWhiteSpace(paciente.Telefono) ? "—" : paciente.Telefono,
-                paciente.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy", Cultura),
+                RelojNegocio.DeUtc(paciente.FechaRegistro).ToString("dd/MM/yyyy", Cultura),
                 paciente.CitasAtendidas.ToString(Cultura),
                 paciente.UltimaCita.ToString("dd/MM/yyyy", Cultura)
             ])
@@ -284,7 +285,7 @@ public sealed class ReportePdfService(
         var filas = tratamientos
             .Select(tratamiento => (IReadOnlyList<string>)
             [
-                tratamiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy", Cultura),
+                tratamiento.Fecha.ToString("dd/MM/yyyy", Cultura),
                 tratamiento.Paciente,
                 tratamiento.Tratamiento,
                 tratamiento.Odontologo,
@@ -366,7 +367,7 @@ public sealed class ReportePdfService(
         var filas = pagos
             .Select(pago => (IReadOnlyList<string>)
             [
-                pago.Fecha.ToLocalTime().ToString("dd/MM/yyyy HH:mm", Cultura),
+                pago.Fecha.ToString("dd/MM/yyyy", Cultura),
                 pago.Paciente,
                 pago.Tratamiento,
                 MetodoPagoTexto(pago.Metodo),

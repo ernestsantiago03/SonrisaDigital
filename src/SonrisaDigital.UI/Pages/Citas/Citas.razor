@@ -120,7 +120,7 @@
     private readonly SemaphoreSlim cargaLock = new(1, 1);
 
     // EL CAMBIO PRINCIPAL: Se inicializa con la fecha actual
-    private DateOnly? selectedDate = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly? selectedDate = RelojNegocio.HoyDateOnly();
 
     private bool PuedeCrear => TienePermiso("Citas.Crear");
     private bool PuedeEditar => TienePermiso("Citas.Editar");

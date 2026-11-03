@@ -2,6 +2,7 @@ using SonrisaDigital.Data.Common;
 using Microsoft.AspNetCore.Authorization;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -598,7 +599,7 @@ public sealed class HistoriaClinicaService(
             throw new InvalidOperationException("El diagnóstico de la consulta es obligatorio.");
         }
 
-        if (model.Fecha.Date > DateTime.Today)
+        if (model.Fecha.Date > RelojNegocio.Hoy())
         {
             throw new InvalidOperationException("La fecha de la consulta no puede ser futura.");
         }

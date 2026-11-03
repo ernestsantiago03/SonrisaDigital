@@ -496,7 +496,7 @@
                         var abierta = consultasAbiertas.Contains(consulta.Id);
                         <div class="consultation @(abierta ? "is-open" : "")">
                             <button type="button" class="consultation-head" @onclick="() => ToggleConsulta(consulta.Id)">
-                                <span class="consultation-date">@consulta.Fecha.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                                <span class="consultation-date">@consulta.Fecha.ToString("yyyy-MM-dd")</span>
                                 <span class="consultation-reason">@Mostrar(consulta.Motivo)</span>
                                 <span class="status-badge @EstadoClass(consulta.Estado)">@EstadoLabel(consulta.Estado)</span>
                                 <span class="consultation-doctor">@consulta.Odontologo</span>
@@ -698,7 +698,7 @@
                 return "—";
             }
 
-            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            var hoy = RelojNegocio.HoyDateOnly();
             var edad = hoy.Year - fechaNacimiento.Year;
             if (fechaNacimiento.AddYears(edad) > hoy)
             {
@@ -972,7 +972,7 @@
         consultaForm = new ConsultaClinicaFormDto
         {
             PacienteId = model.PacienteId,
-            Fecha = DateTime.Today
+            Fecha = RelojNegocio.Hoy()
         };
 
         // Paso 2: cargar los odontólogos y preseleccionar al vinculado al usuario de la sesión,

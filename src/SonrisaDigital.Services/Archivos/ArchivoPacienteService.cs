@@ -5,6 +5,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Tenancy;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -81,7 +82,7 @@ public sealed class ArchivoPacienteService(
         var tipo = ImagenArchivo.DetectarTipo(contenido)
             ?? throw new InvalidOperationException("Solo se permiten archivos JPG o PNG.");
 
-        if (fechaEstudio == default || fechaEstudio > DateOnly.FromDateTime(DateTime.Today))
+        if (fechaEstudio == default || fechaEstudio > DateOnly.FromDateTime(RelojNegocio.Hoy()))
         {
             throw new InvalidOperationException("La fecha del estudio es obligatoria y no puede ser futura.");
         }

@@ -316,7 +316,7 @@
                                     <td><strong>@paciente.Nombre</strong></td>
                                     <td>@(string.IsNullOrWhiteSpace(paciente.Identificacion) ? "—" : paciente.Identificacion)</td>
                                     <td>@(string.IsNullOrWhiteSpace(paciente.Telefono) ? "—" : paciente.Telefono)</td>
-                                    <td class="mono">@paciente.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                    <td class="mono">@RelojNegocio.DeUtc(paciente.FechaRegistro).ToString("dd/MM/yyyy")</td>
                                     <td>@paciente.CitasAtendidas</td>
                                     <td class="mono">@paciente.UltimaCita.ToString("dd/MM/yyyy")</td>
                                 </tr>
@@ -413,7 +413,7 @@
                             @foreach (var tratamiento in tratamientos)
                             {
                                 <tr>
-                                    <td class="mono">@tratamiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                    <td class="mono">@tratamiento.Fecha.ToString("dd/MM/yyyy")</td>
                                     <td><strong>@tratamiento.Paciente</strong></td>
                                     <td>@tratamiento.Tratamiento</td>
                                     <td>@tratamiento.Odontologo</td>
@@ -505,7 +505,7 @@
                             @foreach (var pago in pagos)
                             {
                                 <tr>
-                                    <td class="mono">@pago.Fecha.ToString("dd/MM/yyyy HH:mm")   </td>
+                                    <td class="mono">@pago.Fecha.ToString("dd/MM/yyyy")</td>
                                     <td><strong>@pago.Paciente</strong></td>
                                     <td>@pago.Tratamiento</td>
                                     <td>
@@ -537,8 +537,8 @@
 
     // Período y filtros. Las fechas son locales; el Service las convierte a UTC.
     private string periodo = "mes";
-    private DateOnly desde = DateOnly.FromDateTime(DateTime.Now);
-    private DateOnly hasta = DateOnly.FromDateTime(DateTime.Now);
+    private DateOnly desde = RelojNegocio.HoyDateOnly();
+    private DateOnly hasta = RelojNegocio.HoyDateOnly();
     private string pestanaActiva = "citas";
     private string estadoCitaSeleccionado = string.Empty;
     private string estadoTratamientoSeleccionado = string.Empty;
@@ -553,7 +553,7 @@
     {
         // El período inicial es el mes actual; luego se cargan las opciones y
         // el primer bloque de datos.
-        var rango = ObtenerRango(periodo, DateOnly.FromDateTime(DateTime.Now));
+        var rango = ObtenerRango(periodo, RelojNegocio.HoyDateOnly());
         desde = rango.Desde;
         hasta = rango.Hasta;
 
@@ -588,7 +588,7 @@
     {
         if (periodo != "personalizado")
         {
-            var rango = ObtenerRango(periodo, DateOnly.FromDateTime(DateTime.Now));
+            var rango = ObtenerRango(periodo, RelojNegocio.HoyDateOnly());
             desde = rango.Desde;
             hasta = rango.Hasta;
         }

@@ -59,7 +59,7 @@
                     <h1>@patient.Nombres @patient.Apellidos</h1>
                     <span class="status-badge @(EsActivo ? "active" : "inactive")">@(EsActivo ? "Activo" : "Inactivo")</span>
                 </div>
-                <p>Paciente registrado el @patient.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy")</p>
+                <p>Paciente registrado el @RelojNegocio.DeUtc(patient.FechaRegistro).ToString("dd/MM/yyyy")</p>
             </div>
             <div class="header-actions">
                 <AuthorizeView Policy="Pacientes.Desactivar">
@@ -251,7 +251,7 @@
                                     <tr>
                                         <td class="col-main">@tratamiento.TratamientoNombre</td>
                                         <td>@tratamiento.OdontologoNombre</td>
-                                        <td>@tratamiento.Fecha.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                        <td>@tratamiento.Fecha.ToString("dd/MM/yyyy")</td>
                                         <td>@Mostrar(tratamiento.PiezaDental)</td>
                                         <td class="col-number">@Money(tratamiento.Total)</td>
                                         <td><span class="status-badge @EstadoTratamientoClase(tratamiento.EstadoClinico)">@EstadoTratamientoLabel(tratamiento.EstadoClinico)</span></td>
@@ -468,7 +468,7 @@
                 return "No registrada";
             }
 
-            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            var hoy = RelojNegocio.HoyDateOnly();
             var edad = hoy.Year - fechaNacimiento.Year;
             if (fechaNacimiento.AddYears(edad) > hoy)
             {

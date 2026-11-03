@@ -61,7 +61,7 @@
                                 <td>@(patient.TipoSangre ?? "-")</td>
                                 <td>@(patient.Telefono ?? "-")</td>
                                 <td>@(patient.Correo ?? "-")</td>
-                                <td>@patient.FechaRegistro.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                <td>@RelojNegocio.DeUtc(patient.FechaRegistro).ToString("dd/MM/yyyy")</td>
                                 <td class="row-actions">
                                     <a href="/pacientes/@patient.Id">Ver</a>
                                     <AuthorizeView Policy="Pacientes.Editar">

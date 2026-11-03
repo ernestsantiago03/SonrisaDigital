@@ -1,4 +1,5 @@
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 
 namespace SonrisaDigital.Data.Suscripciones;
 
@@ -34,16 +35,8 @@ public static class ReglaSuscripcion
     /// <summary>Días de gracia después del vencimiento antes de bloquear el acceso.</summary>
     public const int DiasGracia = 3;
 
-    // La clínica opera en República Dominicana. La fecha debe calcularse en su
-    // zona horaria: con UTC, el último día se cortaría a las 8:00 p. m. locales.
-    private const string ZonaNegocioIana = "America/Santo_Domingo";
-    private const string ZonaNegocioWindows = "SA Western Standard Time";
-
-    private static readonly Lazy<TimeZoneInfo> ZonaNegocio = new(ResolverZonaNegocio);
-
     /// <summary>Fecha actual (sin hora) en la zona horaria del negocio.</summary>
-    public static DateTime Hoy() =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ZonaNegocio.Value).Date;
+    public static DateTime Hoy() => RelojNegocio.Hoy();
 
     /// <summary>
     /// Evalúa el acceso de una clínica. La suspensión manual siempre gana; si la
@@ -141,28 +134,5 @@ public static class ReglaSuscripcion
         return diasVencida <= 0
             ? diasGracia
             : Math.Max(0, diasGracia - diasVencida);
-    }
-
-    private static TimeZoneInfo ResolverZonaNegocio()
-    {
-        foreach (var id in new[] { ZonaNegocioIana, ZonaNegocioWindows })
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(id);
-            }
-            catch (TimeZoneNotFoundException)
-            {
-                // Se prueba el siguiente identificador (IANA en Linux/macOS, Windows en IIS).
-            }
-            catch (InvalidTimeZoneException)
-            {
-                // Una base de zonas horarias dañada no debe impedir el arranque.
-            }
-        }
-
-        // Último recurso: si no hay base de zonas, se usa UTC. Es preferible a
-        // fallar el login de todas las clínicas.
-        return TimeZoneInfo.Utc;
     }
 }
