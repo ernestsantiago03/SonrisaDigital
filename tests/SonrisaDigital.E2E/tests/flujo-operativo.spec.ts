@@ -19,7 +19,7 @@ test.describe('Flujo operativo principal', () => {
     const nombreOdontologo = `E2E Odontologo ${sufijo}`;
     const nombreTratamiento = `E2E Limpieza ${sufijo}`;
     const fechaCita = siguienteDiaLaborable();
-    const fechaTratamiento = fechaLocal(new Date());
+    const fechaTratamiento = hoyNegocio();
 
     await iniciarSesion(page, correoAdmin!, claveAdmin!);
     await expect(page.getByRole('heading', { name: 'Inicio', exact: true })).toBeVisible();
@@ -104,7 +104,14 @@ test.describe('Flujo operativo principal', () => {
     await page.locator('#realizado-fecha').fill(fechaTratamiento);
     await page.locator('#realizado-precio').fill('1500');
     await page.locator('.modal-card').getByRole('button', { name: 'Guardar', exact: true }).click();
-    await expect(page.getByText('Tratamiento realizado guardado correctamente.')).toBeVisible();
+    // Si el servidor rechaza el tratamiento, el modal muestra el motivo: se falla con ese texto.
+    const errorModal = page.locator('.modal-card .alert-error');
+    await expect(
+      page.getByText('Tratamiento realizado guardado correctamente.').or(errorModal)
+    ).toBeVisible();
+    if (await errorModal.isVisible()) {
+      throw new Error(`No se guardó el tratamiento: ${await errorModal.innerText()}`);
+    }
     await expect(
       page.getByRole('cell', { name: `${nombrePaciente} ${apellidoPaciente}`, exact: true })
     ).toBeVisible();
@@ -173,20 +180,38 @@ async function esperarBlazor(page: Page): Promise<void> {
   await page.waitForTimeout(300);
 }
 
-// Devuelve la fecha en formato YYYY-MM-DD usando la zona horaria del equipo.
-function fechaLocal(fecha: Date): string {
-  const anio = fecha.getFullYear();
-  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-  const dia = String(fecha.getDate()).padStart(2, '0');
-  return `${anio}-${mes}-${dia}`;
+// El servidor valida las fechas con la hora de República Dominicana. Este test no puede usar la
+// zona del equipo que ejecuta Node: en GitHub Actions es UTC y, entre 8:00 p. m. y medianoche en RD,
+// ya marca el día siguiente y el tratamiento se rechaza como "fecha futura".
+const ZONA_NEGOCIO = 'America/Santo_Domingo';
+
+// Fecha de hoy en RD como YYYY-MM-DD.
+function hoyNegocio(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_NEGOCIO,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+// Suma días a una fecha YYYY-MM-DD. Se trabaja al mediodía UTC para no depender de la zona del equipo.
+function sumarDias(fechaYmd: string, dias: number): string {
+  const fecha = new Date(`${fechaYmd}T12:00:00Z`);
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  return fecha.toISOString().slice(0, 10);
+}
+
+function esFinDeSemana(fechaYmd: string): boolean {
+  const dia = new Date(`${fechaYmd}T12:00:00Z`).getUTCDay();
+  return dia === 0 || dia === 6;
 }
 
 // La clínica agenda de lunes a viernes; se salta el fin de semana.
 function siguienteDiaLaborable(): string {
-  const fecha = new Date();
-  fecha.setDate(fecha.getDate() + 1);
-  while (fecha.getDay() === 0 || fecha.getDay() === 6) {
-    fecha.setDate(fecha.getDate() + 1);
+  let fecha = sumarDias(hoyNegocio(), 1);
+  while (esFinDeSemana(fecha)) {
+    fecha = sumarDias(fecha, 1);
   }
-  return fechaLocal(fecha);
+  return fecha;
 }
