@@ -7,7 +7,9 @@ param(
     [string]$SqlCmd = "sqlcmd",
     [string]$DataDirectory = "",
     [string]$LogDirectory = "",
-    [string]$DatabaseTemporal = ""
+    [string]$DatabaseTemporal = "",
+    # Respaldo de archivos (Archivos_*.zip) de la misma fecha que el respaldo de la base.
+    [string]$ArchivosBackup = ""
 )
 
 Set-StrictMode -Version Latest
@@ -170,6 +172,53 @@ try {
     Invoke-SqlcmdSeguro -Query $consultaRestauracion | Out-Host
     $restaurada = $true
     Write-Host "Restauración completada y DBCC CHECKDB sin errores."
+
+    if (-not [string]::IsNullOrWhiteSpace($ArchivosBackup)) {
+        $rutaZip = [System.IO.Path]::GetFullPath($ArchivosBackup)
+        $hashArchivo = Join-Path (Split-Path $rutaZip -Parent) "$(Split-Path $rutaZip -Leaf).sha256"
+        if (-not (Test-Path -LiteralPath $hashArchivo)) {
+            throw "Falta el hash SHA256 del respaldo de archivos: '$hashArchivo'."
+        }
+
+        $hashEsperado = ((Get-Content -LiteralPath $hashArchivo -TotalCount 1).Split(' ')[0]).Trim()
+        $hashReal = (Get-FileHash -LiteralPath $rutaZip -Algorithm SHA256).Hash
+        if ($hashEsperado -ne $hashReal) {
+            throw "El respaldo de archivos no coincide con su hash. Puede estar dañado o alterado."
+        }
+
+        $carpetaArchivos = Join-Path ([System.IO.Path]::GetTempPath()) "sd-restore-$DatabaseTemporal"
+        if (Test-Path -LiteralPath $carpetaArchivos) {
+            Remove-Item -LiteralPath $carpetaArchivos -Recurse -Force
+        }
+
+        try {
+            Expand-Archive -LiteralPath $rutaZip -DestinationPath $carpetaArchivos
+
+            # Cada radiografía registrada en la base restaurada debe tener su archivo y su miniatura.
+            $consultaRegistros = "SET NOCOUNT ON; USE [$baseSql]; SELECT ClaveArchivo, ClaveMiniatura FROM ArchivosPaciente;"
+            $filasRegistros = @(Invoke-SqlcmdSeguro -NoHeaders -Separator "|" -Query $consultaRegistros |
+                Where-Object { $_ -and $_.Contains("|") })
+
+            $faltantes = @()
+            foreach ($fila in $filasRegistros) {
+                foreach ($clave in ($fila -split "\|")) {
+                    $ruta = Join-Path $carpetaArchivos ($clave.Trim() -replace "/", "\")
+                    if (-not (Test-Path -LiteralPath $ruta)) {
+                        $faltantes += $clave.Trim()
+                    }
+                }
+            }
+
+            if ($faltantes.Count -gt 0) {
+                throw "La base restaurada tiene $($faltantes.Count) archivo(s) sin respaldo, por ejemplo: $($faltantes[0])"
+            }
+
+            Write-Host "Archivos verificados: $($filasRegistros.Count) registro(s) con su archivo y miniatura."
+        }
+        finally {
+            Remove-Item -LiteralPath $carpetaArchivos -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 finally {
     $consultaLimpieza = @"

@@ -80,6 +80,7 @@ $variables = @(
     'Authentication__AdminEmail',
     'Authentication__AdminPassword',
     'Authentication__LoginPermitLimit',
+    'Authentication__LoginCuentaPermitLimit',
     'Dueno__Email',
     'Dueno__Password',
     'SONRISADIGITAL_E2E_BASE_URL',
@@ -118,6 +119,8 @@ try {
     $env:Authentication__AdminPassword = $claveAdmin
     # La suite inicia sesión más de 5 veces desde localhost en menos de un minuto.
     $env:Authentication__LoginPermitLimit = '50'
+    # Las pruebas inician sesión varias veces con la misma cuenta en poco tiempo.
+    $env:Authentication__LoginCuentaPermitLimit = '100'
     $env:Dueno__Email = $correoDueno
     $env:Dueno__Password = $claveDueno
     # Solo para las pruebas E2E: el Dueño de prueba entra sin segundo factor. En producción la

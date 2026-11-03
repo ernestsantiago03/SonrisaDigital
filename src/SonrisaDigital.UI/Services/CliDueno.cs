@@ -17,6 +17,10 @@ public static class CliDueno
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
         var roleManager = ambito.ServiceProvider.GetRequiredService<RoleManager<Rol>>();
 
+        // La base no admite auditoría sin clínica y el Dueño no tiene clínica: estas acciones
+        // quedan en el log del servidor, con fecha y usuario de consola.
+        var logger = ambito.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Seguridad.Consola");
+
         try
         {
             switch (args)
@@ -37,17 +41,40 @@ public static class CliDueno
                     }
 
                     var id = await CuentasDueno.CrearAsync(userManager, roleManager, correo, nombre, clave);
+                    logger.LogWarning("Consola: se creó el Dueño {Correo} (Id {Id}).", correo, id);
                     Console.WriteLine($"Dueño creado: {correo} (Id {id}).");
                     Console.WriteLine("Al primer inicio de sesión deberá activar el segundo factor.");
                     return 0;
 
                 case ["desactivar-dueno", var correoBaja]:
                     await CuentasDueno.DesactivarAsync(userManager, correoBaja);
+                    logger.LogWarning("Consola: se desactivó el Dueño {Correo}.", correoBaja);
                     Console.WriteLine($"Dueño desactivado: {correoBaja}.");
                     return 0;
 
+                case ["restablecer-mfa-dueno", var correoMfa]:
+                    if (Console.IsInputRedirected)
+                    {
+                        Console.Error.WriteLine("Este comando necesita una consola interactiva para confirmar.");
+                        return 1;
+                    }
+
+                    Console.Write($"Se quitará el segundo factor de {correoMfa}. Escribe SI para confirmar: ");
+                    if (Console.ReadLine()?.Trim() != "SI")
+                    {
+                        Console.Error.WriteLine("Operación cancelada.");
+                        return 1;
+                    }
+
+                    await CuentasDueno.RestablecerSegundoFactorAsync(userManager, correoMfa);
+                    logger.LogWarning("Consola: se restableció el segundo factor del Dueño {Correo}.", correoMfa);
+                    Console.WriteLine($"Segundo factor restablecido para {correoMfa}.");
+                    Console.WriteLine("Al siguiente inicio de sesión deberá volver a activarlo.");
+                    return 0;
+
                 default:
-                    Console.Error.WriteLine("Uso: crear-dueno <correo> <nombre>  |  desactivar-dueno <correo>");
+                    Console.Error.WriteLine(
+                        "Uso: crear-dueno <correo> <nombre>  |  desactivar-dueno <correo>  |  restablecer-mfa-dueno <correo>");
                     return 1;
             }
         }

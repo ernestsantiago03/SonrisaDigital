@@ -3,6 +3,8 @@ param(
     [string]$Server = ".\SQLEXPRESS",
     [string]$Database = "SonrisaDigital",
     [string]$BackupDirectory = "",
+    # Carpeta de radiografías y fotos (Archivos:Directorio). Se respalda con la misma fecha que la base.
+    [string]$ArchivosDirectory = "",
     [ValidateRange(1, 3650)]
     [int]$RetentionDays = 30,
     [string]$SqlUser = "",
@@ -145,6 +147,32 @@ else {
 
 Write-Host "Respaldo verificado correctamente."
 
+# La base y los archivos deben quedar del mismo momento: si uno de los dos falta, el respaldo no es válido.
+$rutaArchivos = ""
+$hashArchivos = $null
+if (-not [string]::IsNullOrWhiteSpace($ArchivosDirectory)) {
+    if (-not (Test-Path -LiteralPath $ArchivosDirectory -PathType Container)) {
+        throw "La carpeta de archivos '$ArchivosDirectory' no existe. No se creó un respaldo incompleto."
+    }
+
+    $nombreZip = "Archivos_$fecha.zip"
+    $rutaArchivos = Join-Path $BackupDirectory $nombreZip
+    Write-Host "Respaldando la carpeta de archivos en '$rutaArchivos'..."
+    Compress-Archive -Path (Join-Path $ArchivosDirectory "*") -DestinationPath $rutaArchivos -CompressionLevel Optimal -Force
+
+    $hashArchivos = (Get-FileHash -LiteralPath $rutaArchivos -Algorithm SHA256).Hash
+    Set-Content -LiteralPath "$rutaArchivos.sha256" -Value "$hashArchivos  $nombreZip" -Encoding ascii
+
+    $limiteArchivos = (Get-Date).AddDays(-$RetentionDays)
+    Get-ChildItem -LiteralPath $BackupDirectory -Filter "Archivos_*.zip" -File |
+        Where-Object { $_.LastWriteTime -lt $limiteArchivos } |
+        ForEach-Object {
+            Remove-Item -LiteralPath $_.FullName -Force
+            Remove-Item -LiteralPath "$($_.FullName).sha256" -Force -ErrorAction SilentlyContinue
+            Write-Host "Eliminado por retención: $($_.Name)"
+        }
+}
+
 [pscustomobject]@{
     BaseDatos = $Database
     Archivo = $rutaRespaldo
@@ -152,4 +180,6 @@ Write-Host "Respaldo verificado correctamente."
     HashSHA256 = $hash
     ArchivoAccesible = [bool]$archivo
     Verificado = $true
+    ArchivosRespaldo = $rutaArchivos
+    HashArchivosSHA256 = $hashArchivos
 }

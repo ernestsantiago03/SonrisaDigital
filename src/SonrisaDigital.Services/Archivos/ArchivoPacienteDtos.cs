@@ -4,6 +4,9 @@ namespace SonrisaDigital.Services.Archivos;
 public static class LimitesArchivo
 {
     public const int TamanoMaximo = 20 * 1024 * 1024;
+
+    /// <summary>Espacio extra para los campos del formulario (fecha, descripción) además del archivo.</summary>
+    public const int MargenFormulario = 1024 * 1024;
 }
 
 public sealed record ArchivoPacienteDto(
