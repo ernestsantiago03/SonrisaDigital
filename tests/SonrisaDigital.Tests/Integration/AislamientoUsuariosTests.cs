@@ -158,7 +158,7 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Dueno:Email"] = correo, ["Dueno:Password"] = "Prueba123" })
             .Build();
 
-        await IdentitySeeder.SeedAsync(provider, configuracion, NullLogger.Instance);
+        await IdentitySeeder.SeedAsync(provider, configuracion, NullLogger.Instance, esDesarrollo: true);
 
         using var scope = provider.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();

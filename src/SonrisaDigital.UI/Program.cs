@@ -193,16 +193,32 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("IdentitySeeder");
+    var esDesarrollo = app.Environment.IsDevelopment();
     try
     {
-        await IdentitySeeder.SeedAsync(scope.ServiceProvider, builder.Configuration, logger);
+        // La demo es una ayuda de desarrollo y de las pruebas E2E. En producción
+        // no se crea: el Dueño registra la primera clínica desde la interfaz.
+        if (esDesarrollo)
+        {
+            await ClinicaDemoSeeder.SeedAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
+        }
+
+        await IdentitySeeder.SeedAsync(scope.ServiceProvider, builder.Configuration, logger, esDesarrollo);
         await OdontogramaCatalogSeeder.SeedAsync(
             scope.ServiceProvider.GetRequiredService<SonrisaDigital.Data.ApplicationDbContext>(),
             scope.ServiceProvider.GetRequiredService<ICatalogoCache>());
     }
     catch (Exception exception)
     {
-        logger.LogWarning(exception, "No se pudo preparar Identity. Verifica que la base SonrisaDigital exista y tenga aplicada la migracion.");
+        logger.LogError(exception, "No se pudo preparar Identity. Verifica que la base SonrisaDigital exista y tenga aplicada la migracion.");
+
+        // En producción no se puede seguir con una base a medio preparar: sin
+        // Dueño no hay forma de crear la primera clínica ni su administrador.
+        if (!esDesarrollo)
+        {
+            throw;
+        }
     }
 }
 

@@ -7,6 +7,10 @@ param(
     # local por HTTP se puede omitir para revisar salud, login y cabeceras.
     [switch]$RequireHttps,
 
+    # Cadena de conexión de solo lectura para comprobar que la base de producción
+    # no conserva la clínica demo. Es opcional: si se omite, no se consulta la base.
+    [string]$ConnectionString = "",
+
     [int]$TimeoutSeconds = 15
 )
 
@@ -134,6 +138,30 @@ if ($RequireHttps) {
 }
 else {
     $advertencias.Add("No se validó HSTS porque -RequireHttps no está activo.")
+}
+
+# 6. Base de datos: una instalación de producción no debe conservar la demo.
+if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
+    $conexion = $null
+    try {
+        $conexion = New-Object System.Data.SqlClient.SqlConnection $ConnectionString
+        $conexion.Open()
+        $comando = $conexion.CreateCommand()
+        $comando.CommandText = "SELECT COUNT(*) FROM Clinicas WHERE Codigo = N'clinica-demo';"
+        $cantidadDemo = [int]$comando.ExecuteScalar()
+
+        if ($cantidadDemo -gt 0) {
+            $errores.Add("La base de producción todavía contiene la clínica demo.")
+        }
+    }
+    catch {
+        $errores.Add("No se pudo verificar la clínica demo en la base de producción: $($_.Exception.Message)")
+    }
+    finally {
+        if ($null -ne $conexion) {
+            $conexion.Dispose()
+        }
+    }
 }
 
 if ($advertencias.Count -gt 0) {

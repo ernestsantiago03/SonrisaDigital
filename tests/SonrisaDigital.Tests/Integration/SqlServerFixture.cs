@@ -3,6 +3,7 @@ using SonrisaDigital.Tests.Support;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
+using SonrisaDigital.Services.Autenticacion;
 
 namespace SonrisaDigital.Tests.Integration;
 
@@ -69,16 +70,34 @@ public sealed class SqlServerFixture : IAsyncLifetime
         await using var db = new ApplicationDbContext(Options, SinClinica.Instancia);
         await db.Database.MigrateAsync();
 
-        // La migración crea la clínica demo; todas las pruebas trabajan dentro de ella.
+        // La migración histórica inserta la demo y la migración DemoFueraDeProduccion
+        // la elimina cuando la base está limpia. Se conserva el resultado para poder
+        // comprobar que una instalación nueva no nace con datos de demostración.
+        DemoIdTrasMigrar = await db.Clinicas
+            .AsNoTracking()
+            .Where(clinic => clinic.Codigo == ClinicaDemoSeeder.Codigo)
+            .Select(clinic => (int?)clinic.Id)
+            .SingleOrDefaultAsync();
+
+        // Las pruebas de integración siguen trabajando dentro de la demo, igual que
+        // el runner E2E en Development. El seeder es el mismo que usa la aplicación.
+        await ClinicaDemoSeeder.SeedAsync(db);
+
         ClinicaId = await db.Clinicas
             .AsNoTracking()
-            .Where(clinic => clinic.Codigo == "clinica-demo")
+            .Where(clinic => clinic.Codigo == ClinicaDemoSeeder.Codigo)
             .Select(clinic => clinic.Id)
             .SingleAsync();
     }
 
     /// <summary>Clínica en la que trabajan las pruebas de integración.</summary>
     public int ClinicaId { get; private set; }
+
+    /// <summary>
+    /// Id de la demo que dejó la migración, o <c>null</c> si la migración de limpieza
+    /// la eliminó. Debe ser <c>null</c> en una base nueva.
+    /// </summary>
+    public int? DemoIdTrasMigrar { get; private set; }
 
     public ApplicationDbContext CreateContext() => new(Options, new TenantFijo(ClinicaId));
 

@@ -137,6 +137,8 @@ jobs:
       SONRISADIGITAL_E2E_DB_CONNECTION: "Server=localhost,1433;Database=SonrisaDigitalE2E;User Id=sa;Password=SonrisaDigital_Test123!;TrustServerCertificate=True;MultipleActiveResultSets=True"
       SONRISADIGITAL_E2E_EMAIL: "e2e.admin@sonrisadigital.test"
       SONRISADIGITAL_E2E_PASSWORD: "E2E_Admin_2026!Segura"
+      SONRISADIGITAL_E2E_DUENO_EMAIL: "e2e.dueno@sonrisadigital.test"
+      SONRISADIGITAL_E2E_DUENO_PASSWORD: "E2E_Dueno_2026!Segura"
       SONRISADIGITAL_E2E_BASE_URL: "http://localhost:5175"
       # La suite inicia sesión más de 5 veces por minuto desde la misma IP (un
       # login por prueba más los reintentos). Sin este límite el POST de login
@@ -191,6 +193,8 @@ jobs:
           export ConnectionStrings__DefaultConnection="$SONRISADIGITAL_E2E_DB_CONNECTION"
           export Authentication__AdminEmail="$SONRISADIGITAL_E2E_EMAIL"
           export Authentication__AdminPassword="$SONRISADIGITAL_E2E_PASSWORD"
+          export Dueno__Email="$SONRISADIGITAL_E2E_DUENO_EMAIL"
+          export Dueno__Password="$SONRISADIGITAL_E2E_DUENO_PASSWORD"
           export ASPNETCORE_ENVIRONMENT=Development
           export ASPNETCORE_URLS="$SONRISADIGITAL_E2E_BASE_URL"
 

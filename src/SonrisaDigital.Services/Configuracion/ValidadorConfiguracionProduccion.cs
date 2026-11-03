@@ -40,6 +40,7 @@ public static class ValidadorConfiguracionProduccion
         ValidarProxy(configuration, errores, advertencias);
         ValidarDataProtection(configuration, errores, advertencias);
         ValidarArchivos(configuration, errores, advertencias);
+        ValidarSeeding(configuration, errores, advertencias);
 
         return new ResultadoValidacionConfiguracion(errores, advertencias);
     }
@@ -208,6 +209,46 @@ public static class ValidadorConfiguracionProduccion
             advertencias.Add(
                 "Archivos:Directorio es una ruta relativa. " +
                 "En producción se recomienda una ruta absoluta.");
+        }
+    }
+
+    /// <summary>
+    /// En producción la aplicación arranca solo con la cuenta del Dueño. Esa cuenta
+    /// crea la primera clínica y su administrador desde la interfaz. El
+    /// administrador automático y la clínica demo quedan reservados a Development.
+    /// </summary>
+    private static void ValidarSeeding(
+        IConfiguration configuration,
+        List<string> errores,
+        List<string> advertencias)
+    {
+        var duenoEmail = configuration["Dueno:Email"]?.Trim();
+        var duenoPassword = configuration["Dueno:Password"];
+
+        if (string.IsNullOrWhiteSpace(duenoEmail))
+        {
+            errores.Add(
+                "Dueno:Email no está configurado. Es la cuenta que crea la primera " +
+                "clínica y su administrador desde la interfaz.");
+        }
+
+        if (string.IsNullOrWhiteSpace(duenoPassword))
+        {
+            errores.Add(
+                "Dueno:Password no está configurado. Es la cuenta que crea la primera " +
+                "clínica y su administrador desde la interfaz.");
+        }
+        else if (duenoPassword.Length < 8)
+        {
+            errores.Add("Dueno:Password debe tener al menos 8 caracteres.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(configuration["Authentication:AdminEmail"])
+            || !string.IsNullOrWhiteSpace(configuration["Authentication:AdminPassword"]))
+        {
+            advertencias.Add(
+                "Authentication:AdminEmail/AdminPassword se ignoran en producción: " +
+                "el administrador inicial se crea desde la interfaz del Dueño.");
         }
     }
 }

@@ -11,7 +11,11 @@ namespace SonrisaDigital.Services.Autenticacion;
 
 public static class IdentitySeeder
 {
-    public static async Task SeedAsync(IServiceProvider services, IConfiguration configuration, ILogger logger)
+    public static async Task SeedAsync(
+        IServiceProvider services,
+        IConfiguration configuration,
+        ILogger logger,
+        bool esDesarrollo)
     {
         var roleManager = services.GetRequiredService<RoleManager<Rol>>();
         var userManager = services.GetRequiredService<UserManager<Usuario>>();
@@ -69,9 +73,26 @@ public static class IdentitySeeder
             await dbContext.SaveChangesAsync();
         }
 
-        // No se usan credenciales por defecto: el administrador inicial solo se crea
-        // cuando el operador configura explicitamente un correo y una contrasena.
+        // La cuenta global del Dueno se crea siempre que este configurada. El
+        // administrador automatico solo existe en Development/E2E, donde hay una
+        // clinica demo donde asignarlo; produccion arranca sin administrador.
         await SeedDuenoAsync(services, configuration, logger);
+
+        // Fuera de Development no se crea un administrador automatico. La primera
+        // clinica tampoco se crea sola: el Dueno entra, registra la clinica y luego
+        // crea su administrador desde la interfaz. Asi produccion arranca limpia y
+        // no depende de la clinica demo.
+        if (!esDesarrollo)
+        {
+            if (!string.IsNullOrWhiteSpace(configuration["Authentication:AdminEmail"]))
+            {
+                logger.LogInformation(
+                    "Authentication:AdminEmail se ignora fuera de Development. " +
+                    "El administrador inicial se crea desde la interfaz del Dueno.");
+            }
+
+            return;
+        }
 
         var email = configuration["Authentication:AdminEmail"]?.Trim();
         var password = configuration["Authentication:AdminPassword"];
@@ -84,10 +105,19 @@ public static class IdentitySeeder
         var admin = await userManager.FindByEmailAsync(email);
         if (admin is null)
         {
-            // El administrador inicial pertenece a la clínica demo, creada por la migración.
+            // En Development la demo existe o la crea su propio seeder antes de este paso.
+            // Si no esta, se omite el administrador en lugar de tumbar el arranque.
             var clinicaDemo = await services.GetRequiredService<ApplicationDbContext>().Clinicas
                 .AsNoTracking()
-                .SingleAsync(clinic => clinic.Codigo == "clinica-demo");
+                .SingleOrDefaultAsync(clinic => clinic.Codigo == ClinicaDemoSeeder.Codigo);
+            if (clinicaDemo is null)
+            {
+                logger.LogWarning(
+                    "No se creo el administrador inicial porque no existe la clinica de demostracion. " +
+                    "En Development, ClinicaDemoSeeder la crea antes de este paso.");
+                return;
+            }
+
             admin = new Usuario { UserName = email, Email = email, Nombre = "Administrador", Estado = EstadoRegistro.Activo, EmailConfirmed = true, ClinicaId = clinicaDemo.Id };
             var result = await userManager.CreateAsync(admin, password);
             EnsureSucceeded(result, "crear el administrador inicial");

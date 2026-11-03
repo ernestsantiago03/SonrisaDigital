@@ -361,10 +361,10 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
 
-        // Por defecto se usa la clínica demo creada por la migración. Las pruebas
-        // que necesitan un límite propio pasan otra clínica.
+        // Por defecto se usa la clínica demo que crea SqlServerFixture para las
+        // pruebas. Las que necesitan un límite propio pasan otra clínica.
         var clinicaFinal = clinicaId ?? await db.Clinicas
-            .Where(clinic => clinic.Codigo == "clinica-demo")
+            .Where(clinic => clinic.Codigo == ClinicaDemoSeeder.Codigo)
             .Select(clinic => clinic.Id)
             .SingleAsync();
 

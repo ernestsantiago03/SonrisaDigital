@@ -78,7 +78,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 - Protección **antiforgery** en formularios y acciones sensibles.
 - **HTTPS** obligatorio y **HSTS** en producción.
 - Página 404 personalizada y manejo controlado de errores.
-- Datos iniciales (roles, permisos, administrador y catálogo odontográfico) creados automáticamente al arrancar.
+- Datos iniciales (roles, permisos, Dueño y catálogo odontográfico) creados automáticamente al arrancar. La clínica demo y su administrador solo se crean en Development/E2E.
 
 ### Suscripción y facturación
 
@@ -192,7 +192,7 @@ dotnet restore SonrisaDigital.slnx
 
 Crea una base de datos vacía llamada `SonrisaDigital` en SQL Server (SSMS, Azure Data Studio o `sqlcmd`). Las tablas se crean con las migraciones; **no** es necesario ejecutar scripts SQL manuales.
 
-### 3. Configurar la cadena de conexión y el administrador
+### 3. Configurar la cadena de conexión y el acceso inicial
 
 Para desarrollo, usa **user-secrets** en lugar de editar archivos versionados:
 
@@ -202,13 +202,29 @@ dotnet user-secrets init --project src/SonrisaDigital.UI/SonrisaDigital.UI.cspro
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" `
   "Server=localhost;Database=SonrisaDigital;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True" `
   --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
+```
 
+En **Development/E2E**, la aplicación crea la clínica `clinica-demo` y su administrador con estas claves. Son opcionales y se ignoran en producción:
+
+```powershell
 dotnet user-secrets set "Authentication:AdminEmail" "admin@tudominio.com" `
   --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
 
 dotnet user-secrets set "Authentication:AdminPassword" "CAMBIA-ESTA-CLAVE" `
   --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
 ```
+
+Para probar el flujo real de producción en desarrollo, configura la cuenta global del Dueño:
+
+```powershell
+dotnet user-secrets set "Dueno:Email" "dueno@tudominio.com" `
+  --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
+
+dotnet user-secrets set "Dueno:Password" "CAMBIA-ESTA-CLAVE" `
+  --project src/SonrisaDigital.UI/SonrisaDigital.UI.csproj
+```
+
+En **producción**, `Dueno:Email` y `Dueno:Password` son obligatorios. La aplicación no crea la demo ni un administrador automático: el Dueño registra la primera clínica y luego crea su administrador desde la interfaz.
 
 Ajusta `Server=` según tu instancia (por ejemplo `localhost\SQLEXPRESS` o `MI-SERVIDOR`).
 
@@ -245,18 +261,22 @@ También puedes iniciar el proyecto `SonrisaDigital.UI` desde Visual Studio o VS
 
 Al arrancar por primera vez, la aplicación crea automáticamente:
 
-- Los roles **Administrador**, **Recepcionista** y **Odontólogo**.
+- Los roles **Administrador**, **Recepcionista**, **Odontólogo** y **Dueño**.
 - Los 38 permisos del catálogo y su asignación inicial.
-- El usuario administrador definido en `Authentication:AdminEmail` / `Authentication:AdminPassword`. Ambas claves son obligatorias; no hay correo ni contraseña predeterminados.
+- La cuenta global del **Dueño**, definida en `Dueno:Email` / `Dueno:Password`. Es obligatoria en producción y no pertenece a ninguna clínica.
 - El catálogo base del odontograma.
 
-Inicia sesión con esas credenciales y, de inmediato:
+En **Development/E2E** también se crea la clínica `clinica-demo` y el administrador de `Authentication:AdminEmail` / `Authentication:AdminPassword` para que las pruebas tengan una clínica donde trabajar. En **producción no se crea ni la demo ni un administrador automático**.
 
-1. Cambia la contraseña del administrador.
-2. Crea los usuarios reales de la clínica.
-3. Revisa y ajusta los permisos por rol.
+Inicia sesión con la cuenta del Dueño y:
 
-> Si la base de datos no existe o no tiene migraciones aplicadas, el arranque continúa pero el seeding se omite y se registra una advertencia en el log.
+1. Entra en **Clínicas → Nueva clínica** y registra la clínica real.
+2. En la fila de esa clínica, pulsa **Usuarios** para seleccionarla.
+3. Pulsa **Registrar usuario**, asigna el rol **Administrador** y define su contraseña.
+4. Cierra sesión y entra con el nuevo administrador para operar la clínica.
+5. Revisa y ajusta los permisos por rol.
+
+> Si la base de datos no existe o no tiene migraciones aplicadas, en Development el seeding se omite y se registra una advertencia. En producción el arranque falla para no quedar sin Dueño.
 
 ---
 
@@ -268,7 +288,8 @@ Antes de desplegar con clientes reales:
 
 - [x] Login de demostración retirado y sin credenciales por defecto en la interfaz.
 - [x] La aplicación valida al arrancar el dominio, la cadena de conexión y la ruta de Data Protection fuera de Development.
-- [ ] Cambiar la contraseña del administrador inicial.
+- [x] Producción no crea la clínica `clinica-demo` ni un administrador automático; la primera clínica y su administrador se crean desde la cuenta del Dueño.
+- [ ] Cambiar la contraseña del Dueño después del primer acceso.
 - [ ] Mover cadenas de conexión y credenciales a **variables de entorno** o un almacén de secretos.
 - [ ] No versionar `appsettings.Development.json` ni archivos `.env`.
 - [x] `appsettings.Development.json` y su plantilla quedan excluidos de `dotnet publish`.

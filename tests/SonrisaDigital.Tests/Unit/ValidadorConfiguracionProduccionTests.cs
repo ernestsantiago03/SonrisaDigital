@@ -40,6 +40,12 @@ public class ValidadorConfiguracionProduccionTests
         Assert.Contains(
             resultado.Errores,
             error => error.Contains("DataProtection:KeysPath", StringComparison.Ordinal));
+        Assert.Contains(
+            resultado.Errores,
+            error => error.Contains("Dueno:Email", StringComparison.Ordinal));
+        Assert.Contains(
+            resultado.Errores,
+            error => error.Contains("Dueno:Password", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -89,13 +95,45 @@ public class ValidadorConfiguracionProduccionTests
             advertencia => advertencia.Contains("KnownProxies", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Validar_EnProduccion_RechazaClaveDeDuenoDemasiadoCorta()
+    {
+        var configuracion = CrearConfiguracionValida(duenoPassword: "corta");
+
+        var resultado = ValidadorConfiguracionProduccion.Validar(
+            configuracion,
+            esDesarrollo: false);
+
+        Assert.Contains(
+            resultado.Errores,
+            error => error.Contains("8 caracteres", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validar_EnProduccion_AdvierteQueElAdministradorAutomaticoSeIgnora()
+    {
+        var configuracion = CrearConfiguracionValida(adminEmail: "admin@ejemplo.com");
+
+        var resultado = ValidadorConfiguracionProduccion.Validar(
+            configuracion,
+            esDesarrollo: false);
+
+        Assert.Empty(resultado.Errores);
+        Assert.Contains(
+            resultado.Advertencias,
+            advertencia => advertencia.Contains("Authentication:AdminEmail", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Construye una configuración mínima válida. Los parámetros permiten
     /// simular un dominio comodín, un proxy inválido o una lista vacía.
     /// </summary>
     private static IConfiguration CrearConfiguracionValida(
         string? allowedHosts = "clinica.ejemplo.com",
-        string? proxy = "10.0.0.10")
+        string? proxy = "10.0.0.10",
+        string? duenoEmail = "dueno@ejemplo.com",
+        string? duenoPassword = "ClaveSegura123",
+        string? adminEmail = null)
     {
         var valores = new Dictionary<string, string?>
         {
@@ -111,6 +149,21 @@ public class ValidadorConfiguracionProduccionTests
                 Path.GetTempPath(),
                 "sonrisa-digital-archivos")
         };
+
+        if (duenoEmail is not null)
+        {
+            valores["Dueno:Email"] = duenoEmail;
+        }
+
+        if (duenoPassword is not null)
+        {
+            valores["Dueno:Password"] = duenoPassword;
+        }
+
+        if (adminEmail is not null)
+        {
+            valores["Authentication:AdminEmail"] = adminEmail;
+        }
 
         if (!string.IsNullOrWhiteSpace(proxy))
         {
