@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -167,9 +168,23 @@ builder.Services.AddRazorComponents()
 // un limitador global dejaría a toda la clínica sin poder entrar tras 5 intentos fallidos.
 // El límite se puede elevar solo para las pruebas E2E, que inician sesión varias
 // veces desde la misma IP. En producción queda en 5 por minuto si no se configura.
+// El límite por IP es alto a propósito: toda una clínica puede salir por una misma IP pública.
+// La protección contra fuerza bruta contra una cuenta concreta está en LimitadorCuentaLogin.
 var loginPermitLimit = builder.Configuration.GetValue<int?>("Authentication:LoginPermitLimit") is int configurado && configurado > 0
     ? configurado
-    : 5;
+    : 20;
+
+var loginCuentaLimit = builder.Configuration.GetValue<int?>("Authentication:LoginCuentaPermitLimit") is int limiteCuenta && limiteCuenta > 0
+    ? limiteCuenta
+    : LimitadorCuentaLogin.IntentosPorMinutoPredeterminado;
+
+builder.Services.AddSingleton(new LimitadorCuentaLogin(loginCuentaLimit));
+
+// El formulario de subida no puede superar el archivo máximo más un margen para sus campos.
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = LimitesArchivo.TamanoMaximo + LimitesArchivo.MargenFormulario;
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -183,6 +198,21 @@ builder.Services.AddRateLimiter(options =>
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             }));
+
+    // Las subidas se limitan por usuario autenticado; sin sesión, por IP.
+    options.AddPolicy("subidas-archivo", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? context.Connection.RemoteIpAddress?.ToString()
+                ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(10),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -195,7 +225,7 @@ var app = builder.Build();
 // Comandos de administración desde la consola del servidor. No se exponen en la web.
 //   dotnet SonrisaDigital.UI.dll crear-dueno <correo> <nombre>
 //   dotnet SonrisaDigital.UI.dll desactivar-dueno <correo>
-if (args is ["crear-dueno" or "desactivar-dueno", ..])
+if (args is ["crear-dueno" or "desactivar-dueno" or "restablecer-mfa-dueno", ..])
 {
     Environment.ExitCode = await CliDueno.EjecutarAsync(app.Services, args);
     return;
@@ -576,6 +606,13 @@ app.MapPost("/account/login", async (
     var email = form["Email"].ToString().Trim();
     var password = form["Password"].ToString();
     var returnUrl = form["ReturnUrl"].ToString();
+
+    // Límite por cuenta: aplica exista o no el correo, para no revelar qué cuentas existen.
+    if (!context.RequestServices.GetRequiredService<LimitadorCuentaLogin>().PermitirIntento(email))
+    {
+        return Results.Redirect("/login?error=throttled");
+    }
+
     var user = await userManager.FindByEmailAsync(email);
 
     if (user is null || user.Estado != EstadoRegistro.Activo)
@@ -834,6 +871,19 @@ app.MapPost("/pacientes/{pacienteId:int}/archivos", async (
     ICurrentUserService currentUserService,
     ILoggerFactory loggerFactory) =>
 {
+    // Se rechaza antes de leer el cuerpo: un archivo enorme no llega a memoria ni a disco.
+    var limiteCuerpo = LimitesArchivo.TamanoMaximo + LimitesArchivo.MargenFormulario;
+    if (context.Request.ContentLength is long tamanoDeclarado && tamanoDeclarado > limiteCuerpo)
+    {
+        return RedirigirArchivoConError(pacienteId, "El archivo supera el máximo de 20 MB.");
+    }
+
+    var limiteKestrel = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+    if (limiteKestrel is { IsReadOnly: false })
+    {
+        limiteKestrel.MaxRequestBodySize = limiteCuerpo;
+    }
+
     if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
     {
         return RedirigirArchivoConError(pacienteId, "La página expiró. Vuelve a intentar la subida.");
@@ -888,7 +938,7 @@ app.MapPost("/pacientes/{pacienteId:int}/archivos", async (
     {
         return RedirigirArchivoConError(pacienteId, ex.Message);
     }
-}).RequireAuthorization("Odontograma.Editar");
+}).RequireAuthorization("Odontograma.Editar").RequireRateLimiting("subidas-archivo");
 
 // Contenido de un archivo del paciente: la imagen completa o su miniatura. Nunca tiene una URL pública:
 // cada petición pasa por el permiso y la clínica de la sesión, y no se guarda en caché.

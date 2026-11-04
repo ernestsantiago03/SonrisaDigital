@@ -26,7 +26,7 @@
     }
     else
     {
-        <section class="mfa-panel">
+        <section class="form-panel">
             <p>Por seguridad necesitas la contraseña actual y un código de tu app autenticadora.
                La nueva contraseña debe tener al menos @SeguridadDueno.LongitudMinimaClave caracteres.
                Al cambiarla se cerrarán todas tus sesiones.</p>
@@ -34,17 +34,29 @@
             <form method="post" action="/seguridad/cuenta/clave" class="mfa-confirmar">
                 <AntiforgeryToken />
 
-                <label for="clave-actual">Contraseña actual</label>
-                <input id="clave-actual" name="ClaveActual" type="password" autocomplete="current-password" required />
+                <div class="form-grid">
 
-                <label for="clave-nueva">Contraseña nueva</label>
-                <input id="clave-nueva" name="ClaveNueva" type="password" autocomplete="new-password" minlength="@SeguridadDueno.LongitudMinimaClave" required />
+                    <div class="field">
+                    <th><label for="clave-actual">Contraseña actual</label></th>
+                    <td><input id="clave-actual" name="ClaveActual" type="password" autocomplete="current-password" required /></td>
+                    </div>
 
-                <label for="clave-confirmar">Repite la contraseña nueva</label>
-                <input id="clave-confirmar" name="ClaveConfirmar" type="password" autocomplete="new-password" minlength="@SeguridadDueno.LongitudMinimaClave" required />
+                    <div class="field">
+                    <th><label for="clave-nueva">Contraseña nueva</label></th>
+                    <td><input id="clave-nueva" name="ClaveNueva" type="password" autocomplete="new-password" minlength="@SeguridadDueno.LongitudMinimaClave" required /></td>
+                    </div>
+                
+                    <div class="field">
+                    <th><label for="clave-confirmar">Repite la contraseña nueva</label></th>
+                    <td><input id="clave-confirmar" name="ClaveConfirmar" type="password" autocomplete="new-password" minlength="@SeguridadDueno.LongitudMinimaClave" required /></td>
+                    </div>
 
-                <label for="codigo">Código de 6 dígitos de la app</label>
-                <input id="codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required />
+                    <div class="field">
+                    <th><label for="codigo">Código de 6 dígitos de la app</label></th>
+                    <td><input id="codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required /></td>
+                    </div>
+
+                </div>
 
                 <button type="submit" class="primary-action">Cambiar contraseña</button>
             </form>

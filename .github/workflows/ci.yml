@@ -144,6 +144,7 @@ jobs:
       # login por prueba más los reintentos). Sin este límite el POST de login
       # recibe 429 y el navegador se queda en /account/login.
       Authentication__LoginPermitLimit: "50"
+      Authentication__LoginCuentaPermitLimit: "100"
 
     steps:
       - name: Descargar código

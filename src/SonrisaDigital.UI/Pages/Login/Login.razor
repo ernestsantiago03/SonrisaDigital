@@ -52,6 +52,10 @@
                     Tu contraseña se cambió. Inicia sesión con la nueva.
                 </div>
             }
+            else if (Error == "throttled")
+            {
+                <div class="login-error">Demasiados intentos para esta cuenta. Espera un minuto e inténtalo de nuevo.</div>
+            }
             else if (Error == "invalid")
             {
                 <div class="login-error">Correo o contraseña incorrectos.</div>

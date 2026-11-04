@@ -98,6 +98,30 @@ public static class CuentasDueno
         EnsureSucceeded(await userManager.UpdateSecurityStampAsync(usuario));
     }
 
+    /// <summary>
+    /// Quita el segundo factor y los códigos de recuperación de un Dueño que perdió el acceso a su app.
+    /// Al siguiente inicio de sesión tendrá que volver a activarlo. La contraseña no cambia.
+    /// </summary>
+    public static async Task RestablecerSegundoFactorAsync(UserManager<Usuario> userManager, string correo)
+    {
+        var usuario = await userManager.FindByEmailAsync(correo.Trim())
+            ?? throw new InvalidOperationException("No existe un usuario con ese correo.");
+
+        if (!await userManager.IsInRoleAsync(usuario, RolesSonrisaDigital.Dueno))
+        {
+            throw new InvalidOperationException("Ese usuario no tiene el rol Dueño.");
+        }
+
+        EnsureSucceeded(await userManager.SetTwoFactorEnabledAsync(usuario, false));
+        await userManager.ResetAuthenticatorKeyAsync(usuario);
+
+        // Cero códigos nuevos: los anteriores dejan de servir.
+        await userManager.GenerateNewTwoFactorRecoveryCodesAsync(usuario, 0);
+
+        // Cierra las sesiones abiertas con la configuración anterior.
+        EnsureSucceeded(await userManager.UpdateSecurityStampAsync(usuario));
+    }
+
     private static void EnsureSucceeded(IdentityResult resultado)
     {
         if (!resultado.Succeeded)
