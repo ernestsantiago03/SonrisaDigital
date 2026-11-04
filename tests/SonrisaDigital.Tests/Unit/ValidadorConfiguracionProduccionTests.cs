@@ -119,7 +119,7 @@ public class ValidadorConfiguracionProduccionTests
 
         Assert.Contains(
             resultado.Errores,
-            error => error.Contains("8 caracteres", StringComparison.Ordinal));
+            error => error.Contains("16 caracteres", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class ValidadorConfiguracionProduccionTests
         string? allowedHosts = "clinica.ejemplo.com",
         string? proxy = "10.0.0.10",
         string? duenoEmail = "dueno@ejemplo.com",
-        string? duenoPassword = "ClaveSegura123",
+        string? duenoPassword = "ClaveSegura1234567",
         string? adminEmail = null)
     {
         var valores = new Dictionary<string, string?>

@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Configuration;
+using SonrisaDigital.Services.Autenticacion;
 
 namespace SonrisaDigital.Services.Configuracion;
 
@@ -253,9 +254,9 @@ public static class ValidadorConfiguracionProduccion
                 "Dueno:Password no está configurado. Es la cuenta que crea la primera " +
                 "clínica y su administrador desde la interfaz.");
         }
-        else if (duenoPassword.Length < 8)
+        else if (SeguridadDueno.ValidarClave(duenoPassword) is { } errorClave)
         {
-            errores.Add("Dueno:Password debe tener al menos 8 caracteres.");
+            errores.Add($"Dueno:Password no es válida. {errorClave}");
         }
 
         if (!string.IsNullOrWhiteSpace(configuration["Authentication:AdminEmail"])

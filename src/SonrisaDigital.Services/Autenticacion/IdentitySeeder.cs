@@ -144,12 +144,24 @@ public static class IdentitySeeder
             return;
         }
 
+        var errorClave = SeguridadDueno.ValidarClave(password);
+        if (errorClave is not null)
+        {
+            throw new InvalidOperationException($"Dueno:Password no es valida. {errorClave}");
+        }
+
         var userManager = services.GetRequiredService<UserManager<Usuario>>();
         var dueno = await userManager.FindByEmailAsync(email);
         if (dueno is null)
         {
             dueno = new Usuario { UserName = email, Email = email, Nombre = "Dueno del sistema", Estado = EstadoRegistro.Activo, EmailConfirmed = true, ClinicaId = null };
             EnsureSucceeded(await userManager.CreateAsync(dueno, password), "crear la cuenta del Dueno");
+        }
+        else if (dueno.ClinicaId is not null)
+        {
+            // Una cuenta de clinica nunca puede convertirse en Dueno por configuracion.
+            throw new InvalidOperationException(
+                "Dueno:Email pertenece a un usuario de una clinica. Configura un correo de cuenta global para el Dueno.");
         }
 
         if (!await userManager.IsInRoleAsync(dueno, RolesSonrisaDigital.Dueno))

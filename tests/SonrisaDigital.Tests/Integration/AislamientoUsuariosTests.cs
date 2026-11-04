@@ -155,7 +155,7 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
         await using var provider = await CrearProveedorAsync();
         var correo = $"dueno-{Guid.NewGuid():N}@sonrisadigital.local"[..40];
         var configuracion = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Dueno:Email"] = correo, ["Dueno:Password"] = "Prueba123" })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Dueno:Email"] = correo, ["Dueno:Password"] = "PruebaDueno12345678" })
             .Build();
 
         await IdentitySeeder.SeedAsync(provider, configuracion, NullLogger.Instance, esDesarrollo: true);
@@ -166,6 +166,59 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
         Assert.NotNull(dueno);
         Assert.Null(dueno.ClinicaId);
         Assert.True(await userManager.IsInRoleAsync(dueno, RolesSonrisaDigital.Dueno));
+    }
+
+    [Fact]
+    public async Task ElSeederRechazaLaClaveDelDuenoMenorDe16CaracteresSinCrearLaCuenta()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var correo = $"dueno-{Guid.NewGuid():N}@sonrisadigital.local"[..40];
+        var configuracion = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Dueno:Email"] = correo, ["Dueno:Password"] = "Prueba123" })
+            .Build();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            IdentitySeeder.SeedAsync(provider, configuracion, NullLogger.Instance, esDesarrollo: true));
+
+        using var scope = provider.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+        Assert.Null(await userManager.FindByEmailAsync(correo));
+    }
+
+    [Fact]
+    public async Task ElSeederNoAsignaElRolDuenoAUnaCuentaDeClinica()
+    {
+        await using var provider = await CrearProveedorAsync();
+        var correo = $"clinica{Guid.NewGuid():N}@sonrisadigital.local";
+
+        using (var scope = provider.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+            var usuario = new Usuario
+            {
+                UserName = correo,
+                Email = correo,
+                Nombre = "Usuario de clinica",
+                Estado = EstadoRegistro.Activo,
+                EmailConfirmed = true,
+                ClinicaId = fixture.ClinicaId
+            };
+            var creado = await userManager.CreateAsync(usuario, "PruebaClinica12345678");
+            Assert.True(creado.Succeeded, string.Join("; ", creado.Errors.Select(error => error.Description)));
+        }
+
+        var configuracion = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Dueno:Email"] = correo, ["Dueno:Password"] = "PruebaDueno12345678" })
+            .Build();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            IdentitySeeder.SeedAsync(provider, configuracion, NullLogger.Instance, esDesarrollo: true));
+
+        using var verificacion = provider.CreateScope();
+        var manager = verificacion.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+        var cuenta = await manager.FindByEmailAsync(correo);
+        Assert.NotNull(cuenta);
+        Assert.False(await manager.IsInRoleAsync(cuenta, RolesSonrisaDigital.Dueno));
     }
 
     private static UsuarioFormDto ModeloUsuario(string nombre, params string[] roles)
