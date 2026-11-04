@@ -298,6 +298,7 @@ public sealed class TratamientoService(
             TratamientoId = realizado.TratamientoId,
             OdontologoId = realizado.OdontologoId,
             PiezaDentalId = realizado.PiezaDentalId,
+            ConsultaId = realizado.ConsultaId,
             Fecha = realizado.Fecha,
             Precio = realizado.Precio,
             Estado = realizado.Estado,
@@ -344,6 +345,8 @@ public sealed class TratamientoService(
             await EnsurePiezaExisteAsync(model.PiezaDentalId.Value, cancellationToken);
         }
 
+        await EnsureConsultaValidaAsync(model.ConsultaId, model.PacienteId, cancellationToken);
+
         TratamientoRealizado? creado = null;
 
         try
@@ -359,6 +362,7 @@ public sealed class TratamientoService(
                     TratamientoId = model.TratamientoId,
                     OdontologoId = model.OdontologoId,
                     PiezaDentalId = model.PiezaDentalId,
+                    ConsultaId = model.ConsultaId,
                     Fecha = model.Fecha.Date,
                     Precio = model.Precio,
                     Estado = EstadoTratamiento.EnProceso,
@@ -418,8 +422,6 @@ public sealed class TratamientoService(
                 "Este tratamiento tiene pagos registrados. Solo el Dueño puede modificarlo.");
         }
 
-        var estadoAnterior = realizado.Estado;
-
         var paciente = await repository.GetPacienteAsync(model.PacienteId, cancellationToken)
             ?? throw new InvalidOperationException("El paciente seleccionado no existe.");
 
@@ -453,6 +455,8 @@ public sealed class TratamientoService(
             await EnsurePiezaExisteAsync(model.PiezaDentalId.Value, cancellationToken);
         }
 
+        await EnsureConsultaValidaAsync(model.ConsultaId, model.PacienteId, cancellationToken);
+
         var pagado = realizado.Pagos.Sum(pago => pago.Monto);
 
         if (model.Precio < pagado)
@@ -461,23 +465,17 @@ public sealed class TratamientoService(
                 $"El precio no puede ser menor que lo ya pagado ({Money(pagado)}).");
         }
 
-        var completaPorPrecio = pagado > 0 && model.Precio == pagado;
-
+        // El estado clínico no depende del precio ni de los pagos: solo lo cambian las acciones
+        // "Marcar completado" y "Reabrir".
         realizado.PacienteId = model.PacienteId;
         realizado.TratamientoId = model.TratamientoId;
         realizado.OdontologoId = model.OdontologoId;
         realizado.PiezaDentalId = model.PiezaDentalId;
+        realizado.ConsultaId = model.ConsultaId;
         realizado.Fecha = model.Fecha.Date;
         realizado.Precio = model.Precio;
-        realizado.Estado = completaPorPrecio ? EstadoTratamiento.Completado : EstadoTratamiento.EnProceso;
 
         realizado.Observaciones = Normalize(model.Observaciones);
-
-        var detalleEstado = completaPorPrecio
-            ? " El tratamiento quedó completado porque el precio coincide con lo pagado."
-            : estadoAnterior == EstadoTratamiento.Completado
-                ? " El tratamiento volvió a En proceso porque el precio supera lo pagado."
-                : string.Empty;
 
         try
         {
@@ -490,8 +488,7 @@ public sealed class TratamientoService(
                     "Tratamientos",
                     nameof(TratamientoRealizado),
                     realizado.Id,
-                    $"Modificó el tratamiento '{tratamiento.Nombre}' de {NombreCompleto(paciente)} (precio {Money(realizado.Precio)})." +
-                    detalleEstado,
+                    $"Modificó el tratamiento '{tratamiento.Nombre}' de {NombreCompleto(paciente)} (precio {Money(realizado.Precio)}).",
                     cancellationToken);
             }, cancellationToken);
         }
@@ -500,6 +497,62 @@ public sealed class TratamientoService(
             logger.LogError(ex, "Error al actualizar el tratamiento realizado {Id}.", model.Id);
             throw new InvalidOperationException(
                 "No se pudo guardar el tratamiento realizado. Verifique los datos seleccionados.", ex);
+        }
+    }
+
+    public async Task MarcarCompletadoAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para cambiar el estado de los tratamientos.");
+
+        var realizado = await repository.GetRealizadoForUpdateAsync(id, cancellationToken)
+            ?? throw new InvalidOperationException("El tratamiento realizado no existe.");
+
+        if (realizado.Estado != EstadoTratamiento.EnProceso)
+        {
+            throw new InvalidOperationException("Solo un tratamiento en proceso se puede marcar como completado.");
+        }
+
+        realizado.Estado = EstadoTratamiento.Completado;
+        await GuardarCambioEstadoAsync(realizado, "Marcó como completado", cancellationToken);
+    }
+
+    public async Task ReabrirRealizadoAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Editar", "No tienes permiso para cambiar el estado de los tratamientos.");
+
+        var realizado = await repository.GetRealizadoForUpdateAsync(id, cancellationToken)
+            ?? throw new InvalidOperationException("El tratamiento realizado no existe.");
+
+        if (realizado.Estado != EstadoTratamiento.Completado)
+        {
+            throw new InvalidOperationException("Solo un tratamiento completado se puede reabrir.");
+        }
+
+        realizado.Estado = EstadoTratamiento.EnProceso;
+        await GuardarCambioEstadoAsync(realizado, "Reabrió", cancellationToken);
+    }
+
+    private async Task GuardarCambioEstadoAsync(TratamientoRealizado realizado, string accion, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EjecutarEnTransaccionAsync(async () =>
+            {
+                await repository.SaveChangesAsync(cancellationToken);
+
+                await auditoriaService.RegistrarAsync(
+                    accion,
+                    "Tratamientos",
+                    nameof(TratamientoRealizado),
+                    realizado.Id,
+                    $"{accion} el tratamiento '{realizado.Tratamiento.Nombre}' de {NombreCompleto(realizado.Paciente)}.",
+                    cancellationToken);
+            }, cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogError(ex, "Error al cambiar el estado del tratamiento realizado {Id}.", realizado.Id);
+            throw new InvalidOperationException("No se pudo cambiar el estado del tratamiento.", ex);
         }
     }
 
@@ -703,6 +756,36 @@ public sealed class TratamientoService(
         {
             throw new InvalidOperationException("La pieza dental seleccionada no es válida.");
         }
+    }
+
+    /// <summary>
+    /// La consulta es opcional, pero si se indica debe existir en la clínica activa (el filtro de
+    /// EF lo garantiza) y pertenecer al mismo paciente que el tratamiento.
+    /// </summary>
+    private async Task EnsureConsultaValidaAsync(int? consultaId, int pacienteId, CancellationToken cancellationToken)
+    {
+        if (consultaId is null)
+        {
+            return;
+        }
+
+        var consulta = await repository.GetConsultaAsync(consultaId.Value, cancellationToken)
+            ?? throw new InvalidOperationException("La consulta seleccionada no existe.");
+
+        if (consulta.PacienteId != pacienteId)
+        {
+            throw new InvalidOperationException("La consulta seleccionada no pertenece al paciente del tratamiento.");
+        }
+    }
+
+    public async Task<IReadOnlyList<ConsultaOptionDto>> GetConsultasPacienteAsync(int pacienteId, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
+
+        var consultas = await repository.GetConsultasPacienteAsync(pacienteId, cancellationToken);
+        return consultas
+            .Select(consulta => new ConsultaOptionDto(consulta.Id, consulta.Fecha, consulta.Motivo ?? "Sin motivo"))
+            .ToList();
     }
 
     private async Task EnsurePiezaExisteAsync(int piezaId, CancellationToken cancellationToken)

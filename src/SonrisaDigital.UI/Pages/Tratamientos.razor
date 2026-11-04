@@ -396,7 +396,7 @@
                                    placeholder="Buscar por nombre o apellido..."
                                    @bind="busquedaPacienteModal"
                                    @bind:event="oninput" />
-                            <select id="realizado-paciente" class="form-control" @bind="realizadoForm.PacienteId">
+                            <select id="realizado-paciente" class="form-control" @bind="realizadoForm.PacienteId" @bind:after="OnPacienteCambiadoAsync">
                                 <option value="0">Seleccione un paciente...</option>
                                 @foreach (var paciente in pacientesFiltrados)
                                 {
@@ -429,6 +429,17 @@
                                 <option value="@tratamiento.Id">
                                     @tratamiento.Nombre (@Money(tratamiento.PrecioBase))@(tratamiento.Activo ? string.Empty : " (inactivo)")
                                 </option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="realizado-consulta">Consulta (opcional)</label>
+                        <select id="realizado-consulta" class="form-control" @bind="realizadoForm.ConsultaId">
+                            <option value="">Sin consulta asociada</option>
+                            @foreach (var consulta in consultasPaciente)
+                            {
+                                <option value="@consulta.Id">@consulta.Fecha.ToString("dd/MM/yyyy") · @consulta.Motivo</option>
                             }
                         </select>
                     </div>
@@ -587,6 +598,14 @@
             <div class="modal-footer">
                 @if (detalleRealizado.Estado == EstadoTratamiento.EnProceso)
                 {
+                    <AuthorizeView Policy="Tratamientos.Editar">
+                        <Authorized>
+                            <button type="button" class="btn-primary" disabled="@cambiandoEstado" @onclick="() => CambiarEstadoRealizadoAsync(completar: true)">
+                                Marcar completado
+                            </button>
+                        </Authorized>
+                    </AuthorizeView>
+
                     @if (detalleRealizado.CantidadPagos == 0)
                     {
                         <AuthorizeView Policy="Tratamientos.Editar">
@@ -604,6 +623,17 @@
                 }
 
                 <button type="button" class="btn-cancel" @onclick="CerrarModales">Cerrar</button>
+
+                @if (detalleRealizado.Estado == EstadoTratamiento.Completado)
+                {
+                    <AuthorizeView Policy="Tratamientos.Editar">
+                        <Authorized>
+                            <button type="button" class="btn-cancel" disabled="@cambiandoEstado" @onclick="() => CambiarEstadoRealizadoAsync(completar: false)">
+                                Reabrir tratamiento
+                            </button>
+                        </Authorized>
+                    </AuthorizeView>
+                }
 
                 @if (detalleRealizado.Estado == EstadoTratamiento.EnProceso && detalleRealizado.Saldo > 0)
                 {
@@ -641,6 +671,7 @@
     private bool cargando = true;
     private bool guardando;
     private bool cancelando;
+    private bool cambiandoEstado;
     private bool opcionesCargadas;
 
     // La página comparte un único ApplicationDbContext. Si el usuario cambia de
@@ -698,6 +729,7 @@
 
     private TratamientoFormDto catalogoForm = new();
     private TratamientoRealizadoFormDto realizadoForm = new();
+    private List<ConsultaOptionDto> consultasPaciente = [];
     private TratamientoRealizadoDetalleDto? detalleRealizado;
 
     private string piezaSeleccionada = string.Empty;
@@ -963,6 +995,7 @@
         {
             Fecha = RelojNegocio.Hoy()
         };
+        consultasPaciente = [];
         piezaSeleccionada = string.Empty;
         busquedaPacienteModal = string.Empty;
         errorModal = null;
@@ -985,6 +1018,7 @@
         }
 
         realizadoForm = form;
+        consultasPaciente = (await TratamientoService.GetConsultasPacienteAsync(form.PacienteId)).ToList();
         piezaSeleccionada = form.PiezaDentalId?.ToString() ?? string.Empty;
         busquedaPacienteModal = string.Empty;
         errorModal = null;
@@ -1006,6 +1040,51 @@
         errorModal = null;
         successMessage = null;
         mostrarDetalleRealizado = true;
+    }
+
+    private async Task CambiarEstadoRealizadoAsync(bool completar)
+    {
+        if (detalleRealizado is null || cambiandoEstado)
+        {
+            return;
+        }
+
+        cambiandoEstado = true;
+        errorModal = null;
+
+        try
+        {
+            if (completar)
+            {
+                await TratamientoService.MarcarCompletadoAsync(detalleRealizado.Id);
+                successMessage = "Tratamiento marcado como completado.";
+            }
+            else
+            {
+                await TratamientoService.ReabrirRealizadoAsync(detalleRealizado.Id);
+                successMessage = "Tratamiento reabierto.";
+            }
+
+            var actualizado = await TratamientoService.GetRealizadoAsync(detalleRealizado.Id);
+            if (actualizado is not null)
+            {
+                detalleRealizado = actualizado;
+            }
+
+            await CargarRealizadosAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorModal = ex.Message;
+        }
+        catch
+        {
+            errorModal = "No se pudo cambiar el estado del tratamiento. Intenta de nuevo.";
+        }
+        finally
+        {
+            cambiandoEstado = false;
+        }
     }
 
     private async Task CancelarRealizadoAsync()
@@ -1052,6 +1131,15 @@
         {
             cancelando = false;
         }
+    }
+
+    private async Task OnPacienteCambiadoAsync()
+    {
+        // La consulta elegida pertenece a un paciente concreto: al cambiar de paciente se descarta.
+        realizadoForm.ConsultaId = null;
+        consultasPaciente = realizadoForm.PacienteId > 0
+            ? (await TratamientoService.GetConsultasPacienteAsync(realizadoForm.PacienteId)).ToList()
+            : [];
     }
 
     private void OnTratamientoSeleccionado()

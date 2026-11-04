@@ -38,10 +38,13 @@ public interface IReporteRepository
         DateTime hastaUtcExclusivo,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Tratamientos realizados en el período, con sus pagos y datos relacionados.</summary>
+    /// <summary>
+    /// Tratamientos realizados en el período de calendario local [desde, hastaExclusivo),
+    /// con sus pagos y datos relacionados.
+    /// </summary>
     Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
-        DateTime desdeUtc,
-        DateTime hastaUtcExclusivo,
+        DateTime desde,
+        DateTime hastaExclusivo,
         int? odontologoId = null,
         EstadoTratamiento? estado = null,
         CancellationToken cancellationToken = default);
@@ -56,12 +59,12 @@ public interface IReporteRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Pagos del período, con el tratamiento, paciente y usuario que los registró.
-    /// Se puede limitar a los pagos de los tratamientos de un odontólogo.
+    /// Pagos del período de calendario local [desde, hastaExclusivo), con el tratamiento,
+    /// paciente y usuario que los registró. Se puede limitar a los pagos de los tratamientos de un odontólogo.
     /// </summary>
     Task<IReadOnlyList<Pago>> GetPagosAsync(
-        DateTime desdeUtc,
-        DateTime hastaUtcExclusivo,
+        DateTime desde,
+        DateTime hastaExclusivo,
         int? odontologoId = null,
         MetodoPago? metodoPago = null,
         CancellationToken cancellationToken = default);

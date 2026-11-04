@@ -60,6 +60,7 @@ public sealed class ReporteService(
 
         var odontologoId = ObtenerOdontologoId(filtro, contexto);
         var (desdeUtc, hastaUtcExclusivo) = ConvertirRangoLocalAUtc(filtro.Desde, filtro.Hasta);
+        var (desde, hastaExclusivo) = ConvertirRangoCalendario(filtro.Desde, filtro.Hasta);
 
         // Las citas del período alimentan tanto el conteo por estado como el de
         // pacientes atendidos (pacientes únicos con cita Atendida).
@@ -82,8 +83,8 @@ public sealed class ReporteService(
             cancellationToken);
 
         var tratamientos = await repository.GetTratamientosAsync(
-            desdeUtc,
-            hastaUtcExclusivo,
+            desde,
+            hastaExclusivo,
             odontologoId,
             estado: null,
             cancellationToken);
@@ -96,8 +97,8 @@ public sealed class ReporteService(
             // El resumen financiero respeta el mismo alcance que las demás
             // pestañas: un odontólogo restringido solo ve su propia actividad.
             IReadOnlyList<Pago> pagosPeriodo = await repository.GetPagosAsync(
-                desdeUtc,
-                hastaUtcExclusivo,
+                desde,
+                hastaExclusivo,
                 odontologoId,
                 metodoPago: null,
                 cancellationToken);
@@ -221,11 +222,11 @@ public sealed class ReporteService(
         await EnsurePermisoAsync(contexto.Principal, PermisoTratamientos);
         ValidarFiltro(filtro);
 
-        var (desdeUtc, hastaUtcExclusivo) = ConvertirRangoLocalAUtc(filtro.Desde, filtro.Hasta);
+        var (desde, hastaExclusivo) = ConvertirRangoCalendario(filtro.Desde, filtro.Hasta);
 
         var tratamientos = await repository.GetTratamientosAsync(
-            desdeUtc,
-            hastaUtcExclusivo,
+            desde,
+            hastaExclusivo,
             ObtenerOdontologoId(filtro, contexto),
             filtro.EstadoTratamientoFiltro,
             cancellationToken);
@@ -256,11 +257,11 @@ public sealed class ReporteService(
         await EnsurePermisoAsync(contexto.Principal, PermisoPagos);
         ValidarFiltro(filtro);
 
-        var (desdeUtc, hastaUtcExclusivo) = ConvertirRangoLocalAUtc(filtro.Desde, filtro.Hasta);
+        var (desde, hastaExclusivo) = ConvertirRangoCalendario(filtro.Desde, filtro.Hasta);
 
         var pagos = await repository.GetPagosAsync(
-            desdeUtc,
-            hastaUtcExclusivo,
+            desde,
+            hastaExclusivo,
             ObtenerOdontologoId(filtro, contexto),
             filtro.MetodoPagoFiltro,
             cancellationToken);
@@ -360,8 +361,17 @@ public sealed class ReporteService(
     }
 
     /// <summary>
-    /// Convierte el rango de fechas locales a UTC. El límite superior se envía
-    /// exclusivo para incluir completo el último día seleccionado.
+    /// Rango de fecha de calendario para tratamientos y pagos. Esas fechas se guardan como
+    /// medianoche local, sin convertir a UTC, así que el rango también se compara en hora local.
+    /// El límite superior es exclusivo para incluir completo el último día.
+    /// </summary>
+    private static (DateTime Desde, DateTime HastaExclusivo) ConvertirRangoCalendario(
+        DateOnly desde,
+        DateOnly hasta) =>
+        (desde.ToDateTime(TimeOnly.MinValue), hasta.AddDays(1).ToDateTime(TimeOnly.MinValue));
+
+    /// <summary>
+    /// Rango en UTC para los instantes de registro de pacientes, que sí se guardan en UTC.
     /// </summary>
     private static (DateTime DesdeUtc, DateTime HastaUtcExclusivo) ConvertirRangoLocalAUtc(
         DateOnly desde,

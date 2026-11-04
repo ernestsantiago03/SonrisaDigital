@@ -146,6 +146,19 @@ public sealed class TratamientoRepository(ApplicationDbContext dbContext) : ITra
             .Include(tratamiento => tratamiento.Pagos)
             .FirstOrDefaultAsync(tratamiento => tratamiento.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<ConsultaClinica>> GetConsultasPacienteAsync(int pacienteId, CancellationToken cancellationToken = default) =>
+        await dbContext.ConsultasClinicas
+            .AsNoTracking()
+            .Where(consulta => consulta.PacienteId == pacienteId)
+            .OrderByDescending(consulta => consulta.Fecha)
+            .ThenByDescending(consulta => consulta.Id)
+            .ToListAsync(cancellationToken);
+
+    public Task<ConsultaClinica?> GetConsultaAsync(int id, CancellationToken cancellationToken = default) =>
+        dbContext.ConsultasClinicas
+            .AsNoTracking()
+            .FirstOrDefaultAsync(consulta => consulta.Id == id, cancellationToken);
+
     public Task<TratamientoRealizado?> GetRealizadoForUpdateAsync(int id, CancellationToken cancellationToken = default) =>
         dbContext.TratamientosRealizados
             .Include(tratamiento => tratamiento.Paciente)

@@ -55,6 +55,10 @@ public interface ITratamientoRepository
 
     Task<IReadOnlyList<PiezaDental>> GetPiezasAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ConsultaClinica>> GetConsultasPacienteAsync(int pacienteId, CancellationToken cancellationToken = default);
+
+    Task<ConsultaClinica?> GetConsultaAsync(int id, CancellationToken cancellationToken = default);
+
     Task<Paciente?> GetPacienteAsync(int id, CancellationToken cancellationToken = default);
 
     Task<Odontologo?> GetOdontologoAsync(int id, CancellationToken cancellationToken = default);

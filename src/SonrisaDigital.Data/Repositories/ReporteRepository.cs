@@ -90,8 +90,8 @@ public sealed class ReporteRepository(ApplicationDbContext dbContext) : IReporte
                 cancellationToken);
 
     public async Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
-        DateTime desdeUtc,
-        DateTime hastaUtcExclusivo,
+        DateTime desde,
+        DateTime hastaExclusivo,
         int? odontologoId = null,
         EstadoTratamiento? estado = null,
         CancellationToken cancellationToken = default)
@@ -102,8 +102,8 @@ public sealed class ReporteRepository(ApplicationDbContext dbContext) : IReporte
             .Include(tratamiento => tratamiento.Tratamiento)
             .Include(tratamiento => tratamiento.Odontologo)
             .Include(tratamiento => tratamiento.Pagos)
-            .Where(tratamiento => tratamiento.Fecha >= desdeUtc
-                && tratamiento.Fecha < hastaUtcExclusivo);
+            .Where(tratamiento => tratamiento.Fecha >= desde
+                && tratamiento.Fecha < hastaExclusivo);
 
         if (odontologoId.HasValue)
         {
@@ -141,8 +141,8 @@ public sealed class ReporteRepository(ApplicationDbContext dbContext) : IReporte
     }
 
     public async Task<IReadOnlyList<Pago>> GetPagosAsync(
-        DateTime desdeUtc,
-        DateTime hastaUtcExclusivo,
+        DateTime desde,
+        DateTime hastaExclusivo,
         int? odontologoId = null,
         MetodoPago? metodoPago = null,
         CancellationToken cancellationToken = default)
@@ -155,7 +155,7 @@ public sealed class ReporteRepository(ApplicationDbContext dbContext) : IReporte
                 .ThenInclude(tratamiento => tratamiento.Tratamiento)
             .Include(pago => pago.Usuario)
                 .ThenInclude(usuario => usuario!.Odontologo)
-            .Where(pago => pago.Fecha >= desdeUtc && pago.Fecha < hastaUtcExclusivo);
+            .Where(pago => pago.Fecha >= desde && pago.Fecha < hastaExclusivo);
 
         // El pago no guarda odontólogo: se filtra por el tratamiento cobrado.
         if (odontologoId.HasValue)
