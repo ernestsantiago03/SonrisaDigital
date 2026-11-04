@@ -3,6 +3,7 @@ h1:focus {
 }
 
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { min-height: 100%; margin: 0; }
 body { font-family: 'Segoe UI', Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 button, input { font: inherit; }

@@ -390,11 +390,17 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label" for="realizado-paciente">Paciente</label>
+                            <input type="search"
+                                   class="form-control"
+                                   aria-label="Buscar paciente por nombre o apellido"
+                                   placeholder="Buscar por nombre o apellido..."
+                                   @bind="busquedaPacienteModal"
+                                   @bind:event="oninput" />
                             <select id="realizado-paciente" class="form-control" @bind="realizadoForm.PacienteId">
                                 <option value="0">Seleccione un paciente...</option>
-                                @foreach (var paciente in pacientes)
+                                @foreach (var paciente in pacientesFiltrados)
                                 {
-                                    <option value="@paciente.Id">@paciente.Nombre@(paciente.Activo ? string.Empty : " (inactivo)")</option>
+                                    <option value="@paciente.Id">@paciente.Nombre</option>
                                 }
                             </select>
                         </div>
@@ -403,7 +409,7 @@
                             <label class="form-label" for="realizado-odontologo">Odontólogo</label>
                             <select id="realizado-odontologo" class="form-control" @bind="realizadoForm.OdontologoId">
                                 <option value="0">Seleccione un odontólogo...</option>
-                                @foreach (var odontologo in odontologos)
+                                @foreach (var odontologo in odontologos.Where(o => o.Activo || o.Id == realizadoForm.OdontologoId))
                                 {
                                     <option value="@odontologo.Id">@odontologo.Nombre@(odontologo.Activo ? string.Empty : " (inactivo)")</option>
                                 }
@@ -647,6 +653,38 @@
     private PagedResult<TratamientoRealizadoListItemDto> realizados = PagedResult<TratamientoRealizadoListItemDto>.Empty(PageSize);
 
     private List<PacienteOptionDto> pacientes = [];
+    private string busquedaPacienteModal = string.Empty;
+
+    // Solo pacientes activos. El seleccionado se conserva para que el select no pierda su valor.
+    private IEnumerable<PacienteOptionDto> pacientesFiltrados
+    {
+        get
+        {
+            var termino = Normalizar(busquedaPacienteModal);
+            return pacientes.Where(p => p.Activo
+                && (p.Id == realizadoForm.PacienteId || Normalizar(p.Nombre).Contains(termino, StringComparison.Ordinal)));
+        }
+    }
+
+    private static string Normalizar(string? texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return string.Empty;
+        }
+
+        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(descompuesto.Length);
+        foreach (var c in descompuesto)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+    }
     private List<OdontologoOptionDto> odontologos = [];
     private List<PiezaDentalOptionDto> piezas = [];
     private List<TratamientoOptionDto> tratamientosDisponibles = [];
@@ -926,6 +964,7 @@
             Fecha = RelojNegocio.Hoy()
         };
         piezaSeleccionada = string.Empty;
+        busquedaPacienteModal = string.Empty;
         errorModal = null;
         successMessage = null;
         mostrarModalRealizado = true;
@@ -947,6 +986,7 @@
 
         realizadoForm = form;
         piezaSeleccionada = form.PiezaDentalId?.ToString() ?? string.Empty;
+        busquedaPacienteModal = string.Empty;
         errorModal = null;
         successMessage = null;
         mostrarDetalleRealizado = false;

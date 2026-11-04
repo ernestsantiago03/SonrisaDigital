@@ -284,29 +284,16 @@
                         }
 
                         <div class="tooth-history">
-                            <span class="tooth-history-title">Historial de la pieza</span>
+                            <div class="tooth-history-header">
+                                <span class="tooth-history-title">Historial de la pieza</span>
+                                @if (historial.Count > 0)
+                                {
+                                    <button type="button" class="tooth-history-action" @onclick="AbrirHistorial">Ver</button>
+                                }
+                            </div>
                             @if (historial.Count == 0)
                             {
                                 <small>Esta pieza todavía no tiene cambios registrados.</small>
-                            }
-                            else
-                            {
-                                <ol class="tooth-history-list">
-                                    @foreach (var item in historial)
-                                    {
-                                        <li>
-                                            <div class="tooth-history-head">
-                                                <strong>@RelojNegocio.DeUtc(item.FechaHora).ToString("dd/MM/yyyy HH:mm")</strong>
-                                                <span>@item.Odontologo</span>
-                                            </div>
-                                            <div class="tooth-history-state">@DescribirCambio(item)</div>
-                                            @if (!string.IsNullOrWhiteSpace(item.Observaciones))
-                                            {
-                                                <p>@item.Observaciones</p>
-                                            }
-                                        </li>
-                                    }
-                                </ol>
                             }
                         </div>
 
@@ -415,6 +402,43 @@
             }
         </section>
 
+        @if (historialAbierto && selectedPiece is not null)
+        {
+            <div class="historial-backdrop" @onclick="CerrarHistorial">
+                <section class="historial-modal" role="dialog" aria-modal="true" aria-labelledby="historial-modal-title" @onclick:stopPropagation="true">
+                    <div class="historial-modal-head">
+                        <div class="historial-modal-copy">
+                            <span class="historial-modal-eyebrow">Historial de la pieza</span>
+                            <h2 id="historial-modal-title">Pieza @selectedPiece.NumeroFDI · @selectedPiece.Nombre</h2>
+                            @if (!string.IsNullOrWhiteSpace(selectedPatientName))
+                            {
+                                <small>@selectedPatientName</small>
+                            }
+                        </div>
+                        <button type="button" class="historial-modal-close" aria-label="Cerrar" @onclick="CerrarHistorial">&times;</button>
+                    </div>
+                    <div class="historial-modal-body">
+                        <ol class="tooth-history-list">
+                            @foreach (var item in historial)
+                            {
+                                <li>
+                                    <div class="tooth-history-head">
+                                        <strong>@RelojNegocio.DeUtc(item.FechaHora).ToString("dd/MM/yyyy HH:mm")</strong>
+                                        <span>@item.Odontologo</span>
+                                    </div>
+                                    <div class="tooth-history-state">@DescribirCambio(item)</div>
+                                    @if (!string.IsNullOrWhiteSpace(item.Observaciones))
+                                    {
+                                        <p>@item.Observaciones</p>
+                                    }
+                                </li>
+                            }
+                        </ol>
+                    </div>
+                </section>
+            </div>
+        }
+
         @if (archivoAbiertoId is int abiertoId)
         {
             var abierto = archivos.FirstOrDefault(item => item.Id == abiertoId);
@@ -461,6 +485,7 @@
     private OdontogramaEditContextDto? editContext;                 // firma y permisos de la sesión
     private int selectedOdontologoId;                               // firmante elegido por un administrador
     private IReadOnlyList<OdontogramaHistorialDto> historial = [];  // guardados de la pieza seleccionada
+    private bool historialAbierto;                                   // modal con el historial completo
     private IReadOnlyList<ArchivoPacienteDto> archivos = [];        // imágenes del paciente
     private bool puedeOcultarArchivos;                              // solo el Dueño (Archivos.Ocultar)
     private bool mostrarOcultos;
@@ -664,6 +689,7 @@
             pieces = [];
             selectedPiece = null;
             historial = [];
+            historialAbierto = false;
             return;
         }
 
@@ -671,6 +697,7 @@
         pieces = (await OdontogramaService.GetByPatientAsync(selectedPatientId)).ToList();
         selectedPiece = null;
         historial = [];
+        historialAbierto = false;
         successMessage = null;
     }
 
@@ -682,8 +709,21 @@
     {
         selectedPiece = piece;
         successMessage = null;
+        historialAbierto = false;
         historial = await OdontogramaService.GetHistorialAsync(selectedPatientId, piece.Id);
     }
+
+    /// <summary>
+    /// Abre el modal con el historial completo de la pieza marcada. La lista completa
+    /// vive fuera del panel lateral para que las imágenes del paciente no se desplacen.
+    /// </summary>
+    private void AbrirHistorial()
+    {
+        if (selectedPiece is null || historial.Count == 0) return;
+        historialAbierto = true;
+    }
+
+    private void CerrarHistorial() => historialAbierto = false;
 
     /// <summary>
     /// Texto de una entrada del historial: registro inicial, sin cambio de estado o el paso

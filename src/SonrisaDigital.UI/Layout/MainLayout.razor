@@ -1,4 +1,6 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Routing
 @using SonrisaDigital.Data.Suscripciones
 @using SonrisaDigital.Services.Autenticacion
 @using SonrisaDigital.Services.Autorizacion
@@ -9,7 +11,7 @@
 @using SonrisaDigital.UI.Services
 
 <div class="app-shell">
-    <aside class="app-sidebar @(sidebarOpen ? "is-open" : "")">
+    <aside id="app-sidebar" class="app-sidebar @(sidebarOpen ? "is-open" : "")">
         <div class="sidebar-brand">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
@@ -20,6 +22,13 @@
                 <span>Sistema de gestión</span>
             </div>
         </div>
+
+        <button type="button"
+                class="rail-collapse"
+                @onclick="CloseSidebar"
+                aria-label="Contraer navegación">
+            <span aria-hidden="true">«</span>
+        </button>
 
         @if (EsDueno)
         {
@@ -41,7 +50,7 @@
 
         <nav class="sidebar-nav" aria-label="Navegación principal">
             <span class="nav-section">General</span>
-            <NavLink href="/" Match="NavLinkMatch.All" class="nav-item">
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-item" title="Inicio">
                 <span class="nav-icon">▦</span>
                 Inicio
             </NavLink>
@@ -51,15 +60,15 @@
                 <span class="nav-section">Gestión</span>
                 @if (HasPermission("Pacientes.Ver"))
                 {
-                    <NavLink href="/pacientes" class="nav-item"><span class="nav-icon">◉</span>Pacientes</NavLink>
+                    <NavLink href="/pacientes" class="nav-item" title="Pacientes"><span class="nav-icon">◉</span>Pacientes</NavLink>
                 }
                 @if (HasPermission("Odontologos.Ver"))
                 {
-                    <NavLink href="/odontologo" class="nav-item"><span class="nav-icon">✚</span>Odontólogos</NavLink>
+                    <NavLink href="/odontologo" class="nav-item" title="Odontólogos"><span class="nav-icon">✚</span>Odontólogos</NavLink>
                 }
                 @if (HasPermission("Citas.Ver"))
                 {
-                    <NavLink href="/cita" class="nav-item"><span class="nav-icon">□</span>Citas</NavLink>
+                    <NavLink href="/cita" class="nav-item" title="Citas"><span class="nav-icon">□</span>Citas</NavLink>
                 }
             }
 
@@ -68,22 +77,22 @@
                 <span class="nav-section">Clínica</span>
                 @if (HasPermission("HistoriaClinica.Ver"))
                 {
-                    <NavLink href="/historia-clinica" class="nav-item"><span class="nav-icon">▤</span>Historia clínica</NavLink>
+                    <NavLink href="/historia-clinica" class="nav-item" title="Historia clínica"><span class="nav-icon">▤</span>Historia clínica</NavLink>
                 }
                 @if (HasPermission("Odontograma.Ver"))
                 {
-                    <NavLink href="/odontograma" class="nav-item"><span class="nav-icon">◌</span>Odontograma</NavLink>
+                    <NavLink href="/odontograma" class="nav-item" title="Odontograma"><span class="nav-icon">◌</span>Odontograma</NavLink>
                 }
                 @if (HasPermission("Tratamientos.Ver"))
                 {
-                    <NavLink href="/tratamientos" class="nav-item"><span class="nav-icon">✥</span>Tratamientos</NavLink>
+                    <NavLink href="/tratamientos" class="nav-item" title="Tratamientos"><span class="nav-icon">✥</span>Tratamientos</NavLink>
                 }
             }
 
             @if (HasPermission("Pagos.Ver"))
             {
                 <span class="nav-section">Finanzas</span>
-                <NavLink href="/pagos" class="nav-item"><span class="nav-icon">¤</span>Pagos</NavLink>
+                <NavLink href="/pagos" class="nav-item" title="Pagos"><span class="nav-icon">¤</span>Pagos</NavLink>
             }
 
             @if (HasPermission("Usuarios.Ver") || HasPermission("Roles.Ver"))
@@ -91,11 +100,11 @@
                 <span class="nav-section">Administración</span>
                 @if (HasPermission("Usuarios.Ver"))
                 {
-                    <NavLink href="/usuarios" class="nav-item"><span class="nav-icon">◎</span>Usuarios</NavLink>
+                    <NavLink href="/usuarios" class="nav-item" title="Usuarios"><span class="nav-icon">◎</span>Usuarios</NavLink>
                 }
                 @if (HasPermission("Roles.Ver"))
                 {
-                    <NavLink href="/roles" class="nav-item"><span class="nav-icon">⚿</span>Roles y permisos</NavLink>
+                    <NavLink href="/roles" class="nav-item" title="Roles y permisos"><span class="nav-icon">⚿</span>Roles y permisos</NavLink>
                 }
             }
 
@@ -104,11 +113,11 @@
                 <span class="nav-section">Transversal</span>
                 @if (HasPermission("Auditoria.Ver"))
                 {
-                    <NavLink href="/auditoria" class="nav-item"><span class="nav-icon">≡</span>Auditoría</NavLink>
+                    <NavLink href="/auditoria" class="nav-item" title="Auditoría"><span class="nav-icon">≡</span>Auditoría</NavLink>
                 }
                 @if (HasPermission("Reportes.Ver"))
                 {
-                    <NavLink href="/reportes" class="nav-item"><span class="nav-icon">▥</span>Reportes</NavLink>
+                    <NavLink href="/reportes" class="nav-item" title="Reportes"><span class="nav-icon">▥</span>Reportes</NavLink>
 
                 }
             }
@@ -117,15 +126,15 @@
             <span class="nav-section">Información</span>
             @if (HasPermission("Clinicas.Ver"))
             {
-                <NavLink href="/clinicas" class="nav-item"><span class="nav-icon">▥</span>Clínicas</NavLink>
+                <NavLink href="/clinicas" class="nav-item" title="Clínicas"><span class="nav-icon">▥</span>Clínicas</NavLink>
             }
-            <NavLink href="/acercaDe" class="nav-item">
+            <NavLink href="/acercaDe" class="nav-item" title="Acerca de">
                 <span class="nav-icon">⌸</span>
                 Acerca De
             </NavLink>
             @if (EsDueno)
             {
-                <NavLink href="/seguridad/cuenta" class="nav-item">
+                <NavLink href="/seguridad/cuenta" class="nav-item" title="Mi cuenta">
                     <span class="nav-icon">⚿</span>
                     Mi cuenta
                 </NavLink>
@@ -133,7 +142,7 @@
 
             @* --- SECCIÓN DE AYUDA --- *@
             <span class="nav-section"> Ayuda </span>
-            <NavLink  href="/centro-ayuda" class="nav-item">
+            <NavLink href="/centro-ayuda" class="nav-item" title="Centro de Ayudas">
                     <span class="nav-icon">❓</span>
                     Centro de Ayudas
                 </NavLink>
@@ -159,6 +168,29 @@
     }
 
     <div class="app-main">
+        <header class="app-header">
+            <button type="button"
+                    class="menu-button"
+                    @onclick="ToggleSidebar"
+                    aria-label="@(sidebarOpen ? "Cerrar navegación" : "Abrir navegación")"
+                    aria-expanded="@(sidebarOpen ? "true" : "false")"
+                    aria-controls="app-sidebar">
+                <span aria-hidden="true">☰</span>
+            </button>
+
+            <span class="header-title">@CurrentTitle</span>
+
+            <div class="header-actions">
+                <div class="header-user">
+                    <div class="header-user-copy">
+                        <strong>@UserName</strong>
+                        <span>@UserRole</span>
+                    </div>
+                    <span class="avatar avatar-small header-avatar" aria-hidden="true">@UserInitials</span>
+                </div>
+            </div>
+        </header>
+
         @if (avisoSuscripcion is not null)
         {
             <div class="suscripcion-aviso @ClaseAvisoSuscripcion" role="status">
@@ -206,6 +238,9 @@
         var uri when uri.Contains("roles") => "Roles y permisos",
         var uri when uri.Contains("auditoria") => "Auditoría",
         var uri when uri.Contains("reportes") => "Reportes",
+        var uri when uri.Contains("acercade") => "Acerca de",
+        var uri when uri.Contains("centro-ayuda") => "Centro de Ayudas",
+        var uri when uri.Contains("seguridad/cuenta") => "Mi cuenta",
         var uri when uri.Contains("empresa") => "La Empresa", // Mapeo de título para la nueva página
         _ => "Dashboard"
     };
@@ -359,6 +394,21 @@
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;
     private void CloseSidebar() => sidebarOpen = false;
 
+    protected override void OnInitialized()
+    {
+        // En tablet el menú es un panel superpuesto: al cambiar de módulo debe cerrarse
+        // para no tapar la página que se acaba de abrir.
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => CloseSidebar();
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        GC.SuppressFinalize(this);
+    }
+
     private string ClaseAvisoSuscripcion =>
         avisoSuscripcion?.Acceso == AccesoClinica.EnGracia ? "gracia" : "proximo";
 
@@ -405,3 +455,4 @@
         return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
     }
 }
+

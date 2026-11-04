@@ -1,0 +1,1539 @@
+/* ============================================================================
+   TEMA GLOBAL · SONRISA DIGITAL
+   ----------------------------------------------------------------------------
+   Toma el lenguaje visual del módulo de Odontograma y lo aplica a todo el
+   contenido interno de la aplicación:
+     · Tarjetas blancas con esquinas redondeadas y sombras suaves.
+     · Encabezados grandes con subtítulo en gris.
+     · Etiquetas pequeñas en mayúsculas (eyebrows).
+     · Botones y campos de formulario con radio de 12px.
+     · Acentos turquesa/cielo y el mismo degradado del botón principal.
+
+   Este archivo se carga DESPUÉS de SonrisaDigital.UI.styles.css (los estilos
+   aislados de cada página), por eso puede unificar reglas sin tocar cada
+   módulo. Solo afecta a .app-content: el Login conserva su diseño propio.
+   ============================================================================ */
+
+.app-content {
+    --surface: #ffffff;
+    --surface-soft: #f7fafc;
+    --line: #e8edf4;
+    --line-soft: #eef2f7;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-soft: #94a3b8;
+    --accent: #0ea5e9;
+    --accent-strong: #0284c7;
+    --teal: #14b8a6;
+    --radius-xl: 24px;
+    --radius-lg: 18px;
+    --radius-md: 12px;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 16px 38px rgba(15, 23, 42, 0.07);
+    --shadow-button: 0 8px 18px rgba(2, 132, 199, 0.28);
+}
+
+/* Texto base compacto para lo que no fija tamaño propio. */
+body {
+    font-size: 13px;
+}
+
+/* El contenedor principal respira igual que el odontograma. */
+.app-shell .app-content {
+    padding: 1.75rem 2rem;
+}
+
+/* El odontograma ya trae su propio padding: se evita duplicarlo. */
+.app-content .odontogram-page {
+    padding: 0;
+}
+
+/* ----------------------------------------------------------------------------
+   1. Encabezados de página
+   ---------------------------------------------------------------------------- */
+.app-content .patients-page,
+.app-content .patient-detail-page,
+.app-content .payments-page,
+.app-content .payment-detail-page,
+.app-content .history-page,
+.app-content .tratamientos-page,
+.app-content .users-page,
+.app-content .audit-page,
+.app-content .reports-page,
+.app-content .clinicas-page,
+.app-content .roles-page,
+.app-content .facturacion-page,
+.app-content .appointments-page,
+.app-content .dashboard-page,
+.app-content .help-page {
+    max-width: 1720px;
+    margin: 0 auto;
+}
+
+.app-content .page-header,
+.app-content .page-heading,
+.app-content .users-header,
+.app-content .reports-header,
+.app-content .audit-header,
+.app-content .roles-header,
+.app-content .clinicas-page .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.6rem;
+}
+
+.app-content .page-header h1,
+.app-content .page-heading h1,
+.app-content .users-header h1,
+.app-content .reports-header h1,
+.app-content .audit-header h1,
+.app-content .roles-header h1,
+.app-content .clinicas-page .page-header h1,
+.app-content .form-header h1,
+.app-content .title-line h1 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+}
+
+.app-content .page-header p,
+.app-content .page-heading p,
+.app-content .users-header p,
+.app-content .reports-header p,
+.app-content .audit-header p,
+.app-content .roles-header p,
+.app-content .clinicas-page .page-header p,
+.app-content .form-header p {
+    margin: 0.3rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.app-content .page-eyebrow {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--teal);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.app-content .back-link {
+    display: inline-block;
+    margin-bottom: 0.4rem;
+    color: var(--accent-strong);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.app-content .back-link:hover {
+    text-decoration: underline;
+}
+
+/* ----------------------------------------------------------------------------
+   2. Tarjetas y paneles
+   ---------------------------------------------------------------------------- */
+.app-content .filter-panel,
+.app-content .filter-card,
+.app-content .table-panel,
+.app-content .detail-panel,
+.app-content .dashboard-panel,
+.app-content .stat-card,
+.app-content .kpi-card,
+.app-content .clinicas-panel,
+.app-content .users-table-panel,
+.app-content .report-panel,
+.app-content .report-card,
+.app-content .audit-table-panel,
+.app-content .audit-toolbar,
+.app-content .users-toolbar,
+.app-content .report-period,
+.app-content .form-panel,
+.app-content .patient-bar,
+.app-content .role-list,
+.app-content .permissions-panel,
+.app-content .permission-group,
+.app-content .help-card,
+.app-content .mfa-panel,
+.app-content .resumen-panel,
+.app-content .table-card,
+.app-content .search-results,
+.app-content .resultados-panel,
+.app-content .professional-summary {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+.app-content .filter-panel,
+.app-content .filter-card,
+.app-content .audit-toolbar,
+.app-content .users-toolbar,
+.app-content .report-period {
+    margin-bottom: 1.25rem;
+    padding: 1.1rem 1.25rem;
+}
+
+.app-content .table-panel,
+.app-content .detail-panel,
+.app-content .form-panel,
+.app-content .clinicas-panel,
+.app-content .users-table-panel,
+.app-content .report-panel,
+.app-content .audit-table-panel,
+.app-content .search-results,
+.app-content .resultados-panel {
+    overflow: hidden;
+}
+
+/* Tarjetas de métricas */
+.app-content .stat-card,
+.app-content .kpi-card {
+    padding: 1.25rem 1.35rem;
+    min-height: 120px;
+}
+
+.app-content .stat-card span,
+.app-content .stat-card small,
+.app-content .kpi-label,
+.app-content .kpi-hint {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+}
+
+.app-content .stat-card span,
+.app-content .kpi-label {
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+}
+
+.app-content .stat-card strong,
+.app-content .kpi-value {
+    margin: 0.25rem 0;
+    color: var(--text);
+    font-size: 1.45rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+.app-content .stat-card small.positive,
+.app-content .kpi-value.is-success {
+    color: #059669;
+}
+
+.app-content .stat-card small.negative,
+.app-content .kpi-value.is-warning {
+    color: #dc2626;
+}
+
+/* Encabezados internos de panel */
+.app-content .section-heading,
+.app-content .table-heading,
+.app-content .permissions-heading,
+.app-content .role-list-heading,
+.app-content .report-panel-heading,
+.app-content .audit-table-heading,
+.app-content .dashboard-panel .panel-heading {
+    padding: 1rem 1.35rem;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.app-content .section-heading h2,
+.app-content .table-heading h2,
+.app-content .permissions-heading h2,
+.app-content .report-panel-heading h2,
+.app-content .audit-table-heading h2,
+.app-content .dashboard-panel .panel-heading h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.app-content .section-meta,
+.app-content .table-heading span,
+.app-content .report-panel-heading span,
+.app-content .audit-table-heading span,
+.app-content .permissions-heading p {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.app-content .section-body,
+.app-content .form-grid {
+    padding: 1.25rem 1.35rem;
+}
+
+.app-content .panel-actions,
+.app-content .form-actions {
+    padding: 1rem 1.35rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.app-content .form-actions {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.app-content .detail-grid {
+    padding: 1.1rem 1.35rem 1.35rem;
+}
+
+.app-content .detail-grid dt,
+.app-content .consultation-body dt,
+.app-content .chip-label,
+.app-content .chip-row-label {
+    color: var(--text-soft);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.app-content .detail-grid dd,
+.app-content .consultation-body dd {
+    margin: 0.25rem 0 0.9rem;
+    color: var(--text);
+    font-size: 0.82rem;
+}
+
+/* ----------------------------------------------------------------------------
+   3. Botones
+   ---------------------------------------------------------------------------- */
+.app-content .primary-action,
+.app-content .btn-primary,
+.app-content .save-action,
+.app-content .pay-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 1.1rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-button);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+}
+
+.app-content .primary-action:hover:not(:disabled),
+.app-content .btn-primary:hover:not(:disabled),
+.app-content .save-action:hover:not(:disabled),
+.app-content .pay-button:hover:not(:disabled) {
+    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(2, 132, 199, 0.32);
+}
+
+.app-content .primary-action:active:not(:disabled),
+.app-content .btn-primary:active:not(:disabled),
+.app-content .save-action:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.app-content .secondary-action,
+.app-content .btn-cancel,
+.app-content .cancel-action,
+.app-content .link-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 1.05rem;
+    border: 1px solid #d5dde8;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: #334155;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-content .secondary-action:hover:not(:disabled),
+.app-content .btn-cancel:hover:not(:disabled),
+.app-content .cancel-action:hover,
+.app-content .link-action:hover {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+    color: var(--accent-strong);
+}
+
+.app-content .danger-action,
+.app-content .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 1.05rem;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    color: #b91c1c;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.app-content .danger-action:hover,
+.app-content .btn-danger:hover {
+    background: #fef2f2;
+}
+
+.app-content .primary-action:disabled,
+.app-content .secondary-action:disabled,
+.app-content .btn-primary:disabled,
+.app-content .btn-cancel:disabled,
+.app-content .save-action:disabled,
+.app-content .pay-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.app-content .primary-action-disabled,
+.app-content .primary-action-disabled:hover {
+    border: 1px solid #cbd5e1;
+    background: #e2e8f0;
+    color: var(--text-soft);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* Acciones pequeñas de las tablas */
+.app-content .view-action,
+.app-content .pay-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0 0.7rem;
+    border: 1px solid #d5dde8;
+    border-radius: 10px;
+    background: #ffffff;
+    color: var(--accent-strong);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.app-content .view-action:hover,
+.app-content .pay-action:hover {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+.app-content .icon-action {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #d5dde8;
+    border-radius: 10px;
+    background: #ffffff;
+    color: var(--accent-strong);
+    cursor: pointer;
+}
+
+.app-content .icon-action:hover:not(:disabled) {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+/* Enlaces de acción dentro de tablas y paneles */
+.app-content .panel-heading a,
+.app-content .panel-link,
+.app-content .patient-name,
+.app-content .row-actions a,
+.app-content .clinicas-acciones a,
+.app-content .enlace-accion,
+.app-content .resultados-nombre {
+    color: var(--accent-strong);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.app-content .panel-heading a:hover,
+.app-content .panel-link:hover,
+.app-content .patient-name:hover,
+.app-content .row-actions a:hover,
+.app-content .clinicas-acciones a:hover,
+.app-content .enlace-accion:hover,
+.app-content .resultados-nombre:hover {
+    text-decoration: underline;
+}
+
+/* ----------------------------------------------------------------------------
+   4. Formularios y campos
+   ---------------------------------------------------------------------------- */
+.app-content .filter-panel label,
+.app-content .filter-card label,
+.app-content .users-toolbar label,
+.app-content .audit-toolbar label,
+.app-content .report-period label,
+.app-content .field > label,
+.app-content .form-label,
+.app-content .form-field label,
+.app-content .form-group label {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--text-soft);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+.app-content select,
+.app-content textarea {
+    border-color: #d5dde8 !important;
+    border-radius: var(--radius-md) !important;
+    background: #ffffff;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+}
+
+.app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+.app-content select {
+    min-height: 40px;
+    padding: 0 0.85rem;
+}
+
+.app-content textarea {
+    padding: 0.65rem 0.85rem;
+    line-height: 1.5;
+}
+
+.app-content input:focus,
+.app-content select:focus,
+.app-content textarea:focus {
+    outline: none !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15) !important;
+}
+
+.app-content .status-checkbox {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.app-content .status-checkbox label,
+.app-content .allergy-check,
+.app-content .permission-option strong {
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.app-content .form-hint,
+.app-content .field-hint,
+.app-content .allergy-hint,
+.app-content .edit-hint,
+.app-content .form-note {
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    line-height: 1.45;
+}
+
+.app-content .form-header::before {
+    background: var(--accent);
+}
+
+.app-content .read-only-note {
+    margin-bottom: 1rem;
+    padding: 0.8rem 1rem;
+    border: 1px dashed #d5dde8;
+    border-radius: var(--radius-md);
+    background: var(--surface-soft);
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+/* ----------------------------------------------------------------------------
+   5. Tablas
+   ---------------------------------------------------------------------------- */
+.app-content .data-table,
+.app-content .patients-table,
+.app-content .payments-table,
+.app-content .custom-table,
+.app-content .report-table,
+.app-content .audit-table,
+.app-content .clinicas-tabla,
+.app-content .users-table,
+.app-content .appointments-table,
+.app-content .realized-table,
+.app-content .resultados-tabla,
+.app-content .tabla-pagos {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.app-content .data-table th,
+.app-content .patients-table th,
+.app-content .payments-table th,
+.app-content .custom-table th,
+.app-content .report-table th,
+.app-content .audit-table th,
+.app-content .clinicas-tabla th,
+.app-content .users-table th,
+.app-content .appointments-table th,
+.app-content .realized-table th,
+.app-content .resultados-tabla th,
+.app-content .tabla-pagos th {
+    padding: 0.72rem 1rem;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--surface-soft);
+    color: var(--text-muted);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.app-content .data-table td,
+.app-content .patients-table td,
+.app-content .payments-table td,
+.app-content .custom-table td,
+.app-content .report-table td,
+.app-content .audit-table td,
+.app-content .clinicas-tabla td,
+.app-content .users-table td,
+.app-content .appointments-table td,
+.app-content .realized-table td,
+.app-content .resultados-tabla td,
+.app-content .tabla-pagos td {
+    padding: 0.82rem 1rem;
+    border-top: 1px solid #f1f5f9;
+    color: var(--text-muted);
+}
+
+.app-content .data-table tbody tr:hover,
+.app-content .patients-table tbody tr:hover,
+.app-content .payments-table tbody tr:hover,
+.app-content .custom-table tbody tr:hover,
+.app-content .report-table tbody tr:hover,
+.app-content .audit-table tbody tr:hover,
+.app-content .clinicas-tabla tbody tr:hover,
+.app-content .users-table tbody tr:hover,
+.app-content .appointments-table tbody tr:hover,
+.app-content .realized-table tbody tr:hover,
+.app-content .resultados-tabla tbody tr:hover,
+.app-content .tabla-pagos tbody tr:hover {
+    background: #f8fbff;
+}
+
+.app-content .data-table td strong,
+.app-content .data-table .col-main,
+.app-content .patients-table .patient-name,
+.app-content .payments-table .patient-name {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.app-content .table-summary,
+.app-content .clinicas-resumen {
+    padding: 0.95rem 1.35rem;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+/* ----------------------------------------------------------------------------
+   6. Pestañas
+   ---------------------------------------------------------------------------- */
+.app-content .tabs,
+.app-content .tabs-container,
+.app-content .report-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.1rem;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+}
+
+.app-content .tab,
+.app-content .tab-button,
+.app-content .report-tab {
+    padding: 0.65rem 0.9rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 10px 10px 0 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.app-content .tab:hover,
+.app-content .tab-button:hover,
+.app-content .report-tab:hover {
+    color: var(--text);
+    background: rgba(14, 165, 233, 0.06);
+}
+
+.app-content .tab.is-active,
+.app-content .tab-button.active,
+.app-content .report-tab.is-active,
+.app-content .report-tab.active {
+    color: var(--accent-strong);
+    border-bottom-color: var(--accent);
+}
+
+.app-content .tab-button.active::after {
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+}
+
+/* ----------------------------------------------------------------------------
+   7. Etiquetas de estado, chips y avisos
+   ---------------------------------------------------------------------------- */
+.app-content .status-badge,
+.app-content .status,
+.app-content .badge,
+.app-content .method-badge,
+.app-content .acceso,
+.app-content .report-status,
+.app-content .role-badge,
+.app-content .state-badge,
+.app-content .chip,
+.app-content .preview-chip,
+.app-content .resultados-badge,
+.app-content .status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.app-content .feedback,
+.app-content .alert,
+.app-content .alert-error,
+.app-content .alert-success,
+.app-content .archivos-aviso {
+    margin-bottom: 1rem;
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.app-content .table-state,
+.app-content .detail-state,
+.app-content .roles-state,
+.app-content .form-state,
+.app-content .report-loading,
+.app-content .archivos-vacio,
+.app-content .search-empty,
+.app-content .resultados-vacio {
+    padding: 2.75rem 1.5rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.app-content .table-state strong,
+.app-content .detail-state strong,
+.app-content .empty-state strong,
+.app-content .resultados-vacio strong {
+    color: var(--text);
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+/* Resultados de búsqueda de pacientes (Historia clínica / Odontograma) */
+.app-content .search-results-head {
+    padding: 0.8rem 1.35rem;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--surface-soft);
+    color: var(--text-muted);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.app-content .search-result {
+    padding: 0.8rem 1.35rem;
+}
+
+.app-content .search-result-name {
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+/* ----------------------------------------------------------------------------
+   8. Modales
+   ---------------------------------------------------------------------------- */
+.app-content .modal-backdrop {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(2px);
+}
+
+.app-content .modal-card,
+.app-content .professional-modal {
+    border-radius: 20px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.24);
+}
+
+.app-content .modal-header {
+    padding: 1.15rem 1.4rem;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.app-content .modal-title,
+.app-content .modal-header h2 {
+    color: var(--text);
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.app-content .modal-body {
+    padding: 1.25rem 1.4rem;
+    gap: 1rem;
+}
+
+.app-content .modal-footer {
+    padding: 1rem 1.4rem;
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface-soft);
+}
+
+.app-content .modal-close-btn {
+    color: var(--text-muted);
+    font-size: 1.3rem;
+}
+
+.app-content .modal-close-btn:hover {
+    color: var(--text);
+}
+
+.app-content .pay-summary {
+    padding: 0.95rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface-soft);
+    color: #334155;
+    font-size: 0.82rem;
+}
+
+/* ----------------------------------------------------------------------------
+   9. Paginación
+   ---------------------------------------------------------------------------- */
+.app-content .pagination-footer,
+.app-content .audit-pagination,
+.app-content .table-footer {
+    padding: 0.85rem 1.35rem;
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.app-content .pagination-button,
+.app-content .page-button {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.5rem;
+    border: 1px solid #d5dde8;
+    border-radius: 10px;
+    background: var(--surface);
+    color: #334155;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.app-content .pagination-button:hover:not(:disabled),
+.app-content .page-button:hover:not(:disabled) {
+    border-color: #bae6fd;
+    background: #f0f9ff;
+    color: var(--accent-strong);
+}
+
+/* ----------------------------------------------------------------------------
+   10. Roles, ayuda y pantallas especiales
+   ---------------------------------------------------------------------------- */
+.app-content .role-list-item {
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.app-content .role-list-item:hover {
+    background: #f8fbff;
+}
+
+.app-content .role-list-item.selected {
+    background: #eff9ff;
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.app-content .permission-option {
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.app-content .group-heading {
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.app-content .help-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-content .help-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 42px rgba(15, 23, 42, 0.1);
+}
+
+/* ----------------------------------------------------------------------------
+   11. Barra lateral (shell)
+   ---------------------------------------------------------------------------- */
+.app-shell .app-sidebar {
+    background: linear-gradient(180deg, #0f172a 0%, #132437 100%);
+}
+
+.app-shell .sidebar-brand {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.app-shell .sidebar-brand > svg {
+    color: #38bdf8;
+}
+
+.app-shell .sidebar-brand strong {
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.app-shell .sidebar-brand span {
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.app-shell .app-sidebar a.nav-item {
+    min-height: 38px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.app-shell .app-sidebar a.nav-item:hover {
+    background: rgba(56, 189, 248, 0.1);
+    border-color: rgba(56, 189, 248, 0.22);
+}
+
+.app-shell .app-sidebar a.nav-item.active {
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.28) 0%, rgba(20, 184, 166, 0.12) 100%);
+    border-color: rgba(56, 189, 248, 0.35);
+    box-shadow: inset 3px 0 0 #38bdf8;
+    color: #f8fafc;
+}
+
+.app-shell .app-sidebar a.nav-item.active .nav-icon {
+    color: #7dd3fc;
+}
+
+.app-shell .avatar {
+    background: linear-gradient(145deg, #14b8a6 0%, #0ea5e9 100%);
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.app-shell .avatar-small {
+    background: linear-gradient(145deg, #1e3a5f 0%, #0f2942 100%);
+    color: #e2e8f0;
+}
+
+/* ----------------------------------------------------------------------------
+   12. Pantallas de acceso (Login / dos pasos)
+   Comparten tokens con el resto, pero viven fuera de .app-content.
+   ---------------------------------------------------------------------------- */
+.auth-page {
+    --accent: #0ea5e9;
+    --accent-strong: #0284c7;
+    --text: #0f172a;
+    --shadow-button: 0 8px 18px rgba(2, 132, 199, 0.28);
+}
+
+.auth-page .auth-card {
+    border-radius: 24px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14);
+}
+
+.auth-page .auth-title,
+.auth-page .auth-form-section h1,
+.auth-page .login-form-wrap h1 {
+    color: var(--text);
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.auth-page .login-submit {
+    height: 42px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+    color: #ffffff;
+    font-weight: 800;
+    box-shadow: var(--shadow-button);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.auth-page .login-submit:hover {
+    background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(2, 132, 199, 0.32);
+}
+
+.auth-page .form-field input {
+    min-height: 42px;
+    border-color: #d5dde8 !important;
+    border-radius: 12px !important;
+    font-size: 0.82rem;
+}
+
+.auth-page .form-field input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+/* ----------------------------------------------------------------------------
+   13. Centro de Ayuda
+   ---------------------------------------------------------------------------- */
+.app-content .help-page {
+    max-width: 1240px;
+}
+
+.app-content .help-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.app-content .help-card {
+    --help-accent: #0284c7;
+    --help-tint: #e0f2fe;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.4rem;
+    overflow: hidden;
+    color: inherit;
+    text-decoration: none;
+}
+
+.app-content .help-card::after {
+    position: absolute;
+    top: -46px;
+    right: -46px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: var(--help-tint);
+    content: "";
+    opacity: .7;
+    pointer-events: none;
+    transition: transform .2s ease;
+}
+
+.app-content .help-card:hover {
+    border-color: #bae6fd;
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+}
+
+.app-content .help-card:focus-visible {
+    outline: 3px solid rgba(14, 165, 233, 0.35);
+    outline-offset: 2px;
+}
+
+.app-content .help-card:hover::after {
+    transform: scale(1.12);
+}
+
+.app-content .help-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.app-content .help-card-icon {
+    display: inline-flex;
+    width: 46px;
+    height: 46px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    background: var(--help-tint);
+    color: var(--help-accent);
+}
+
+.app-content .help-card-content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: .45rem;
+}
+
+.app-content .help-card h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.app-content .help-card p {
+    flex: 1;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+.app-content .help-card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .4rem;
+    color: var(--help-accent);
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.app-content .help-card-link span {
+    transition: transform .15s ease;
+}
+
+.app-content .help-card:hover .help-card-link span {
+    transform: translateX(3px);
+}
+
+.app-content .help-card--faq {
+    --help-accent: #0284c7;
+    --help-tint: #e0f2fe;
+}
+
+.app-content .help-card--guides {
+    --help-accent: #0d9488;
+    --help-tint: #ccfbf1;
+}
+
+.app-content .help-card--trouble {
+    --help-accent: #d97706;
+    --help-tint: #fef3c7;
+}
+
+.app-content .help-card--modules {
+    --help-accent: #7c3aed;
+    --help-tint: #ede9fe;
+}
+
+.app-content .help-card--support {
+    --help-accent: #e11d48;
+    --help-tint: #ffe4e6;
+    grid-column: span 2;
+    align-items: center;
+    flex-direction: row;
+    border-color: rgba(56, 189, 248, 0.3);
+    background: linear-gradient(135deg, #0f172a 0%, #12324d 100%);
+}
+
+.app-content .help-card--support::after {
+    background: rgba(56, 189, 248, 0.18);
+    opacity: 1;
+}
+
+.app-content .help-card--support h2 {
+    color: #f8fafc;
+}
+
+.app-content .help-card--support p {
+    color: #cbd5e1;
+}
+
+.app-content .help-card--support .help-card-icon {
+    background: rgba(56, 189, 248, 0.16);
+    color: #7dd3fc;
+}
+
+.app-content .help-card--support .help-card-link {
+    color: #7dd3fc;
+}
+
+/* Secciones internas del Centro de Ayuda */
+.app-content .help-section {
+    margin-bottom: 1.35rem;
+    padding: 1.35rem 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-card);
+}
+
+.app-content .help-section-header {
+    margin: 0 0 1rem;
+    padding: 0 0 .9rem;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.app-content .help-section-header h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.app-content .help-section-header p {
+    margin: .22rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.app-content .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: .65rem;
+}
+
+.app-content .faq-item {
+    padding: .9rem 1rem;
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    background: var(--surface-soft);
+}
+
+.app-content .faq-item h3 {
+    margin: 0 0 .3rem;
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.app-content .faq-item p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
+.app-content .help-question {
+    margin-bottom: .65rem;
+    padding: .9rem 1rem;
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    background: var(--surface-soft);
+}
+
+.app-content .help-question:last-of-type {
+    margin-bottom: 0;
+}
+
+.app-content .help-question h3 {
+    margin: 0 0 .25rem;
+    color: var(--text);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.app-content .help-question p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.app-content .help-page .form-panel > p,
+.app-content .help-page .form-panel > ul {
+    margin: 0;
+    padding: 1rem 1.35rem 1.2rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.6;
+}
+
+.app-content .help-page .form-panel > ul {
+    padding-left: 2.6rem;
+}
+
+.app-content .help-back {
+    margin-top: 1.2rem;
+}
+
+.app-content .help-page .form-actions {
+    display: flex;
+    gap: .65rem;
+    margin-top: 1rem;
+    padding: 0;
+}
+
+@media (max-width: 1100px) {
+    .app-content .help-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .app-content .help-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .app-content .help-card--support {
+        grid-column: auto;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+   14. Ajustes responsive
+   ---------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+    .app-shell .app-content {
+        padding: 1.25rem;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-content .page-header,
+    .app-content .page-heading,
+    .app-content .users-header,
+    .app-content .reports-header,
+    .app-content .audit-header,
+    .app-content .roles-header,
+    .app-content .clinicas-page .page-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.9rem;
+    }
+
+    .app-content .page-header h1,
+    .app-content .page-heading h1,
+    .app-content .users-header h1,
+    .app-content .reports-header h1,
+    .app-content .audit-header h1,
+    .app-content .roles-header h1,
+    .app-content .clinicas-page .page-header h1,
+    .app-content .form-header h1,
+    .app-content .title-line h1 {
+        font-size: 1.25rem;
+    }
+
+    .app-content .header-actions {
+        width: 100%;
+    }
+
+    .app-content .header-actions > * {
+        flex: 1;
+    }
+
+    .auth-page .auth-title,
+    .auth-page .auth-form-section h1,
+    .auth-page .login-form-wrap h1 {
+        font-size: 1.25rem !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-content .primary-action,
+    .app-content .btn-primary,
+    .app-content .save-action,
+    .app-content .help-card {
+        transition: none;
+        transform: none;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+   15. Tablet y pantallas táctiles
+   ----------------------------------------------------------------------------
+   El tamaño de los controles se decide por el tipo de puntero, no por el ancho:
+   así una tablet horizontal recibe zonas táctiles grandes y un portátil con
+   mouse conserva la densidad compacta del escritorio. */
+@media (pointer: coarse) {
+    .app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+    .app-content select,
+    .app-content textarea {
+        /* 16px evita el zoom automático de Safari/iOS al enfocar un campo. */
+        font-size: 16px !important;
+    }
+
+    .app-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+    .app-content select {
+        min-height: 46px;
+    }
+
+    .app-content button:not(.tooth):not(.archivo-miniatura),
+    .app-content .primary-action,
+    .app-content .secondary-action,
+    .app-content .btn-primary,
+    .app-content .btn-cancel,
+    .app-content .cancel-action,
+    .app-content .save-action,
+    .app-content .pay-button,
+    .app-content .link-action {
+        min-height: 44px;
+    }
+
+    .app-content td.row-actions a,
+    .app-content .row-actions a {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        padding: 0 .35rem;
+    }
+
+    .app-content .data-table td,
+    .app-content .patients-table td,
+    .app-content .appointments-table td,
+    .app-content .custom-table td,
+    .app-content .report-table td,
+    .app-content .audit-table td,
+    .app-content .clinicas-tabla td,
+    .app-content .users-table td,
+    .app-content .payments-table td,
+    .app-content .tabla-pagos td {
+        padding-top: .8rem;
+        padding-bottom: .8rem;
+    }
+
+    /* En táctil no existe hover: se evita que las tarjetas "salten" al tocar. */
+    .app-content .help-card:hover,
+    .app-content .about-contact-card:hover {
+        transform: none;
+    }
+
+    .app-content {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .app-content button,
+    .app-content a,
+    .app-content .nav-item {
+        touch-action: manipulation;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+   16. Tablas: desplazamiento cómodo y primera columna fija
+   ---------------------------------------------------------------------------- */
+.app-content .table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.app-content .table-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface-soft);
+}
+
+@media (min-width: 901px) {
+    .app-content .table-scroll table > thead > tr > th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: var(--surface-soft);
+        box-shadow: inset -1px 0 0 var(--line-soft);
+    }
+
+    .app-content .table-scroll table > tbody > tr > td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: var(--surface);
+        box-shadow: inset -1px 0 0 var(--line-soft);
+    }
+
+    .app-content .table-scroll table > tbody > tr:hover > td:first-child {
+        background: #f8fafc;
+    }
+}
+
+/* ----------------------------------------------------------------------------
+   17. Modales en tablet: hoja inferior con scroll interno
+   ---------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+    .app-content .modal-backdrop,
+    .app-content .historial-backdrop {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .app-content .modal-card,
+    .app-content .professional-modal,
+    .app-content .historial-modal {
+        width: 100%;
+        max-width: 100%;
+        max-height: 92dvh;
+        border-radius: 20px 20px 0 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-content .modal-card,
+    .app-content .professional-modal {
+        overflow-y: auto;
+    }
+
+    .app-content .modal-body {
+        overflow-y: auto;
+    }
+
+    .app-content .modal-footer {
+        position: sticky;
+        bottom: 0;
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+        background: var(--surface-soft);
+    }
+}
+

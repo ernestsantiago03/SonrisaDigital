@@ -47,7 +47,7 @@
         }
         else
         {
-            <div class="activity-scroll" style="max-height: 600px; overflow-y: auto;">
+            <div class="table-scroll activity-scroll">
                 <table class="patients-table">
                     <thead>
                         <tr><th>Nombre completo</th><th>Identificación</th><th>Tipo de Sangre</th><th>Teléfono</th><th>Correo</th><th>Registro</th><th>Opciones</th><th><span class="visually-hidden">Acciones</span></th></tr>
@@ -56,13 +56,13 @@
                         @foreach (var patient in patients.Items)
                         {
                             <tr>
-                                <td><a class="patient-name" href="/pacientes/@patient.Id">@patient.NombreCompleto</a></td>
-                                <td>@(patient.Identificacion ?? "-")</td>
-                                <td>@(patient.TipoSangre ?? "-")</td>
-                                <td>@(patient.Telefono ?? "-")</td>
-                                <td>@(patient.Correo ?? "-")</td>
-                                <td>@RelojNegocio.DeUtc(patient.FechaRegistro).ToString("dd/MM/yyyy")</td>
-                                <td class="row-actions">
+                                <td data-label="Paciente"><a class="patient-name" href="/pacientes/@patient.Id">@patient.NombreCompleto</a></td>
+                                <td data-label="Identificación">@(patient.Identificacion ?? "-")</td>
+                                <td data-label="Tipo de sangre">@(patient.TipoSangre ?? "-")</td>
+                                <td data-label="Teléfono">@(patient.Telefono ?? "-")</td>
+                                <td data-label="Correo">@(patient.Correo ?? "-")</td>
+                                <td data-label="Registro">@RelojNegocio.DeUtc(patient.FechaRegistro).ToString("dd/MM/yyyy")</td>
+                                <td class="row-actions" data-label="Acciones">
                                     <a href="/pacientes/@patient.Id">Ver</a>
                                     <AuthorizeView Policy="Pacientes.Editar">
                                         <Authorized><a href="/pacientes/editar/@patient.Id">Editar</a></Authorized>

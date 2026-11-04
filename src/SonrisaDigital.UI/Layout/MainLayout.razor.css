@@ -119,24 +119,294 @@
         gap: 2px;
     }
 }
-.app-header { height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: white; border-bottom: 1px solid #e2e8f0; }
-.menu-button { display: none; border: 0; background: transparent; color: #64748b; font-size: 18px; cursor: pointer; }
-.header-title { color: #0f172a; font-size: 14px; font-weight: 600; }
-.header-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
-.icon-button { border: 0; background: transparent; color: #94a3b8; font-size: 16px; cursor: pointer; }
-.icon-button:hover { color: #475569; }
-.header-user { display: flex; align-items: center; gap: 8px; }
-.header-user-copy strong { color: #334155; font-size: 11px; }
-.header-user-copy span { margin-top: 1px; color: #94a3b8; font-size: 10px; }
-.app-content { flex: 1; overflow-y: auto; padding: 18px; }
-.sidebar-overlay { display: none; }
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 35;
+    height: 56px;
+    flex: 0 0 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: rgba(255, 255, 255, .96);
+    backdrop-filter: blur(10px);
+}
 
-@media (max-width: 900px) {
-    .app-sidebar { position: fixed; inset: 0 auto 0 0; transform: translateX(-100%); box-shadow: 4px 0 24px rgba(15, 23, 42, .2); }
-    .app-sidebar.is-open { transform: translateX(0); }
-    .menu-button { display: block; }
-    .sidebar-overlay { display: block; position: fixed; inset: 0; z-index: 30; border: 0; background: rgba(15, 23, 42, .3); }
-    .header-user-copy { display: none; }
+.menu-button {
+    display: none;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: #475569;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.menu-button:hover {
+    border-color: #e2e8f0;
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.menu-button:focus-visible {
+    outline: 3px solid rgba(14, 165, 233, .35);
+    outline-offset: 2px;
+}
+
+.header-title {
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+}
+
+.header-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-avatar {
+    background: #0ea5e9;
+    color: #ffffff;
+}
+
+.header-user-copy strong {
+    color: #334155;
+    font-size: 11px;
+}
+
+.header-user-copy span {
+    margin-top: 1px;
+    color: #94a3b8;
+    font-size: 10px;
+}
+
+.app-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+}
+
+.sidebar-overlay {
+    display: none;
+}
+
+.rail-collapse {
+    display: none;
+}
+
+/* Tablet vertical y móvil: menú lateral superpuesto. */
+@media (max-width: 1023px) {
+    .app-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: 250px;
+        flex: 0 0 250px;
+        transform: translateX(-100%);
+        box-shadow: 8px 0 32px rgba(15, 23, 42, .28);
+    }
+
+    .app-sidebar.is-open {
+        transform: translateX(0);
+    }
+
+    .menu-button {
+        display: inline-flex;
+    }
+
+    .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        border: 0;
+        background: rgba(15, 23, 42, .38);
+        backdrop-filter: blur(1px);
+    }
+}
+
+/* Tablet horizontal: riel de iconos que se expande sin desplazar el contenido. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+    .app-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: 72px;
+        flex: 0 0 72px;
+        transition: width 160ms ease;
+    }
+
+    .app-sidebar.is-open {
+        width: 220px;
+        box-shadow: 8px 0 32px rgba(15, 23, 42, .28);
+    }
+
+    .app-main {
+        margin-left: 72px;
+    }
+
+    .menu-button {
+        display: inline-flex;
+    }
+
+    .app-sidebar.is-open .rail-collapse {
+        position: absolute;
+        top: 14px;
+        right: 10px;
+        display: inline-flex;
+        width: 36px;
+        height: 36px;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        background: #273548;
+        color: #cbd5e1;
+        font-size: 16px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .app-sidebar.is-open .rail-collapse:hover {
+        background: #334155;
+        color: #ffffff;
+    }
+
+    .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        border: 0;
+        background: rgba(15, 23, 42, .28);
+    }
+
+    .app-sidebar .sidebar-brand {
+        justify-content: center;
+        padding: 14px 8px;
+    }
+
+    .app-sidebar .sidebar-brand > div {
+        display: none;
+    }
+
+    .app-sidebar.is-open .sidebar-brand {
+        justify-content: flex-start;
+        padding: 14px 16px;
+    }
+
+    .app-sidebar.is-open .sidebar-brand > div {
+        display: block;
+    }
+
+    .app-sidebar .clinica-selector {
+        display: none;
+    }
+
+    .app-sidebar.is-open .clinica-selector {
+        display: block;
+    }
+
+    .app-shell .app-sidebar .nav-item {
+        justify-content: center;
+        gap: 0;
+        padding: 8px;
+        font-size: 0;
+    }
+
+    .app-shell .app-sidebar .nav-item .nav-icon {
+        width: auto;
+        font-size: 16px;
+    }
+
+    .app-shell .app-sidebar.is-open .nav-item {
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 7px 10px 7px 12px;
+        font-size: 12px;
+    }
+
+    .app-shell .app-sidebar.is-open .nav-item .nav-icon {
+        width: 18px;
+        font-size: 13px;
+    }
+
+    .app-sidebar .nav-section {
+        margin: 12px 8px 6px;
+        font-size: 0;
+    }
+
+    .app-sidebar .nav-section::after {
+        height: 1px;
+    }
+
+    .app-sidebar.is-open .nav-section {
+        font-size: 9px;
+    }
+
+    .app-sidebar .sidebar-user {
+        justify-content: center;
+        padding: 12px 8px;
+    }
+
+    .app-sidebar .sidebar-user .user-copy,
+    .app-sidebar .sidebar-user .logout-form {
+        display: none;
+    }
+
+    .app-sidebar.is-open .sidebar-user {
+        justify-content: flex-start;
+        padding: 12px;
+    }
+
+    .app-sidebar.is-open .sidebar-user .user-copy,
+    .app-sidebar.is-open .sidebar-user .logout-form {
+        display: block;
+    }
+}
+
+@media (max-width: 640px) {
+    .header-user-copy {
+        display: none;
+    }
+
+    .app-header {
+        padding: 0 10px;
+    }
+}
+
+@media (pointer: coarse) {
+    .app-shell .app-sidebar a.nav-item {
+        min-height: 46px;
+    }
+
+    .logout-button {
+        display: inline-flex;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 /* Selector de clínica activa (solo Dueño). */

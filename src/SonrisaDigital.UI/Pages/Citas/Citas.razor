@@ -62,7 +62,7 @@
         }
         else
         {
-            <div class="activity-scroll" style="max-height: 600px; overflow-y: auto;">
+            <div class="table-scroll activity-scroll">
                 <table class="appointments-table">
                     <thead>
                         <tr>
@@ -79,13 +79,13 @@
                         @foreach (var cita in citas.Items)
                         {
                             <tr>
-                                <td>@cita.Fecha.ToString("dd/MM/yyyy")</td>
-                                <td>@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
-                                <td><a class="appointment-name" href="/cita/@cita.Id">@cita.PacienteNombre</a></td>
-                                <td>@cita.OdontologoNombre</td>
-                                <td>@(cita.Motivo ?? "-")</td>
-                                <td><span class="status-badge @GetEstadoClass(cita.Estado)">@CitaStateMachine.NombreEstado(cita.Estado)</span></td>
-                                <td class="row-actions">
+                                <td data-label="Fecha">@cita.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td data-label="Hora">@cita.HoraInicio.ToString("HH:mm") - @cita.HoraFin.ToString("HH:mm")</td>
+                                <td data-label="Paciente"><a class="appointment-name" href="/cita/@cita.Id">@cita.PacienteNombre</a></td>
+                                <td data-label="Odontólogo">@cita.OdontologoNombre</td>
+                                <td data-label="Motivo">@(cita.Motivo ?? "-")</td>
+                                <td data-label="Estado"><span class="status-badge @GetEstadoClass(cita.Estado)">@CitaStateMachine.NombreEstado(cita.Estado)</span></td>
+                                <td class="row-actions" data-label="Acciones">
                                     <a href="/cita/@cita.Id">Ver</a>
                                     @if (PuedeEditarCita(cita.Estado))
                                     {

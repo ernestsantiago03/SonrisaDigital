@@ -795,6 +795,13 @@
     gap: 0.5rem;
 }
 
+.tooth-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
 .tooth-history-title {
     font-size: 0.64rem;
     text-transform: uppercase;
@@ -803,6 +810,24 @@
     font-weight: 800;
 }
 
+.tooth-history-action {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+    color: var(--accent-strong);
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 700;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+    .tooth-history-action:hover {
+        background: #f0f9ff;
+        border-color: #bae6fd;
+    }
+
 .tooth-history-list {
     margin: 0;
     padding: 0;
@@ -810,8 +835,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    max-height: 320px;
-    overflow-y: auto;
 }
 
 .tooth-history-list li {
@@ -948,6 +971,32 @@
     .tooth.is-selected .tooth-halo {
         transition: none;
         animation: none;
+    }
+}
+
+/* Tablet: números de pieza más legibles y acciones grandes. */
+@media (pointer: coarse) {
+    .tooth-number {
+        font-size: 11px;
+    }
+
+    .tooth-history-action,
+    .archivo-accion,
+    .historial-modal-close {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 .85rem;
+    }
+
+    .odontogram-page .save-action {
+        min-height: 48px;
+    }
+
+    .resultados-scroll {
+        max-height: none;
+        overflow: visible;
     }
 }
 
@@ -1158,4 +1207,98 @@
     max-height: 75vh;
     object-fit: contain;
     align-self: center;
+}
+
+/* Modal con el historial completo de la pieza dental */
+.historial-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 1100;
+}
+
+.historial-modal {
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.24);
+}
+
+.historial-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.15rem;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.historial-modal-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.historial-modal-eyebrow {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-soft);
+    font-weight: 800;
+}
+
+.historial-modal-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text);
+}
+
+.historial-modal-head small {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.historial-modal-close {
+    flex: 0 0 auto;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    line-height: 1;
+    padding: 0.1rem 0.25rem;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+    .historial-modal-close:hover {
+        background: var(--surface-soft);
+        color: var(--text);
+    }
+
+.historial-modal-body {
+    padding: 1rem 1.15rem 1.15rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+@media (max-width: 760px) {
+    .historial-backdrop {
+        padding: 0.75rem;
+    }
+
+    .historial-modal {
+        max-height: 92vh;
+    }
 }

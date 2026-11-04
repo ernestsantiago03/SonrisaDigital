@@ -5,9 +5,10 @@
 
 <PageTitle>Acerca de · Sonrisa Digital</PageTitle>
 
-<div class="appointments-page">
+<div class="appointments-page about-page">
     <div class="page-header">
         <div>
+            <span class="page-eyebrow">Información corporativa</span>
             <h1>Información de la Empresa</h1>
             <p>Datos corporativos, institucionales y de contacto de la clínica.</p>
         </div>
@@ -37,49 +38,99 @@
     }
     else if (!editando)
     {
-        <section class="form-panel">
-            <div class="section-heading">
-                <h2>Identidad Institucional</h2>
-                <span>Información general y eslogan de nuestra marca.</span>
+        <section class="about-hero">
+            <div class="about-hero-mark" aria-hidden="true">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 21h18"></path>
+                    <path d="M5 21V7l7-4 7 4v14"></path>
+                    <path d="M9 21v-4h6v4"></path>
+                    <path d="M9 9h.01M15 9h.01M9 12h.01M15 12h.01"></path>
+                </svg>
             </div>
-            <div class="form-grid">
-                <div class="field">
-                    <label>Nombre Comercial</label>
-                    <input type="text" class="form-control-readonly" value="@identidad.Nombre" readonly />
-                </div>
-                <div class="field">
-                    <label>RNC / Identificación Fiscal</label>
-                    <input type="text" class="form-control-readonly mono" value="@(identidad.Rnc ?? "—")" readonly />
-                </div>
-                <div class="field field-wide">
-                    <label>Eslogan corporativo</label>
-                    <input type="text" class="form-control-readonly italic" value="@(identidad.Eslogan ?? "—")" readonly />
-                </div>
+            <div class="about-hero-body">
+                <span class="about-eyebrow">Identidad institucional</span>
+                <h2>@identidad.Nombre</h2>
+                <p class="about-slogan">@(identidad.Eslogan ?? "—")</p>
+                <span class="about-chip">
+                    <span class="about-chip-label">RNC</span>
+                    @(identidad.Rnc ?? "—")
+                </span>
             </div>
         </section>
 
-        <section class="form-panel">
-            <div class="section-heading">
-                <h2>Contacto y Ubicación</h2>
-                <span>Canales de atención al cliente y localización física.</span>
+        <section class="about-section">
+            <div class="about-section-heading">
+                <div>
+                    <h2>Contacto y ubicación</h2>
+                    <p>Canales de atención al cliente y localización física.</p>
+                </div>
             </div>
-            <div class="form-grid">
-                <div class="field">
-                    <label>Teléfono Principal</label>
-                    <input type="text" class="form-control-readonly" value="@(identidad.Telefono ?? "—")" readonly />
-                </div>
-                <div class="field">
-                    <label>Correo Electrónico</label>
-                    <input type="text" class="form-control-readonly" value="@(identidad.Correo ?? "—")" readonly />
-                </div>
-                <div class="field">
-                    <label>Horario de Atención</label>
-                    <input type="text" class="form-control-readonly" value="@(identidad.Horario ?? "—")" readonly />
-                </div>
-                <div class="field field-wide">
-                    <label>Dirección Física</label>
-                    <input type="text" class="form-control-readonly" value="@(identidad.Direccion ?? "—")" readonly />
-                </div>
+
+            <div class="about-contact-grid">
+                <article class="about-contact-card">
+                    <span class="about-contact-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                    </span>
+                    <div class="about-contact-body">
+                        <span class="about-contact-label">Teléfono principal</span>
+                        @if (!string.IsNullOrWhiteSpace(identidad.Telefono))
+                        {
+                            <a class="about-contact-value" href="tel:@identidad.Telefono">@identidad.Telefono</a>
+                        }
+                        else
+                        {
+                            <strong class="about-contact-value">—</strong>
+                        }
+                    </div>
+                </article>
+
+                <article class="about-contact-card">
+                    <span class="about-contact-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                        </svg>
+                    </span>
+                    <div class="about-contact-body">
+                        <span class="about-contact-label">Correo electrónico</span>
+                        @if (!string.IsNullOrWhiteSpace(identidad.Correo))
+                        {
+                            <a class="about-contact-value" href="mailto:@identidad.Correo">@identidad.Correo</a>
+                        }
+                        else
+                        {
+                            <strong class="about-contact-value">—</strong>
+                        }
+                    </div>
+                </article>
+
+                <article class="about-contact-card">
+                    <span class="about-contact-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="9"></circle>
+                            <path d="M12 7v5l3 2"></path>
+                        </svg>
+                    </span>
+                    <div class="about-contact-body">
+                        <span class="about-contact-label">Horario de atención</span>
+                        <strong class="about-contact-value">@(identidad.Horario ?? "—")</strong>
+                    </div>
+                </article>
+
+                <article class="about-contact-card about-contact-card--wide">
+                    <span class="about-contact-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"></path>
+                            <circle cx="12" cy="10" r="2.5"></circle>
+                        </svg>
+                    </span>
+                    <div class="about-contact-body">
+                        <span class="about-contact-label">Dirección física</span>
+                        <strong class="about-contact-value">@(identidad.Direccion ?? "—")</strong>
+                    </div>
+                </article>
             </div>
         </section>
     }
@@ -141,7 +192,7 @@
                 </div>
             </section>
 
-            <div style="margin-top: 16px; display: flex; gap: 10px;">
+            <div class="about-edit-actions">
                 <button type="submit" class="primary-action">Guardar cambios</button>
                 <button type="button" class="secondary-action" @onclick="CancelarEdicion">Cancelar</button>
             </div>
@@ -203,27 +254,3 @@
     }
 }
 
-@* --- ESTILOS LOCALES PARA CAMPO DE SOLO LECTURA --- *@
-<style>
-    .form-control-readonly {
-        width: 100%;
-        padding: 10px 14px;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        color: #334155;
-        font-size: 0.95rem;
-        font-family: inherit;
-        outline: none;
-        cursor: default;
-    }
-
-        .form-control-readonly.mono {
-            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-        }
-
-        .form-control-readonly.italic {
-            font-style: italic;
-            color: #64748b;
-        }
-</style>

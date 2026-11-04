@@ -1,0 +1,221 @@
+/* ============================================================================
+   Acerca de · Identidad y contacto de la clínica
+   Vista de solo lectura con tarjetas, para que no parezca un formulario.
+   ============================================================================ */
+
+.appointments-page.about-page {
+    max-width: 1160px;
+}
+
+/* --- Tarjeta de identidad ------------------------------------------------- */
+.about-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+    padding: 1.6rem 1.75rem;
+    overflow: hidden;
+    border: 1px solid var(--line, #e8edf4);
+    border-radius: var(--radius-lg, 18px);
+    background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 58%, #ecfeff 100%);
+    box-shadow: var(--shadow-card, 0 1px 2px rgba(15, 23, 42, .04), 0 16px 38px rgba(15, 23, 42, .07));
+}
+
+.about-hero::after {
+    position: absolute;
+    top: -70px;
+    right: -50px;
+    width: 230px;
+    height: 230px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(20, 184, 166, .16) 0%, rgba(14, 165, 233, .08) 55%, transparent 70%);
+    content: "";
+    pointer-events: none;
+}
+
+.about-hero-mark {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    width: 64px;
+    height: 64px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #0ea5e9 0%, #14b8a6 100%);
+    color: #ffffff;
+    box-shadow: 0 12px 26px rgba(2, 132, 199, .28);
+}
+
+.about-hero-body {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+
+.about-eyebrow {
+    display: block;
+    margin-bottom: .3rem;
+    color: #0d9488;
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+.about-hero h2 {
+    margin: 0;
+    color: var(--text, #0f172a);
+    font-size: 1.45rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+}
+
+.about-slogan {
+    margin: .35rem 0 .75rem;
+    color: var(--text-muted, #64748b);
+    font-size: .84rem;
+    font-style: italic;
+}
+
+.about-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .28rem .65rem;
+    border: 1px solid #bae6fd;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .7);
+    color: #0369a1;
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.about-chip-label {
+    padding-right: .45rem;
+    border-right: 1px solid #bae6fd;
+    color: #64748b;
+    font-size: .58rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+/* --- Contacto y ubicación ------------------------------------------------- */
+.about-section-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .85rem;
+    padding: 0 .15rem;
+}
+
+.about-section-heading h2 {
+    margin: 0;
+    color: var(--text, #0f172a);
+    font-size: .98rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+}
+
+.about-section-heading p {
+    margin: .2rem 0 0;
+    color: var(--text-muted, #64748b);
+    font-size: .78rem;
+}
+
+.about-contact-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .9rem;
+}
+
+.about-contact-card {
+    display: flex;
+    align-items: flex-start;
+    gap: .8rem;
+    padding: 1.05rem 1.15rem;
+    border: 1px solid var(--line, #e8edf4);
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 23, 42, .04));
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.about-contact-card:hover {
+    border-color: #bae6fd;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, .08);
+    transform: translateY(-2px);
+}
+
+.about-contact-card--wide {
+    grid-column: 1 / -1;
+}
+
+.about-contact-icon {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 12px;
+    background: #eff9ff;
+    color: #0284c7;
+}
+
+.about-contact-body {
+    min-width: 0;
+}
+
+.about-contact-label {
+    display: block;
+    color: var(--text-soft, #94a3b8);
+    font-size: .6rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.about-contact-value {
+    display: block;
+    margin-top: .18rem;
+    color: var(--text, #0f172a);
+    font-size: .86rem;
+    font-weight: 600;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    text-decoration: none;
+}
+
+a.about-contact-value {
+    color: #0284c7;
+}
+
+a.about-contact-value:hover {
+    text-decoration: underline;
+}
+
+/* --- Modo edición --------------------------------------------------------- */
+.about-edit-actions {
+    display: flex;
+    gap: .65rem;
+    margin-top: 1rem;
+}
+
+@media (max-width: 760px) {
+    .about-contact-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .about-contact-card--wide {
+        grid-column: auto;
+    }
+
+    .about-hero {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
