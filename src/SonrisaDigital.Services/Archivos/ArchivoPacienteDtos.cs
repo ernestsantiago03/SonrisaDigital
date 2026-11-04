@@ -17,7 +17,8 @@ public sealed record ArchivoPacienteDto(
     DateTime FechaSubida,
     string SubidoPor,
     string TipoContenido,
-    bool Oculto);
+    bool Oculto,
+    int ClinicaId);
 
 /// <summary>Lista de archivos de un paciente. PuedeOcultar indica si la sesión puede ocultar y restaurar.</summary>
 public sealed record ArchivosPacienteListaDto(IReadOnlyList<ArchivoPacienteDto> Archivos, bool PuedeOcultar);

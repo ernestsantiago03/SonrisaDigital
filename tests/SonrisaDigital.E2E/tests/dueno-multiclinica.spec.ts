@@ -46,7 +46,7 @@ test.describe('Dueño y selector de clínica', () => {
     const eslogan = `Eslogan E2E ${Date.now()}`;
     await irA(page, '/acercaDe');
     await expect(page.getByRole('heading', { name: 'Información de la Empresa' })).toBeVisible();
-    await expect(page.locator('input.form-control-readonly').first()).toHaveValue('Clinica Demo');
+    await expect(page.locator('.about-hero h2')).toHaveText('Clinica Demo');
     await expect(page.getByRole('button', { name: 'Editar' })).toBeVisible();
 
     // El Dueño puede guardar la identidad de la clínica elegida.
@@ -54,12 +54,13 @@ test.describe('Dueño y selector de clínica', () => {
     await page.locator('#acerca-eslogan').fill(eslogan);
     await page.getByRole('button', { name: 'Guardar cambios' }).click();
     await expect(page.getByText('La información de la clínica se guardó correctamente.')).toBeVisible();
+    await expect(page.locator('.about-slogan')).toHaveText(eslogan);
 
     // Al recargar la página completa se conserva la clínica de esta pestaña.
     await page.reload();
     await expect(page.locator('#clinica-activa')).not.toHaveValue('');
-    await expect(page.locator('input.form-control-readonly').first()).toHaveValue('Clinica Demo');
-    await expect(page.locator('input.form-control-readonly').nth(2)).toHaveValue(eslogan);
+    await expect(page.locator('.about-hero h2')).toHaveText('Clinica Demo');
+    await expect(page.locator('.about-slogan')).toHaveText(eslogan);
   });
 });
 

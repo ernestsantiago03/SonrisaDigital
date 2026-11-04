@@ -14,9 +14,10 @@ namespace SonrisaDigital.Services.Archivos;
 
 /// <summary>
 /// Archivos del paciente que se muestran en el odontograma. Reglas:
-///  - Cada subida crea un archivo nuevo; nunca se reemplaza ni se borra uno registrado.
+///  - Cada subida crea un archivo nuevo; nunca se reemplaza uno registrado.
 ///  - Solo JPG y PNG, de hasta 20 MB, con metadatos quitados.
-///  - Ocultar y restaurar es exclusivo del Dueño (Archivos.Ocultar); el archivo siempre se conserva.
+///  - Ocultar y restaurar es exclusivo del Dueño (Archivos.Ocultar); el archivo se conserva.
+///  - Eliminar borra el archivo y su miniatura de forma definitiva (Odontograma.Editar), con auditoría.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class ArchivoPacienteService(
@@ -221,6 +222,33 @@ public sealed class ArchivoPacienteService(
         }, cancellationToken);
     }
 
+    public async Task EliminarAsync(int archivoId, CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Odontograma.Editar", "No tienes permiso para eliminar archivos del odontograma.");
+
+        var archivo = await dbContext.ArchivosPaciente
+            .FirstOrDefaultAsync(item => item.Id == archivoId, cancellationToken)
+            ?? throw new InvalidOperationException("El archivo no existe.");
+
+        var claveArchivo = archivo.ClaveArchivo;
+        var claveMiniatura = archivo.ClaveMiniatura;
+
+        await dbContext.ExecuteInTransactionAsync(async () =>
+        {
+            dbContext.ArchivosPaciente.Remove(archivo);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            await auditoriaService.RegistrarAsync(
+                "Eliminó", Modulo, nameof(ArchivoPaciente), archivoId,
+                $"Eliminó el archivo {archivo.NombreOriginal} del paciente.",
+                cancellationToken);
+        }, cancellationToken);
+
+        // El registro ya no existe; ahora se liberan los archivos físicos.
+        storage.Eliminar(claveArchivo);
+        storage.Eliminar(claveMiniatura);
+    }
+
     private static ArchivoPacienteDto ToDto(ArchivoPaciente archivo) =>
         ToDto(archivo, archivo.Usuario?.Nombre ?? string.Empty);
 
@@ -233,7 +261,8 @@ public sealed class ArchivoPacienteService(
             archivo.FechaSubida,
             subidoPor,
             archivo.TipoContenido,
-            archivo.Oculto);
+            archivo.Oculto,
+            archivo.ClinicaId);
 
     private static string NormalizarNombre(string? nombreOriginal, string tipo)
     {

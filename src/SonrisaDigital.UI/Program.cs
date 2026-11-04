@@ -946,6 +946,7 @@ app.MapGet("/archivos/{archivoId:int}", async (
     int archivoId,
     bool? miniatura,
     bool? descargar,
+    int? clinicaId,
     HttpContext context,
     IArchivoPacienteService archivoService,
     ICurrentUserService currentUserService) =>
@@ -956,6 +957,13 @@ app.MapGet("/archivos/{archivoId:int}", async (
         usuario.FindFirst(ClaimTypes.GivenName)?.Value
             ?? usuario.FindFirst(ClaimTypes.Name)?.Value,
         usuario);
+
+    // El Dueño no tiene clínica propia y la imagen se pide con una petición HTTP normal, que no
+    // conoce la clínica del selector. La clínica del archivo viaja en la URL; solo el Dueño la usa.
+    if (clinicaId is > 0 && usuario.IsInRole(RolesSonrisaDigital.Dueno))
+    {
+        currentUserService.SeleccionarClinica(clinicaId);
+    }
 
     var contenido = await archivoService.ObtenerContenidoAsync(archivoId, miniatura == true);
     if (contenido is null)

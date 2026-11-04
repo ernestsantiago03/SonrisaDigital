@@ -8,6 +8,7 @@
 @using SonrisaDigital.Services.Archivos
 @inject IOdontogramaService OdontogramaService
 @inject IArchivoPacienteService ArchivoService
+@inject IJSRuntime JS
 
 @* ============================================================================
    PÁGINA: Odontograma        Ruta: /odontograma   (también /odontograma?paciente=12)
@@ -371,7 +372,7 @@
                     {
                         <figure class="archivo-card @(archivo.Oculto ? "is-hidden" : "")">
                             <button type="button" class="archivo-miniatura" @onclick="() => AbrirArchivo(archivo.Id)" title="Ver imagen completa">
-                                <img src="/archivos/@archivo.Id?miniatura=true" alt="@archivo.NombreOriginal" loading="lazy" />
+                                <img src="/archivos/@archivo.Id?miniatura=true&amp;clinicaId=@archivo.ClinicaId" alt="@archivo.NombreOriginal" loading="lazy" />
                             </button>
                             <figcaption>
                                 <strong>@(archivo.Descripcion ?? archivo.NombreOriginal)</strong>
@@ -394,6 +395,10 @@
                                     {
                                         <button type="button" class="archivo-accion archivo-accion-peligro" @onclick="() => OcultarArchivoAsync(archivo.Id)">Ocultar</button>
                                     }
+                                }
+                                @if (puedeSubirArchivos)
+                                {
+                                    <button type="button" class="archivo-accion archivo-accion-peligro" @onclick="() => EliminarArchivoAsync(archivo.Id)">Eliminar</button>
                                 }
                             </div>
                         </figure>
@@ -448,8 +453,8 @@
                         <strong>@(abierto?.Descripcion ?? abierto?.NombreOriginal ?? "Archivo")</strong>
                         <button type="button" class="archivo-accion" @onclick="CerrarArchivo">Cerrar</button>
                     </div>
-                    <img src="/archivos/@abiertoId" alt="@abierto?.NombreOriginal" />
-                    <a class="archivo-accion" href="/archivos/@abiertoId?descargar=true">Descargar</a>
+                    <img src="/archivos/@abiertoId?clinicaId=@abierto?.ClinicaId" alt="@abierto?.NombreOriginal" />
+                    <a class="archivo-accion" href="/archivos/@abiertoId?descargar=true&amp;clinicaId=@abierto?.ClinicaId">Descargar</a>
                 </div>
             </div>
         }
@@ -779,6 +784,22 @@
         CambiarVisibilidadArchivoAsync(
             () => ArchivoService.RestaurarAsync(archivoId),
             "El archivo volvió a mostrarse.");
+
+    private async Task EliminarArchivoAsync(int archivoId)
+    {
+        var confirmado = await JS.InvokeAsync<bool>(
+            "confirm",
+            "¿Eliminar esta imagen del paciente? Se borrará definitivamente y no se puede deshacer.");
+
+        if (!confirmado)
+        {
+            return;
+        }
+
+        await CambiarVisibilidadArchivoAsync(
+            () => ArchivoService.EliminarAsync(archivoId),
+            "El archivo se eliminó del paciente.");
+    }
 
     private async Task CambiarVisibilidadArchivoAsync(Func<Task> accion, string mensajeCorrecto)
     {

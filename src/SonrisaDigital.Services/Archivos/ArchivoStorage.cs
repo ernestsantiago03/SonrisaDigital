@@ -12,8 +12,11 @@ public interface IArchivoStorage
     Task GuardarAsync(string clave, byte[] contenido, CancellationToken cancellationToken = default);
     Task<byte[]> LeerAsync(string clave, CancellationToken cancellationToken = default);
 
-    /// <summary>Solo para revertir una subida que no llegó a guardarse en la base. Nunca borra archivos ya registrados.</summary>
+    /// <summary>Solo para revertir una subida que no llegó a guardarse en la base.</summary>
     void EliminarSubidaFallida(string clave);
+
+    /// <summary>Borra el archivo físico de un registro que ya se eliminó de la base. Si no existe, no hace nada.</summary>
+    void Eliminar(string clave);
 }
 
 public sealed class ArchivoStorage(IConfiguration configuration) : IArchivoStorage
@@ -42,7 +45,9 @@ public sealed class ArchivoStorage(IConfiguration configuration) : IArchivoStora
     public Task<byte[]> LeerAsync(string clave, CancellationToken cancellationToken = default) =>
         File.ReadAllBytesAsync(RutaSegura(clave), cancellationToken);
 
-    public void EliminarSubidaFallida(string clave)
+    public void EliminarSubidaFallida(string clave) => Eliminar(clave);
+
+    public void Eliminar(string clave)
     {
         var ruta = RutaSegura(clave);
         if (File.Exists(ruta))

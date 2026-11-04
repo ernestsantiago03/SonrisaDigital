@@ -25,4 +25,10 @@ public interface IArchivoPacienteService
 
     /// <summary>Vuelve a mostrar un archivo oculto. Solo Archivos.Ocultar (Dueño).</summary>
     Task RestaurarAsync(int archivoId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Borra el archivo y su miniatura de forma definitiva, por ejemplo una imagen subida por error.
+    /// Requiere Odontograma.Editar. No se puede deshacer.
+    /// </summary>
+    Task EliminarAsync(int archivoId, CancellationToken cancellationToken = default);
 }
