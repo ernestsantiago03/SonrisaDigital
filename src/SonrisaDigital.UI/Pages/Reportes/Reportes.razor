@@ -6,6 +6,7 @@
 @using SonrisaDigital.Services.Reportes.DTOs
 @inject IReporteService ReporteService
 @inject NavigationManager Navigation
+@inject SonrisaDigital.Services.Autenticacion.ICurrentUserService CurrentUser
 
 @* ============================================================================
    PÁGINA: Reportes                 Ruta: /reportes
@@ -805,6 +806,12 @@
         if (filtro.MetodoPagoFiltro is MetodoPago metodoPago)
         {
             parametros["metodoPago"] = metodoPago.ToString();
+        }
+
+        // Sin esta clínica, el PDF del Dueño saldría vacío o incompleto.
+        if (CurrentUser.ClinicaSeleccionada is int clinicaSeleccionada)
+        {
+            parametros["clinicaId"] = clinicaSeleccionada;
         }
 
         return Navigation.GetUriWithQueryParameters("/reportes/pdf", parametros);

@@ -213,6 +213,20 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 
+    // La activación del segundo factor se limita por usuario: 5 intentos cada 10 minutos.
+    options.AddPolicy("mfa-activar", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? context.Connection.RemoteIpAddress?.ToString()
+                ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(10),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
@@ -479,12 +493,21 @@ app.MapPost("/seguridad/mfa/activar", async (
         return Results.Redirect("/seguridad/mfa");
     }
 
+    if (await userManager.IsLockedOutAsync(user))
+    {
+        return Results.Redirect("/seguridad/mfa?error=invalid");
+    }
+
     var form = await context.Request.ReadFormAsync();
     var codigo = new string(form["Codigo"].ToString().Where(char.IsDigit).ToArray());
     if (!await userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, codigo))
     {
+        // Un código incorrecto cuenta como fallo de Identity, igual que una contraseña mal escrita.
+        await userManager.AccessFailedAsync(user);
         return Results.Redirect("/seguridad/mfa?error=invalid");
     }
+
+    await userManager.ResetAccessFailedCountAsync(user);
 
     await userManager.SetTwoFactorEnabledAsync(user, true);
     var codigosRecuperacion = (await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10))?.ToList() ?? [];
@@ -507,7 +530,7 @@ app.MapPost("/seguridad/mfa/activar", async (
 
     context.Response.Headers["Cache-Control"] = "no-store";
     return Results.Content(html, "text/html; charset=utf-8");
-}).RequireAuthorization();
+}).RequireAuthorization().RequireRateLimiting("mfa-activar");
 
 // Cambio de contraseña del Dueño. Exige la contraseña actual y un código de la app, así que una sesión
 // abierta por sí sola no alcanza. Al cambiarla se invalidan todas las sesiones y se vuelve a iniciar sesión.
@@ -753,6 +776,7 @@ app.MapGet("/reportes/pdf", async (
     string? estadoCita,
     string? estadoTratamiento,
     string? metodoPago,
+    int? clinicaId,
     IReportePdfService pdfService,
     ICurrentUserService currentUserService,
     ILoggerFactory loggerFactory,
@@ -807,6 +831,13 @@ app.MapGet("/reportes/pdf", async (
         usuario.FindFirst(ClaimTypes.GivenName)?.Value
             ?? usuario.FindFirst(ClaimTypes.Name)?.Value,
         usuario);
+
+    // La clínica seleccionada en el panel del Dueño viaja en la URL, igual que en /archivos.
+    // Solo el Dueño la usa; el resto de usuarios siempre trabaja con su clínica del token.
+    if (clinicaId is > 0 && usuario.IsInRole(RolesSonrisaDigital.Dueno))
+    {
+        currentUserService.SeleccionarClinica(clinicaId);
+    }
 
     var filtro = new ReporteFiltroDto(
         fechaDesde,

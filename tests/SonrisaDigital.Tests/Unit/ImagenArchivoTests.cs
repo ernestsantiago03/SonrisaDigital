@@ -72,6 +72,56 @@ public class ImagenArchivoTests
         Assert.Throws<InvalidOperationException>(() => ImagenArchivo.GenerarMiniatura(falso));
     }
 
+    [Fact]
+    public void AceptaLasDimensionesNormalesDeUnaFoto()
+    {
+        if (!RequerirWindows()) return;
+
+        ImagenArchivo.ValidarDimensiones(CrearJpg(), "image/jpeg");
+        ImagenArchivo.ValidarDimensiones(CrearPng(), "image/png");
+    }
+
+    [Fact]
+    public void RechazaUnPngDeDimensionesExcesivasSinDecodificarlo()
+    {
+        if (!RequerirWindows()) return;
+        var png = CrearPng();
+        // IHDR: ancho en los bytes 16-19 y alto en 20-23. 20000 x 20000 supera el límite.
+        var excesivo = new byte[] { 0x00, 0x00, 0x4E, 0x20 };
+        Array.Copy(excesivo, 0, png, 16, 4);
+        Array.Copy(excesivo, 0, png, 20, 4);
+
+        Assert.Throws<InvalidOperationException>(() => ImagenArchivo.ValidarDimensiones(png, "image/png"));
+    }
+
+    [Fact]
+    public void RechazaUnJpgDeDimensionesExcesivasSinDecodificarlo()
+    {
+        if (!RequerirWindows()) return;
+        var jpg = CrearJpg();
+        var posicion = BuscarSof(jpg);
+        // SOF: alto en pos+5..6 y ancho en pos+7..8.
+        jpg[posicion + 5] = 0x4E;
+        jpg[posicion + 6] = 0x20;
+        jpg[posicion + 7] = 0x4E;
+        jpg[posicion + 8] = 0x20;
+
+        Assert.Throws<InvalidOperationException>(() => ImagenArchivo.ValidarDimensiones(jpg, "image/jpeg"));
+    }
+
+    private static int BuscarSof(byte[] jpg)
+    {
+        for (var i = 2; i + 1 < jpg.Length; i++)
+        {
+            if (jpg[i] == 0xFF && jpg[i + 1] is 0xC0 or 0xC2)
+            {
+                return i;
+            }
+        }
+
+        throw new InvalidOperationException("La imagen de prueba no tiene un marcador SOF.");
+    }
+
     /// <summary>System.Drawing solo funciona en Windows: fuera de Windows la prueba no se ejecuta.</summary>
     internal static bool RequerirWindows() => OperatingSystem.IsWindows();
 

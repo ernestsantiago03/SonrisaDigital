@@ -177,10 +177,24 @@ public sealed class PagoRepository(ApplicationDbContext dbContext) : IPagoReposi
         int tratamientoRealizadoId,
         CancellationToken cancellationToken = default)
     {
+        // La consulta de EF aplica el filtro de clínica activa. Si el tratamiento no es de
+        // esta clínica, no se bloquea nada ni se revela su existencia.
+        var clinicaId = await dbContext.TratamientosRealizados
+            .AsNoTracking()
+            .Where(treatment => treatment.Id == tratamientoRealizadoId)
+            .Select(treatment => (int?)treatment.ClinicaId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (clinicaId is null)
+        {
+            return null;
+        }
+
         // UPDLOCK reserva la fila para esta transacción; HOLDLOCK mantiene el bloqueo
-        // hasta el commit o rollback.
+        // hasta el commit o rollback. Se incluye ClinicaId para que el bloqueo nunca
+        // recaiga sobre filas de otra clínica.
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT 1 FROM TratamientosRealizados WITH (UPDLOCK, HOLDLOCK) WHERE Id = {tratamientoRealizadoId}",
+            $"SELECT 1 FROM TratamientosRealizados WITH (UPDLOCK, HOLDLOCK) WHERE Id = {tratamientoRealizadoId} AND ClinicaId = {clinicaId.Value}",
             cancellationToken);
 
         return await GetTratamientoAsync(tratamientoRealizadoId, cancellationToken);

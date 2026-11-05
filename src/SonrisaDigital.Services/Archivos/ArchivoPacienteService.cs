@@ -31,6 +31,8 @@ public sealed class ArchivoPacienteService(
     private const string Modulo = "Archivos del paciente";
     private const int MaxDescripcion = 300;
     private const int MaxNombre = 255;
+    private const int ProcesamientosSimultaneos = 2;
+    private static readonly SemaphoreSlim LimiteProcesamiento = new(ProcesamientosSimultaneos, ProcesamientosSimultaneos);
 
     public async Task<ArchivosPacienteListaDto> ListarAsync(int pacienteId, bool incluirOcultos = false, CancellationToken cancellationToken = default)
     {
@@ -106,9 +108,23 @@ public sealed class ArchivoPacienteService(
             throw new InvalidOperationException("Solo se pueden subir archivos a pacientes activos.");
         }
 
-        // La validación y el procesamiento ocurren antes de escribir nada en disco.
-        var original = ImagenArchivo.QuitarMetadatos(contenido, tipo);
-        var miniatura = ImagenArchivo.GenerarMiniatura(original);
+        // Las dimensiones se revisan en la cabecera, antes de decodificar la imagen.
+        ImagenArchivo.ValidarDimensiones(contenido, tipo);
+
+        // La validación y el procesamiento ocurren antes de escribir nada en disco. El procesamiento
+        // consume mucha memoria, así que solo se ejecutan pocas subidas a la vez en todo el proceso.
+        byte[] original;
+        byte[] miniatura;
+        await LimiteProcesamiento.WaitAsync(cancellationToken);
+        try
+        {
+            original = ImagenArchivo.QuitarMetadatos(contenido, tipo);
+            miniatura = ImagenArchivo.GenerarMiniatura(original);
+        }
+        finally
+        {
+            LimiteProcesamiento.Release();
+        }
 
         var nombre = NormalizarNombre(nombreOriginal, tipo);
         var carpeta = $"{clinicaId}/{pacienteId}";

@@ -156,7 +156,7 @@ public sealed class SeedFase2Tests(SqlServerFixture fixture)
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Dueno:Email"] = correoDueno,
-                ["Dueno:Password"] = "Prueba123",
+                ["Dueno:Password"] = "PruebaDueno12345678",
                 ["Authentication:AdminEmail"] = correoAdmin,
                 ["Authentication:AdminPassword"] = "Prueba123"
             })

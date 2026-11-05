@@ -16,7 +16,10 @@ public static class ImagenArchivo
 {
     public const int LadoMiniatura = 400;
 
-    private const long PixelesMaximos = 100_000_000;
+    // Una radiografía o fotografía clínica ronda los 10-20 megapíxeles. Por encima de estos límites
+    // la decodificación ocupa cientos de MB por imagen, así que se rechaza antes de decodificar.
+    private const long PixelesMaximos = 30_000_000;
+    private const int LadoMaximo = 12_000;
 
     // Segmentos JPEG que llevan metadatos: EXIF/XMP (APP1), APP12, IPTC (APP13) y comentarios (COM).
     private static readonly HashSet<byte> MarcadoresJpegDescartados = [0xE1, 0xEC, 0xED, 0xFE];
@@ -76,6 +79,78 @@ public static class ImagenArchivo
         using var flujo = new MemoryStream(limpio, writable: false);
         using var comprobacion = ValidarYAbrir(flujo);
         return limpio;
+    }
+
+    /// <summary>
+    /// Lee el ancho y el alto desde la cabecera, sin decodificar los píxeles, y rechaza las
+    /// dimensiones excesivas antes de que el procesamiento reserve memoria.
+    /// </summary>
+    public static void ValidarDimensiones(byte[] datos, string tipo)
+    {
+        var dimensiones = (tipo == "image/png" ? LeerDimensionesPng(datos) : LeerDimensionesJpeg(datos))
+            ?? throw new InvalidOperationException("El archivo no es una imagen válida.");
+
+        if (dimensiones.Ancho > LadoMaximo || dimensiones.Alto > LadoMaximo
+            || (long)dimensiones.Ancho * dimensiones.Alto > PixelesMaximos)
+        {
+            throw new InvalidOperationException("La imagen tiene demasiados píxeles para subirla.");
+        }
+    }
+
+    private static (int Ancho, int Alto)? LeerDimensionesPng(byte[] datos)
+    {
+        // Firma de 8 bytes, longitud de 4 y el tipo IHDR; después vienen el ancho y el alto.
+        if (datos.Length < 24 || Encoding.ASCII.GetString(datos, 12, 4) != "IHDR")
+        {
+            return null;
+        }
+
+        var ancho = (datos[16] << 24) | (datos[17] << 16) | (datos[18] << 8) | datos[19];
+        var alto = (datos[20] << 24) | (datos[21] << 16) | (datos[22] << 8) | datos[23];
+        return ancho > 0 && alto > 0 ? (ancho, alto) : null;
+    }
+
+    private static (int Ancho, int Alto)? LeerDimensionesJpeg(byte[] datos)
+    {
+        var pos = 2;
+        while (pos + 4 <= datos.Length)
+        {
+            if (datos[pos] != 0xFF)
+            {
+                return null;
+            }
+
+            var marcador = datos[pos + 1];
+            if (marcador == 0xFF)
+            {
+                pos++;
+                continue;
+            }
+
+            // Marcadores de inicio de frame (SOF), salvo DHT, JPG y DAC que no son frames.
+            var esSof = marcador >= 0xC0 && marcador <= 0xCF && marcador is not (0xC4 or 0xC8 or 0xCC);
+            if (esSof)
+            {
+                if (pos + 9 > datos.Length)
+                {
+                    return null;
+                }
+
+                var alto = (datos[pos + 5] << 8) | datos[pos + 6];
+                var ancho = (datos[pos + 7] << 8) | datos[pos + 8];
+                return ancho > 0 && alto > 0 ? (ancho, alto) : null;
+            }
+
+            if (marcador == 0xD9 || marcador == 0xDA)
+            {
+                return null;
+            }
+
+            var longitud = (datos[pos + 2] << 8) | datos[pos + 3];
+            pos += 2 + longitud;
+        }
+
+        return null;
     }
 
     private static Bitmap ValidarYAbrir(Stream flujo)
