@@ -341,11 +341,11 @@
     color: #2563eb;
 }
 
-.pay-button {
+.pay-icon-button {
     color: #059669;
 }
 
-.pay-button:hover {
+.pay-icon-button:hover {
     border-color: #bbf7d0;
     background: #f0fdf4;
     color: #047857;

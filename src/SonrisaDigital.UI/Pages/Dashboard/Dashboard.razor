@@ -4,15 +4,12 @@
 @using SonrisaDigital.Services.Citas
 @using SonrisaDigital.Services.Citas.DTOs
 @using SonrisaDigital.Services.Dashboard
-@using SonrisaDigital.Services.Auditoria
-@using SonrisaDigital.Services.Auditoria.DTOs
 @using SonrisaDigital.Services.Autorizacion
 @using SonrisaDigital.Services.Pagos
 @using SonrisaDigital.Services.Pagos.DTOs
 @using System.Globalization
 @inject ICitaService CitaService
 @inject IDashboardService DashboardService
-@inject IAuditoriaService AuditoriaService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 @* ============================================================================
@@ -20,16 +17,14 @@
 
    ¿Qué hace esta pantalla?
      Es el panel de bienvenida: resume en tarjetas lo que está pasando hoy (citas con sus
-     contadores, pacientes activos, odontólogos activos), muestra la actividad reciente
-     (sacada de la auditoría) y el saldo pendiente de pagos (los mismos números reales del
-     módulo de Pagos, no datos inventados).
+     contadores, pacientes activos, odontólogos activos) y el saldo pendiente de pagos
+     (los mismos números reales del módulo de Pagos, no datos inventados).
 
    ¿Cómo se lee este archivo?
-     - Markup: tarjetas de métricas, tabla de citas de hoy, actividad reciente y la tarjeta
-       "Pagos pendientes".
+     - Markup: tarjetas de métricas, tabla de citas de hoy y la tarjeta "Pagos pendientes".
      - @code (al final):
          OnInitializedAsync     -> al abrir la página, cargar todo
-         LoadDashboardDataAsync -> 4 bloques: citas, métricas, auditoría y pagos
+         LoadDashboardDataAsync -> 3 bloques: citas, métricas y pagos
          Ayudantes              -> dinero, plurales, colores y símbolos de las etiquetas
    ============================================================================ *@
 
@@ -178,44 +173,6 @@
             </div>
         </Authorized>
     </AuthorizeView>
-
-    @* --- PANEL DE ACTIVIDAD RECIENTE --- *@
-    @* La auditoría solo se muestra a quien tenga Auditoria.Ver. *@
-    <AuthorizeView Policy="Auditoria.Ver">
-        <Authorized>
-            <section class="dashboard-panel activity-panel">
-                <div class="panel-heading">
-                    <h2>Actividad reciente</h2>
-                </div>
-
-                <div class="activity-scroll" style="max-height: 270px; overflow-y: auto;">
-                    @if (loading)
-                    {
-                        <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
-                            Cargando actividad reciente...
-                        </div>
-                    }
-                    else if (!actividadesRecientes.Any())
-                    {
-                        <div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">
-                            No hay actividad reciente registrada.
-                        </div>
-                    }
-                    else
-                    {
-                        @foreach (var act in actividadesRecientes)
-                        {
-                            <div class="activity-row">
-                                <span class="activity-icon @GetActividadClase(act)">@GetActividadSimbolo(act)</span>
-                                <span>@act.Descripcion</span>
-                                <small>@act.Usuario · @ObtenerTiempoRelativo(act.FechaHora)</small>
-                            </div>
-                        }
-                    }
-                </div>
-            </section>
-        </Authorized>
-    </AuthorizeView>
 </div>
 
 @code {
@@ -224,10 +181,8 @@
 
     // ===== Datos que se pintan en la pantalla =====
     private List<CitaListItemDto> citasHoy = [];                    // citas de hoy, ordenadas por hora
-    private List<ActividadRecienteDto> actividadesRecientes = [];   // últimos movimientos (auditoría)
     private PagosResumenDto resumen = new(0, 0, 0, 0);              // números de la tarjeta "Pagos pendientes"
     private bool loading = true;                                    // ¿la página sigue cargando?
-    private bool puedeVerAuditoria;                                 // evita consultar la auditoría sin permiso
     private bool puedeVerCitas;                                     // evita consultar las citas sin permiso
 
     // ===== Contadores (métricas) que se calculan al cargar =====
@@ -249,7 +204,7 @@
 
     /// <summary>
     /// Carga todo lo que muestra el panel de inicio: las citas de hoy con sus contadores,
-    /// los pacientes y odontólogos activos, la actividad reciente y el resumen de pagos
+    /// los pacientes y odontólogos activos y el resumen de pagos
     /// (los mismos números reales del módulo de Pagos, sin datos inventados).
     /// </summary>
     private async Task LoadDashboardDataAsync()
@@ -263,7 +218,6 @@
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var usuario = authenticationState.User;
 
-            puedeVerAuditoria = usuario.HasClaim(PermissionCatalog.ClaimType, "Auditoria.Ver");
             puedeVerCitas = usuario.HasClaim(PermissionCatalog.ClaimType, "Citas.Ver");
 
             DateOnly hoy = RelojNegocio.HoyDateOnly();
@@ -293,13 +247,7 @@
                 pacientesNuevosSemana = stats.PacientesRegistradosEstaSemana;
             }
 
-            // 3. ACTIVIDAD RECIENTE (solo con permiso de auditoría)
-            if (puedeVerAuditoria)
-            {
-                actividadesRecientes = (await AuditoriaService.GetRecientesAsync(100)).ToList();
-            }
-
-            // 4. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
+            // 3. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
             resumen = await DashboardService.GetResumenPagosAsync();
         }
         catch (Exception)
@@ -324,35 +272,6 @@
     /// </summary>
     private static string FormatTratamientos(int cantidad) =>
         cantidad == 1 ? "1 tratamiento" : $"{cantidad} tratamientos";
-
-    private static string GetActividadClase(ActividadRecienteDto actividad) => actividad.Accion switch
-    {
-        "Activó" => "success",
-        "Desactivó" => "danger",
-        "Modificó" => "warning",
-        _ => "info"
-    };
-
-    private static string GetActividadSimbolo(ActividadRecienteDto actividad) => actividad.Accion switch
-    {
-        "Agregó" or "Creó" or "Agendó" => "+",
-        "Modificó" => "✏️",
-        "Cambió" => "✓",
-        "Desactivó" => "✕",
-        "Activó" => "✓",
-        "Restableció" => "🔑",
-        _ => "•"
-    };
-
-    private static string ObtenerTiempoRelativo(DateTime fecha)
-    {
-        var diferencia = DateTime.UtcNow - fecha;
-        if (diferencia.TotalSeconds < 60) return "hace un momento";
-        if (diferencia.TotalMinutes < 60) return $"hace {(int)diferencia.TotalMinutes} min";
-        if (diferencia.TotalHours < 24) return $"hace {(int)diferencia.TotalHours} hr";
-        if (diferencia.TotalDays < 30) return $"hace {(int)diferencia.TotalDays} días";
-        return fecha.ToString("dd/MM/yyyy");
-    }
 
     private string GetEstadoClassDashboard(EstadoCita estado) => estado switch
     {
