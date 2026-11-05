@@ -38,6 +38,15 @@ public interface ITratamientoService
 
     Task CancelarRealizadoAsync(int id, CancellationToken cancellationToken = default);
 
+    /// <summary>Marca un tratamiento en proceso como completado clínicamente. Los pagos no lo hacen.</summary>
+    Task MarcarCompletadoAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>Consultas del paciente, para elegir la consulta del tratamiento (opcional).</summary>
+    Task<IReadOnlyList<ConsultaOptionDto>> GetConsultasPacienteAsync(int pacienteId, CancellationToken cancellationToken = default);
+
+    /// <summary>Vuelve a en proceso un tratamiento completado.</summary>
+    Task ReabrirRealizadoAsync(int id, CancellationToken cancellationToken = default);
+
     // Opciones de los formularios
     Task<IReadOnlyList<TratamientoOptionDto>> GetTratamientosAsync(bool soloActivos, CancellationToken cancellationToken = default);
 

@@ -51,7 +51,7 @@ public sealed class TratamientoPagosTests(SqlServerFixture fixture)
     }
 
     [Fact]
-    public async Task ElDuenoPuedeCompletarUnTratamientoAlIgualarElPrecioPagado()
+    public async Task IgualarElPrecioAlPagadoNoCambiaElEstadoClinico()
     {
         var realizado = await PrepararRealizadoConPagoAsync(precio: 100m, monto: 60m);
         await using var provider = await CrearProveedorAsync(RolesSonrisaDigital.Dueno);
@@ -61,7 +61,30 @@ public sealed class TratamientoPagosTests(SqlServerFixture fixture)
 
         await using var comprobacion = fixture.CreateContext();
         var actualizado = await comprobacion.TratamientosRealizados.SingleAsync(item => item.Id == realizado.Id);
-        Assert.Equal(EstadoTratamiento.Completado, actualizado.Estado);
+        Assert.Equal(EstadoTratamiento.EnProceso, actualizado.Estado);
+    }
+
+    [Fact]
+    public async Task MarcarCompletadoYReabrirSoloCambianElEstadoClinico()
+    {
+        var realizado = await PrepararRealizadoConPagoAsync(precio: 100m, monto: 60m);
+        await using var provider = await CrearProveedorAsync(RolesSonrisaDigital.Dueno);
+        var servicio = provider.GetRequiredService<ITratamientoService>();
+
+        await servicio.MarcarCompletadoAsync(realizado.Id);
+
+        await using (var comprobacion = fixture.CreateContext())
+        {
+            var completado = await comprobacion.TratamientosRealizados.SingleAsync(item => item.Id == realizado.Id);
+            Assert.Equal(EstadoTratamiento.Completado, completado.Estado);
+            Assert.Equal(100m, completado.Precio);
+        }
+
+        await servicio.ReabrirRealizadoAsync(realizado.Id);
+
+        await using var reabierto = fixture.CreateContext();
+        var actualizado = await reabierto.TratamientosRealizados.SingleAsync(item => item.Id == realizado.Id);
+        Assert.Equal(EstadoTratamiento.EnProceso, actualizado.Estado);
     }
 
     [Fact]

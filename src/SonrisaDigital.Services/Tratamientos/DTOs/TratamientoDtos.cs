@@ -77,6 +77,9 @@ public sealed record TratamientoRealizadoDetalleDto(
     EstadoFinanciero EstadoPago,
     int CantidadPagos);
 
+/// <summary>Consulta de un paciente, para elegir en qué consulta se realizó un tratamiento.</summary>
+public sealed record ConsultaOptionDto(int Id, DateTime Fecha, string Motivo);
+
 /// <summary>Datos del formulario "Registrar / Editar tratamiento realizado".</summary>
 public sealed class TratamientoRealizadoFormDto
 {
@@ -92,6 +95,9 @@ public sealed class TratamientoRealizadoFormDto
     public int OdontologoId { get; set; }
 
     public int? PiezaDentalId { get; set; }
+
+    /// <summary>Consulta en la que se realizó el tratamiento. Es opcional.</summary>
+    public int? ConsultaId { get; set; }
 
     public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
 

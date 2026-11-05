@@ -291,12 +291,6 @@ public sealed class PagoService(
                         "Este tratamiento está cancelado; no se pueden registrar pagos.");
                 }
 
-                if (tratamiento.Estado == EstadoTratamiento.Completado)
-                {
-                    throw new InvalidOperationException(
-                        "Este tratamiento ya está completado; no se pueden registrar más pagos.");
-                }
-
                 if (saldoPendiente <= 0)
                 {
                     throw new InvalidOperationException("Este tratamiento ya está saldado; no se pueden registrar más pagos.");
@@ -307,8 +301,6 @@ public sealed class PagoService(
                     throw new InvalidOperationException(
                         $"El monto supera el saldo pendiente (RD$ {saldoPendiente.ToString("N2", Cultura)}).");
                 }
-
-                var completaElTratamiento = monto >= saldoPendiente;
 
                 var pago = new Pago
                 {
@@ -322,25 +314,14 @@ public sealed class PagoService(
                     UsuarioId = usuarioId
                 };
 
-                if (completaElTratamiento)
-                {
-                    tratamiento.Estado = EstadoTratamiento.Completado;
-                }
-
                 await repository.AddAsync(pago, cancellationToken);
                 await repository.SaveChangesAsync(cancellationToken);
 
-                // La auditoría se guarda dentro de la misma transacción: si falla, el pago
-                // y el cambio de estado del tratamiento también se revierten.
-                var detalleEstado = completaElTratamiento
-                    ? " El tratamiento quedó completado."
-                    : string.Empty;
-
+                // La auditoría se guarda dentro de la misma transacción: si falla, el pago se revierte.
                 await auditoriaService.RegistrarAsync(
                     "Registró", "Pagos", nameof(Pago), pago.Id,
                     $"Registró un pago de RD$ {pago.Monto.ToString("N2", Cultura)} para " +
-                    $"{tratamiento.Paciente.Nombres} {tratamiento.Paciente.Apellidos} ({tratamiento.Tratamiento.Nombre})." +
-                    detalleEstado,
+                    $"{tratamiento.Paciente.Nombres} {tratamiento.Paciente.Apellidos} ({tratamiento.Tratamiento.Nombre}).",
                     cancellationToken);
 
                 pagoId = pago.Id;
