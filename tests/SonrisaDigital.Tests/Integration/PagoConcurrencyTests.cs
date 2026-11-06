@@ -35,7 +35,7 @@ public sealed class PagoConcurrencyTests(SqlServerFixture fixture)
         var modelo = new RegistrarPagoDto
         {
             TratamientoRealizadoId = tratamiento.Id,
-            Fecha = RelojNegocio.Hoy(),
+            Fecha = RelojNegocio.HoyDateOnly(),
             Monto = 60m,
             MetodoPago = MetodoPago.Efectivo,
             Observaciones = "Cobro simultáneo"

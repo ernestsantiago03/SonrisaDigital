@@ -1,0 +1,104 @@
+/* CSS for MfaDueno component */
+/* Centrado de la tarjeta en pantalla */
+.mfa-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 80vh;
+}
+
+/* Caja contenedora */
+.mfa-card {
+    background-color: #ffffff;
+    padding: 35px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    max-width: 550px; /* Un poco más ancho para dar espacio a los textos laterales */
+    width: 100%;
+}
+
+.mfa-title {
+    color: #000000;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.mfa-instructions {
+    color: #666666;
+    font-size: 14px;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.mfa-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Alineación mágica con CSS Grid */
+.mfa-field {
+    display: grid;
+    grid-template-columns: 180px 1fr; /* 180px fijos para etiquetas, el resto para el input */
+    align-items: center;
+    gap: 15px;
+}
+
+    /* Estilo de letras negras */
+    .mfa-field label {
+        color: #000000 !important;
+        font-size: 13px;
+        font-weight: bold;
+        text-align: left;
+    }
+
+    /* Ajustes de cuadros grandes */
+    .mfa-field input {
+        padding: 12px;
+        font-size: 15px;
+        border: 1px solid #cccccc;
+        border-radius: 6px;
+        width: 100%;
+        box-sizing: border-box;
+        outline: none;
+    }
+
+        .mfa-field input:focus {
+            border-color: #0084ff;
+        }
+
+/* Alineación del botón con la fila de los inputs */
+.mfa-action-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 15px;
+}
+
+.mfa-btn {
+    grid-column: 2; /* Empuja el botón para que empiece justo abajo de los cuadros */
+    background-color: #0084ff;
+    color: white;
+    border: none;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+    .mfa-btn:hover {
+        background-color: #0066cc;
+    }
+
+.mfa-alert.error {
+    background-color: #ffe6e6;
+    color: #cc0000;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin-top: 15px;
+}
+

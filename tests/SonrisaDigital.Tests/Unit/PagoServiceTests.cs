@@ -126,7 +126,7 @@ public sealed class PagoServiceTests
     private static RegistrarPagoDto ModeloValido() => new()
     {
         TratamientoRealizadoId = 1,
-        Fecha = RelojNegocio.Hoy(),
+        Fecha = RelojNegocio.HoyDateOnly(),
         Monto = 100m,
         MetodoPago = MetodoPago.Efectivo
     };

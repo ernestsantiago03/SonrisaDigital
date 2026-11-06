@@ -116,7 +116,7 @@ public sealed class TratamientoPagosTests(SqlServerFixture fixture)
             db.Pagos.Add(new Pago
             {
                 TratamientoRealizadoId = realizado.Id,
-                Fecha = RelojNegocio.Hoy(),
+                Fecha = RelojNegocio.HoyDateOnly(),
                 Monto = montoPagado,
                 MetodoPago = MetodoPago.Efectivo,
                 UsuarioId = usuario.Id
@@ -133,7 +133,7 @@ public sealed class TratamientoPagosTests(SqlServerFixture fixture)
         PacienteId = realizado.PacienteId,
         TratamientoId = realizado.TratamientoId,
         OdontologoId = realizado.OdontologoId,
-        Fecha = RelojNegocio.Hoy(),
+        Fecha = RelojNegocio.HoyDateOnly(),
         Precio = precio,
         Estado = EstadoTratamiento.EnProceso,
         Observaciones = "Editado en prueba"

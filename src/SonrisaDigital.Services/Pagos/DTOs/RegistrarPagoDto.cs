@@ -12,7 +12,7 @@ public sealed class RegistrarPagoDto
 {
     public int TratamientoRealizadoId { get; set; }
 
-    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
+    public DateOnly Fecha { get; set; } = RelojNegocio.HoyDateOnly();
 
     [Range(0.01, 999999999.99, ErrorMessage = "El monto del pago debe ser mayor que cero.")]
     public decimal? Monto { get; set; }

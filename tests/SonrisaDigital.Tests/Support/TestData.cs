@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Data.Tiempo;
 
 namespace SonrisaDigital.Tests.Support;
 
@@ -107,7 +108,7 @@ internal static class TestData
             OdontologoId = odontologoId,
             TratamientoId = tratamientoId,
             Precio = precio,
-            Fecha = DateTime.UtcNow,
+            Fecha = RelojNegocio.HoyDateOnly(),
             Estado = estado
         };
 

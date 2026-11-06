@@ -13,7 +13,7 @@ public class TratamientoRealizado : IPerteneceAClinica
     public int OdontologoId { get; set; }
     public int? PiezaDentalId { get; set; }
     public int? ConsultaId { get; set; }
-    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
+    public DateOnly Fecha { get; set; } = RelojNegocio.HoyDateOnly();
     public decimal Precio { get; set; }
     public EstadoTratamiento Estado { get; set; } = EstadoTratamiento.EnProceso;
     public string? Observaciones { get; set; }

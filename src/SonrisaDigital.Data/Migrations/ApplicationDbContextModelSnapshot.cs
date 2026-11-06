@@ -656,10 +656,8 @@ namespace SonrisaDigital.Data.Migrations
                     b.Property<int>("ClinicaId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("Fecha")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
 
                     b.Property<string>("MetodoPago")
                         .IsRequired()
@@ -1019,10 +1017,8 @@ namespace SonrisaDigital.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<DateTime>("Fecha")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
 
                     b.Property<string>("Observaciones")
                         .HasColumnType("nvarchar(max)");

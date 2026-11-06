@@ -41,6 +41,26 @@ public sealed class PermisosDuenoTests
     }
 
     [Fact]
+    public void LosPermisosExclusivosDelDuenoNoSePuedenDelegar()
+    {
+        var exclusivos = PermissionCatalog.All
+            .Select(permission => permission.Nombre)
+            .Where(PermissionCatalog.EsPermisoExclusivoDueno)
+            .ToHashSet();
+
+        Assert.Contains("Clinicas.Ver", exclusivos);
+        Assert.Contains("Usuarios.Ver", exclusivos);
+        Assert.Contains("Usuarios.Editar", exclusivos);
+        Assert.Contains("Roles.Editar", exclusivos);
+        Assert.Contains("Auditoria.Ver", exclusivos);
+        Assert.Contains("Archivos.Ocultar", exclusivos);
+        Assert.DoesNotContain("AcercaDe.Editar", exclusivos);
+
+        var permisosAdministrador = PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Administrador];
+        Assert.DoesNotContain(permisosAdministrador, PermissionCatalog.EsPermisoExclusivoDueno);
+    }
+
+    [Fact]
     public void SoloAdministradorYDuenoPuedenEditarAcercaDe()
     {
         Assert.Contains("AcercaDe.Editar", PermissionCatalog.DefaultRolePermissions[RolesSonrisaDigital.Administrador]);

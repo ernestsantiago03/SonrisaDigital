@@ -9,7 +9,7 @@ namespace SonrisaDigital.Services.Pagos.DTOs;
 /// </summary>
 public sealed record PagoDetalleItemDto(
     int Id,
-    DateTime Fecha,
+    DateOnly Fecha,
     decimal Monto,
     MetodoPago MetodoPago,
     string RegistradoPor,
@@ -30,7 +30,7 @@ public sealed record PagoDetalleDto(
     string TratamientoNombre,
     string OdontologoNombre,
     string? PiezaDental,
-    DateTime Fecha,
+    DateOnly Fecha,
     EstadoTratamiento EstadoClinico,
     string? ObservacionesTratamiento,
     decimal Total,

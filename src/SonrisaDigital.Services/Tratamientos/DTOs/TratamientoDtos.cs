@@ -52,7 +52,7 @@ public sealed record TratamientoRealizadoListItemDto(
     string PacienteNombre,
     string TratamientoNombre,
     string OdontologoNombre,
-    DateTime Fecha,
+    DateOnly Fecha,
     string? Pieza,
     decimal Precio,
     decimal Pagado,
@@ -67,7 +67,7 @@ public sealed record TratamientoRealizadoDetalleDto(
     string PacienteNombre,
     string TratamientoNombre,
     string OdontologoNombre,
-    DateTime Fecha,
+    DateOnly Fecha,
     string? Pieza,
     decimal Precio,
     EstadoTratamiento Estado,
@@ -99,7 +99,7 @@ public sealed class TratamientoRealizadoFormDto
     /// <summary>Consulta en la que se realizó el tratamiento. Es opcional.</summary>
     public int? ConsultaId { get; set; }
 
-    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
+    public DateOnly Fecha { get; set; } = RelojNegocio.HoyDateOnly();
 
     [Range(0.01, 9999999.99, ErrorMessage = "El precio debe ser mayor que cero.")]
     public decimal Precio { get; set; }

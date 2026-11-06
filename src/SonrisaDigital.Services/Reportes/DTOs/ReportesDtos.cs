@@ -3,9 +3,9 @@ using SonrisaDigital.Data.Entities;
 namespace SonrisaDigital.Services.Reportes.DTOs;
 
 /// <summary>
-/// Filtro común de todos los reportes. El período se expresa con fechas locales
-/// (las que ve el usuario); el Service las convierte a UTC para las entidades que
-/// guardan fecha y hora (pagos, tratamientos y pacientes).
+/// Filtro común de todos los reportes. El período se expresa con fechas de calendario
+/// (las que ve el usuario). Las citas, pagos y tratamientos ya guardan su fecha como
+/// <see cref="DateOnly"/>; solo los instantes de registro se convierten a UTC.
 /// </summary>
 public sealed record ReporteFiltroDto(
     DateOnly Desde,
@@ -91,7 +91,7 @@ public sealed record ReportePacienteItemDto(
 /// <summary>Fila del reporte de tratamientos realizados.</summary>
 public sealed record ReporteTratamientoItemDto(
     int Id,
-    DateTime Fecha,
+    DateOnly Fecha,
     string Paciente,
     string Tratamiento,
     string Odontologo,
@@ -103,7 +103,7 @@ public sealed record ReporteTratamientoItemDto(
 /// <summary>Fila del reporte de pagos.</summary>
 public sealed record ReportePagoItemDto(
     int Id,
-    DateTime Fecha,
+    DateOnly Fecha,
     string Paciente,
     string Tratamiento,
     decimal Monto,

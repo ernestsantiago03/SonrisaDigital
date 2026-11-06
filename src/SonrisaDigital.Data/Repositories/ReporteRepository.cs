@@ -90,8 +90,8 @@ public sealed class ReporteRepository(ApplicationDbContext dbContext) : IReporte
                 cancellationToken);
 
     public async Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
-        DateTime desde,
-        DateTime hastaExclusivo,
+        DateOnly desde,
+        DateOnly hastaExclusivo,
         int? odontologoId = null,
         EstadoTratamiento? estado = null,
         CancellationToken cancellationToken = default)
@@ -141,8 +141,8 @@ public sealed class ReporteRepository(ApplicationDbContext dbContext) : IReporte
     }
 
     public async Task<IReadOnlyList<Pago>> GetPagosAsync(
-        DateTime desde,
-        DateTime hastaExclusivo,
+        DateOnly desde,
+        DateOnly hastaExclusivo,
         int? odontologoId = null,
         MetodoPago? metodoPago = null,
         CancellationToken cancellationToken = default)

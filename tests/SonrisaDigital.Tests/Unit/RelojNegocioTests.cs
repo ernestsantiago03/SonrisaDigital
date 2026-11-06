@@ -60,9 +60,10 @@ public sealed class RelojNegocioTests
     public void LosFormulariosInicianConLaFechaDelNegocio()
     {
         var hoy = RelojNegocio.Hoy();
+        var hoyCalendario = RelojNegocio.HoyDateOnly();
 
-        Assert.Equal(hoy, new RegistrarPagoDto().Fecha);
-        Assert.Equal(hoy, new TratamientoRealizadoFormDto().Fecha);
+        Assert.Equal(hoyCalendario, new RegistrarPagoDto().Fecha);
+        Assert.Equal(hoyCalendario, new TratamientoRealizadoFormDto().Fecha);
         Assert.Equal(hoy, new ConsultaClinicaFormDto().Fecha);
     }
 }
