@@ -9,7 +9,11 @@ param(
     [int]$RetentionDays = 30,
     [string]$SqlUser = "",
     [string]$SqlCmd = "sqlcmd",
-    [switch]$Compress
+    [switch]$Compress,
+    # Cifra el respaldo (base y archivos) con AES-256 derivado de una contraseña.
+    [switch]$Cifrar,
+    # Contraseña de cifrado. Si se omite, se toma de SONRISADIGITAL_BACKUP_PASSWORD.
+    [string]$ClaveRespaldo = ""
 )
 
 Set-StrictMode -Version Latest
@@ -63,13 +67,71 @@ function Obtener-RutaInstancia {
     return $linea.Trim()
 }
 
+function Protect-File {
+    param(
+        [Parameter(Mandatory = $true)][string]$InputPath,
+        [Parameter(Mandatory = $true)][string]$OutputPath,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+
+    $salt = New-Object byte[] 16
+    $iv = New-Object byte[] 16
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($salt)
+    $rng.GetBytes($iv)
+    $rng.Dispose()
+
+    $pbkdf2 = New-Object Security.Cryptography.Rfc2898DeriveBytes($Password, $salt, 100000, [Security.Cryptography.HashAlgorithmName]::SHA256)
+    $key = $pbkdf2.GetBytes(32)
+
+    $aes = [Security.Cryptography.Aes]::Create()
+    $aes.Key = $key
+    $aes.IV = $iv
+    $encryptor = $aes.CreateEncryptor()
+
+    $completado = $false
+    $outStream = $null
+    $cryptoStream = $null
+    $inStream = $null
+    try {
+        $outStream = [IO.File]::Create($OutputPath)
+        $outStream.Write($salt, 0, 16)
+        $outStream.Write($iv, 0, 16)
+
+        $cryptoStream = New-Object Security.Cryptography.CryptoStream($outStream, $encryptor, [Security.Cryptography.CryptoStreamMode]::Write)
+        $inStream = [IO.File]::OpenRead($InputPath)
+        $buffer = New-Object byte[] (1 * 1024 * 1024)
+        while (($read = $inStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $cryptoStream.Write($buffer, 0, $read)
+        }
+        $cryptoStream.FlushFinalBlock()
+        $completado = $true
+    }
+    finally {
+        # Se cierran los streams de archivo directamente: el CryptoStream ya vació su bloque final
+        # en el caso correcto, y en un fallo no debe impedir liberar los archivos.
+        if ($inStream) { $inStream.Dispose() }
+        if ($outStream) { $outStream.Dispose() }
+        # Un cifrado incompleto no debe quedar en la carpeta de respaldos.
+        if (-not $completado -and (Test-Path -LiteralPath $OutputPath)) {
+            Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 if ($SqlUser -and [string]::IsNullOrWhiteSpace($env:SQLCMDPASSWORD)) {
     throw "Para usar autenticación SQL defina la variable SQLCMDPASSWORD. No pase la contraseña por parámetro."
 }
 
+if ($Cifrar -and [string]::IsNullOrWhiteSpace($ClaveRespaldo)) {
+    $ClaveRespaldo = $env:SONRISADIGITAL_BACKUP_PASSWORD
+}
+
+if ($Cifrar -and [string]::IsNullOrWhiteSpace($ClaveRespaldo)) {
+    throw "Para cifrar el respaldo indique -ClaveRespaldo o defina SONRISADIGITAL_BACKUP_PASSWORD."
+}
+
 if ([string]::IsNullOrWhiteSpace($BackupDirectory)) {
-    # Se usa la carpeta de respaldos de la instancia para que la cuenta de
-    # servicio de SQL Server tenga permiso de escritura sin configuración extra.
     $BackupDirectory = Obtener-RutaInstancia -Propiedad "InstanceDefaultBackupPath"
 }
 
@@ -127,29 +189,44 @@ if ($archivo) {
     Set-Content -LiteralPath $archivoHash -Value "$hash  $nombreArchivo" -Encoding ascii
 
     $limite = (Get-Date).AddDays(-$RetentionDays)
-    $patron = "${Database}_FULL_*.bak"
-    Get-ChildItem -LiteralPath $BackupDirectory -Filter $patron -File |
+    $patron = "${Database}_FULL_*"
+    Get-ChildItem -LiteralPath $BackupDirectory -Filter "$patron*" -File |
         Where-Object { $_.LastWriteTime -lt $limite } |
         ForEach-Object {
             Remove-Item -LiteralPath $_.FullName -Force
-            $hashViejo = "$($_.FullName).sha256"
-            if (Test-Path -LiteralPath $hashViejo) {
-                Remove-Item -LiteralPath $hashViejo -Force
-            }
             Write-Host "Eliminado por retención: $($_.Name)"
         }
 
     $tamanoMb = [math]::Round($archivo.Length / 1MB, 2)
 }
 else {
-    Write-Warning "No se calcularon SHA256 ni retención porque el archivo está en una carpeta protegida. Use -BackupDirectory con una carpeta compartida y permisos de lectura para el operador."
+    Write-Warning "No se calcularon SHA256 ni retención porque el archivo está en una carpeta protegida."
 }
 
 Write-Host "Respaldo verificado correctamente."
 
+# Cifrado opcional del respaldo de la base.
+$rutaRespaldoFinal = $rutaRespaldo
+if ($Cifrar) {
+    if (-not $archivo) {
+        throw "No se puede cifrar: la cuenta actual no puede leer '$rutaRespaldo'. Use -BackupDirectory con una carpeta accesible para el operador."
+    }
+    $rutaCifrada = "$rutaRespaldo.enc"
+    Write-Host "Cifrando el respaldo de la base..."
+    Protect-File -InputPath $rutaRespaldo -OutputPath $rutaCifrada -Password $ClaveRespaldo
+    Remove-Item -LiteralPath $rutaRespaldo -Force
+    if (Test-Path -LiteralPath "$rutaRespaldo.sha256") {
+        Remove-Item -LiteralPath "$rutaRespaldo.sha256" -Force
+    }
+    $hash = (Get-FileHash -LiteralPath $rutaCifrada -Algorithm SHA256).Hash
+    Set-Content -LiteralPath "$rutaCifrada.sha256" -Value "$hash  $(Split-Path $rutaCifrada -Leaf)" -Encoding ascii
+    $rutaRespaldoFinal = $rutaCifrada
+    Write-Host "Respaldo cifrado: $rutaCifrada"
+}
+
 # La base y los archivos deben quedar del mismo momento: si uno de los dos falta, el respaldo no es válido.
 $rutaArchivos = ""
-$hashArchivos = $null
+$hashArchivos = ""
 if (-not [string]::IsNullOrWhiteSpace($ArchivosDirectory)) {
     if (-not (Test-Path -LiteralPath $ArchivosDirectory -PathType Container)) {
         throw "La carpeta de archivos '$ArchivosDirectory' no existe. No se creó un respaldo incompleto."
@@ -163,8 +240,20 @@ if (-not [string]::IsNullOrWhiteSpace($ArchivosDirectory)) {
     $hashArchivos = (Get-FileHash -LiteralPath $rutaArchivos -Algorithm SHA256).Hash
     Set-Content -LiteralPath "$rutaArchivos.sha256" -Value "$hashArchivos  $nombreZip" -Encoding ascii
 
+    if ($Cifrar) {
+        $rutaZipCifrada = "$rutaArchivos.enc"
+        Write-Host "Cifrando el respaldo de archivos..."
+        Protect-File -InputPath $rutaArchivos -OutputPath $rutaZipCifrada -Password $ClaveRespaldo
+        Remove-Item -LiteralPath $rutaArchivos -Force
+        Remove-Item -LiteralPath "$rutaArchivos.sha256" -Force -ErrorAction SilentlyContinue
+        $hashArchivos = (Get-FileHash -LiteralPath $rutaZipCifrada -Algorithm SHA256).Hash
+        Set-Content -LiteralPath "$rutaZipCifrada.sha256" -Value "$hashArchivos  $(Split-Path $rutaZipCifrada -Leaf)" -Encoding ascii
+        $rutaArchivos = $rutaZipCifrada
+        Write-Host "Archivos cifrados: $rutaZipCifrada"
+    }
+
     $limiteArchivos = (Get-Date).AddDays(-$RetentionDays)
-    Get-ChildItem -LiteralPath $BackupDirectory -Filter "Archivos_*.zip" -File |
+    Get-ChildItem -LiteralPath $BackupDirectory -Filter "Archivos_*" -File |
         Where-Object { $_.LastWriteTime -lt $limiteArchivos } |
         ForEach-Object {
             Remove-Item -LiteralPath $_.FullName -Force
@@ -173,13 +262,32 @@ if (-not [string]::IsNullOrWhiteSpace($ArchivosDirectory)) {
         }
 }
 
+# Manifiesto con los hashes de ambos componentes para verificar integridad posterior.
+$manifiesto = Join-Path $BackupDirectory "manifest_$fecha.json"
+@{
+    Fecha = (Get-Date).ToString("o")
+    BaseDatos = $Database
+    Base = @{
+        Archivo = (Split-Path $rutaRespaldoFinal -Leaf)
+        HashSHA256 = $hash
+        Cifrado = [bool]$Cifrar
+    }
+    Archivos = if ($rutaArchivos) { @{
+        Archivo = (Split-Path $rutaArchivos -Leaf)
+        HashSHA256 = $hashArchivos
+        Cifrado = [bool]$Cifrar
+    } } else { $null }
+} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifiesto -Encoding utf8
+
 [pscustomobject]@{
     BaseDatos = $Database
-    Archivo = $rutaRespaldo
+    Archivo = $rutaRespaldoFinal
     TamanoMB = $tamanoMb
     HashSHA256 = $hash
     ArchivoAccesible = [bool]$archivo
     Verificado = $true
+    Cifrado = [bool]$Cifrar
     ArchivosRespaldo = $rutaArchivos
     HashArchivosSHA256 = $hashArchivos
+    Manifiesto = $manifiesto
 }

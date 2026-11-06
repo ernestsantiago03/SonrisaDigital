@@ -27,7 +27,7 @@ La aplicación se proporciona "tal cual". No se garantiza disponibilidad ininter
 - Al vencer la suscripción, la clínica tiene 3 días de gracia y luego se bloquea el acceso sin borrar datos.
 
 ## 6. Limitación de responsabilidad
-Sonrisa Digital no se hace responsable por pérdidas de datos derivadas de fallas de hardware, falta de respaldos o uso indebido. Se recomienda realizar respaldos periódicos y guardarlos en una ubicación segura, separada del servidor.
+Sonrisa Digital no se hace responsable por pérdidas de datos derivadas de fallas de hardware, falta de respaldos o uso indebido. Se recomienda realizar respaldos cifrados y copias externas.
 
 ## 7. Cambios en los términos
 Los términos pueden actualizarse. Los cambios se publicarán en este documento. El uso continuado implica aceptación de los términos vigentes.

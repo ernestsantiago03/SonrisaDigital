@@ -46,7 +46,7 @@ if (-not (Test-Path -LiteralPath $scriptRespaldo)) {
 
 $argumentos = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptRespaldo`" " +
     "-Server `"$Server`" -Database `"$Database`" " +
-    "-BackupDirectory `"$BackupDirectory`" -ArchivosDirectory `"$ArchivosDirectory`""
+    "-BackupDirectory `"$BackupDirectory`" -ArchivosDirectory `"$ArchivosDirectory`" -Cifrar"
 
 $accion = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $argumentos
 $disparador = New-ScheduledTaskTrigger -Daily -At $Hora

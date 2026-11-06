@@ -345,6 +345,8 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/) (`MAYOR.M
 - [Plan de respuesta a incidentes](docs/seguridad/plan-respuesta-incidentes.md)
 - [Revisión periódica de accesos](docs/seguridad/revision-de-accesos.md)
 
+Los respaldos pueden cifrarse con AES-256 usando `-Cifrar` y `-ClaveRespaldo` en `scripts/backup-sonrisadigital.ps1`. La contraseña debe provenir de `SONRISADIGITAL_BACKUP_PASSWORD` o de un gestor de secretos; nunca se pasa por línea de comandos en producción.
+
 ---
 
 ## Licencia

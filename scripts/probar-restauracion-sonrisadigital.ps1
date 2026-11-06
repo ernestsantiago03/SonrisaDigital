@@ -9,7 +9,9 @@ param(
     [string]$LogDirectory = "",
     [string]$DatabaseTemporal = "",
     # Respaldo de archivos (Archivos_*.zip) de la misma fecha que el respaldo de la base.
-    [string]$ArchivosBackup = ""
+    [string]$ArchivosBackup = "",
+    # Contraseña para descifrar respaldos cifrados (.enc). Si se omite, se toma de SONRISADIGITAL_BACKUP_PASSWORD.
+    [string]$ClaveRespaldo = ""
 )
 
 Set-StrictMode -Version Latest
@@ -54,6 +56,53 @@ function Invoke-SqlcmdSeguro {
     return $salida
 }
 
+function Unprotect-File {
+    param(
+        [Parameter(Mandatory = $true)][string]$InputPath,
+        [Parameter(Mandatory = $true)][string]$OutputPath,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+
+    $completado = $false
+    $inStream = $null
+    $cryptoStream = $null
+    $outStream = $null
+    try {
+        $inStream = [IO.File]::OpenRead($InputPath)
+        $salt = New-Object byte[] 16
+        $iv = New-Object byte[] 16
+        if ($inStream.Read($salt, 0, 16) -ne 16 -or $inStream.Read($iv, 0, 16) -ne 16) {
+            throw "El respaldo cifrado está incompleto."
+        }
+
+        $pbkdf2 = New-Object Security.Cryptography.Rfc2898DeriveBytes($Password, $salt, 100000, [Security.Cryptography.HashAlgorithmName]::SHA256)
+        $key = $pbkdf2.GetBytes(32)
+
+        $aes = [Security.Cryptography.Aes]::Create()
+        $aes.Key = $key
+        $aes.IV = $iv
+        $decryptor = $aes.CreateDecryptor()
+
+        $cryptoStream = New-Object Security.Cryptography.CryptoStream($inStream, $decryptor, [Security.Cryptography.CryptoStreamMode]::Read)
+        $outStream = [IO.File]::Create($OutputPath)
+        $buffer = New-Object byte[] (1 * 1024 * 1024)
+        while (($read = $cryptoStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $outStream.Write($buffer, 0, $read)
+        }
+        $completado = $true
+    }
+    finally {
+        # No se llama a Dispose del CryptoStream: en un descifrado fallido intenta vaciar el bloque
+        # final, lanza otra excepción y dejaría los archivos abiertos.
+        if ($inStream) { $inStream.Dispose() }
+        if ($outStream) { $outStream.Dispose() }
+        # Un descifrado fallido (clave incorrecta o archivo dañado) no debe dejar un .bak parcial.
+        if (-not $completado -and (Test-Path -LiteralPath $OutputPath)) {
+            Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Obtener-RutaInstancia {
     param([string]$Propiedad)
 
@@ -72,10 +121,34 @@ if ($SqlUser -and [string]::IsNullOrWhiteSpace($env:SQLCMDPASSWORD)) {
     throw "Para usar autenticación SQL defina la variable SQLCMDPASSWORD. No pase la contraseña por parámetro."
 }
 
-# Se usa GetFullPath en lugar de Resolve-Path porque el respaldo puede estar en
-# la carpeta protegida de SQL Server: el servicio de SQL puede leerlo aunque la
-# cuenta que ejecuta este script no tenga permiso directo sobre el archivo.
-# La existencia y validez las comprueba RESTORE FILELISTONLY.
+if ([string]::IsNullOrWhiteSpace($ClaveRespaldo)) {
+    $ClaveRespaldo = $env:SONRISADIGITAL_BACKUP_PASSWORD
+}
+
+# Descifrado transparente de respaldos cifrados (.enc).
+$archivosTemporales = @()
+if ($BackupFile.ToLowerInvariant().EndsWith(".enc")) {
+    if ([string]::IsNullOrWhiteSpace($ClaveRespaldo)) {
+        throw "El respaldo está cifrado. Indique -ClaveRespaldo o defina SONRISADIGITAL_BACKUP_PASSWORD."
+    }
+    # El .bak debe quedar en una carpeta que lea el servicio de SQL Server (junto al .enc), no en %TEMP%.
+    $rutaDescifrada = Join-Path (Split-Path $BackupFile -Parent) ([System.IO.Path]::GetFileNameWithoutExtension($BackupFile))
+    Unprotect-File -InputPath $BackupFile -OutputPath $rutaDescifrada -Password $ClaveRespaldo
+    $archivosTemporales += $rutaDescifrada
+    $BackupFile = $rutaDescifrada
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ArchivosBackup) -and $ArchivosBackup.ToLowerInvariant().EndsWith(".enc")) {
+    if ([string]::IsNullOrWhiteSpace($ClaveRespaldo)) {
+        throw "El respaldo de archivos está cifrado. Indique -ClaveRespaldo o defina SONRISADIGITAL_BACKUP_PASSWORD."
+    }
+    $rutaZipDescifrado = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetFileNameWithoutExtension($ArchivosBackup))
+    Unprotect-File -InputPath $ArchivosBackup -OutputPath $rutaZipDescifrado -Password $ClaveRespaldo
+    $archivosTemporales += $rutaZipDescifrado
+    $ArchivosBackup = $rutaZipDescifrado
+}
+
+# Se usa GetFullPath...
 $BackupFile = [System.IO.Path]::GetFullPath($BackupFile)
 
 if ([string]::IsNullOrWhiteSpace($DatabaseTemporal)) {
@@ -234,6 +307,10 @@ END;
     }
     catch {
         Write-Warning "No se pudo eliminar la base temporal '$DatabaseTemporal': $($_.Exception.Message)"
+    }
+
+    foreach ($temporal in $archivosTemporales) {
+        Remove-Item -LiteralPath $temporal -Force -ErrorAction SilentlyContinue
     }
 }
 

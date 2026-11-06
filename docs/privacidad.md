@@ -22,7 +22,8 @@ Cada clínica opera en su propio espacio de datos. Los filtros de clínica activ
 - Contraseñas con política mínima y bloqueo por intentos fallidos.
 - Segundo factor obligatorio para el rol Dueño.
 - Archivos clínicos almacenados fuera de la carpeta pública, servidos únicamente tras verificar permisos y clínica.
-- Los respaldos de la base de datos y de los archivos clínicos son responsabilidad del operador del servidor, que debe protegerlos y restringir su acceso.
+- Respaldos cifrados con AES-256 cuando se activa `-Cifrar` en el script de respaldo (la tarea que crea `programar-respaldo.ps1` siempre lo usa). La contraseña de cifrado la custodia el operador del servidor.
+- Los respaldos son responsabilidad del operador del servidor, que debe restringir su acceso.
 - Auditoría de operaciones de creación, modificación y eliminación.
 
 ## 5. Retención
