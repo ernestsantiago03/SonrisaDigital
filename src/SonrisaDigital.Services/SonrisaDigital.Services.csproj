@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <Compile Include="Dashboard\DashboardService.cs" />
+    <Compile Include="Dashboard\DTOs\DashboardCobrosDto.cs" />
     <Compile Include="Dashboard\DTOs\DashboardStatsDto.cs" />
     <Compile Include="Dashboard\IDashboardService.cs" />
   </ItemGroup>

@@ -770,8 +770,8 @@ app.MapPost("/account/logout", async (
 app.MapGet("/reportes/pdf", async (
     HttpContext context,
     string? tipo,
-    DateOnly? desde,
-    DateOnly? hasta,
+    string? desde,
+    string? hasta,
     int? odontologoId,
     string? estadoCita,
     string? estadoTratamiento,
@@ -788,16 +788,13 @@ app.MapGet("/reportes/pdf", async (
         return Results.BadRequest(new { error = "Tipo de reporte inválido." });
     }
 
-    if (desde is null || hasta is null)
+    if (!TryParseFechaPdf(desde, out var fechaDesde) || !TryParseFechaPdf(hasta, out var fechaHasta))
     {
         return Results.BadRequest(new
         {
-            error = "Debes indicar la fecha inicial y la fecha final."
+            error = "Debes indicar la fecha inicial y la fecha final en formato yyyy-MM-dd."
         });
     }
-
-    var fechaDesde = desde.Value;
-    var fechaHasta = hasta.Value;
 
     if (fechaHasta < fechaDesde)
     {
@@ -1115,6 +1112,20 @@ static async Task<string?> ValidarAccesoClinicaAsync(Usuario user, HttpContext c
 
 static bool IsLocalUrl(string? url) =>
     !string.IsNullOrWhiteSpace(url) && url.StartsWith('/') && !url.StartsWith("//") && !url.Contains('\\');
+
+// Lee una fecha yyyy-MM-dd del query string. Se recibe como texto para que un valor
+// mal formado (p. ej. "2026-11-30?") responda 400 en lugar de fallar al enlazar parámetros.
+static bool TryParseFechaPdf(string? valor, out DateOnly fecha)
+{
+    var limpio = valor?.Trim().TrimEnd('?').Trim();
+
+    return DateOnly.TryParseExact(
+        limpio,
+        "yyyy-MM-dd",
+        System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.None,
+        out fecha);
+}
 
 // Convierte un valor de query string en un enum opcional. Devuelve true cuando
 // el valor está vacío (sin filtro) o cuando es un nombre válido del enum.

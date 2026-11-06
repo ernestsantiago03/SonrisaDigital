@@ -199,6 +199,31 @@ a.about-contact-value:hover {
 }
 
 /* --- Modo edición --------------------------------------------------------- */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1.25rem 1.35rem;
+}
+
+.field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+.field-wide {
+    grid-column: 1 / -1;
+}
+
+/* Los campos usan InputText (componente hijo): ::deep garantiza que el ancho
+   llegue al <input> real y no solo al contenedor del campo. */
+.field input,
+.field ::deep input {
+    width: 100%;
+}
+
 .about-edit-actions {
     display: flex;
     gap: .65rem;
@@ -206,6 +231,14 @@ a.about-contact-value:hover {
 }
 
 @media (max-width: 760px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .field-wide {
+        grid-column: auto;
+    }
+
     .about-contact-grid {
         grid-template-columns: 1fr;
     }

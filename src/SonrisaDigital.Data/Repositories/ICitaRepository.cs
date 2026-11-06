@@ -13,6 +13,17 @@ public interface ICitaRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Citas dentro de un rango de fechas local [desde, hasta], con paciente y
+    /// odontólogo incluidos. La usa el panel de próximas citas del Inicio.
+    /// </summary>
+    Task<IReadOnlyList<Cita>> SearchRangoAsync(
+        DateOnly desde,
+        DateOnly hasta,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Devuelve una página de citas y el total que cumple los filtros. El conteo y el
     /// recorte se hacen en SQL para no cargar todas las citas en memoria.
     /// </summary>

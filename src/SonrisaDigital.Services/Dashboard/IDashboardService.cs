@@ -9,4 +9,10 @@ public interface IDashboardService
 
     /// <summary>Saldo pendiente de la clínica para la tarjeta del Inicio. Lo ve cualquier usuario con sesión.</summary>
     Task<PagosResumenDto> GetResumenPagosAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Totales de cobro del mes en curso para el panel "Cobros del mes" del Inicio.
+    /// Requiere el permiso Pagos.Ver.
+    /// </summary>
+    Task<DashboardCobrosDto> GetCobrosMesAsync(CancellationToken cancellationToken = default);
 }
