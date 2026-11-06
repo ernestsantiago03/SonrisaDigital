@@ -337,6 +337,16 @@ El proyecto sigue [Versionado Semántico](https://semver.org/lang/es/) (`MAYOR.M
 
 ---
 
+## Privacidad, términos y seguridad
+
+- [Política de privacidad](docs/privacidad.md)
+- [Términos de uso](docs/terminos.md)
+- [Política de seguridad y reporte de vulnerabilidades](SECURITY.md)
+- [Plan de respuesta a incidentes](docs/seguridad/plan-respuesta-incidentes.md)
+- [Revisión periódica de accesos](docs/seguridad/revision-de-accesos.md)
+
+---
+
 ## Licencia
 
 **Software propietario. Todos los derechos reservados.**

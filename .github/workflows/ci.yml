@@ -20,6 +20,36 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
+  # Falla si algún paquete NuGet (directo o transitivo) tiene una vulnerabilidad conocida.
+  dependencias:
+    name: Vulnerabilidades en paquetes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaurar dependencias
+        run: dotnet restore SonrisaDigital.slnx
+
+      - name: Buscar paquetes vulnerables
+        shell: pwsh
+        run: |
+          $salida = dotnet list SonrisaDigital.slnx package --vulnerable --include-transitive | Out-String
+          Write-Host $salida
+          if ($LASTEXITCODE -ne 0) {
+            throw "dotnet list package terminó con error."
+          }
+          if ($salida -match "has the following vulnerable packages") {
+            throw "Hay paquetes NuGet con vulnerabilidades conocidas. Revisa la lista de arriba y actualiza el paquete."
+          }
+
   build-test:
     name: Compilar y probar
     runs-on: ubuntu-latest
@@ -30,7 +60,7 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "SonrisaDigital_Test123!"
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD }}
           MSSQL_PID: "Express"
         ports:
           - 1433:1433
@@ -42,7 +72,7 @@ jobs:
           --health-start-period 20s
 
     env:
-      SONRISADIGITAL_TEST_CONNECTION: "Server=localhost,1433;Database=master;User Id=sa;Password=SonrisaDigital_Test123!;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      SONRISADIGITAL_TEST_CONNECTION: "Server=localhost,1433;Database=master;User Id=sa;Password=${{ secrets.CI_SQL_SA_PASSWORD }};TrustServerCertificate=True;MultipleActiveResultSets=True"
 
     steps:
       - name: Descargar código
@@ -121,7 +151,7 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: "SonrisaDigital_Test123!"
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD }}
           MSSQL_PID: "Express"
         ports:
           - 1433:1433
@@ -133,12 +163,12 @@ jobs:
           --health-start-period 20s
 
     env:
-      MSSQL_SA_PASSWORD: "SonrisaDigital_Test123!"
-      SONRISADIGITAL_E2E_DB_CONNECTION: "Server=localhost,1433;Database=SonrisaDigitalE2E;User Id=sa;Password=SonrisaDigital_Test123!;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD }}
+      SONRISADIGITAL_E2E_DB_CONNECTION: "Server=localhost,1433;Database=SonrisaDigitalE2E;User Id=sa;Password=${{ secrets.CI_SQL_SA_PASSWORD }};TrustServerCertificate=True;MultipleActiveResultSets=True"
       SONRISADIGITAL_E2E_EMAIL: "e2e.admin@sonrisadigital.test"
-      SONRISADIGITAL_E2E_PASSWORD: "E2E_Admin_2026!Segura"
+      SONRISADIGITAL_E2E_PASSWORD: ${{ secrets.CI_E2E_ADMIN_PASSWORD }}
       SONRISADIGITAL_E2E_DUENO_EMAIL: "e2e.dueno@sonrisadigital.test"
-      SONRISADIGITAL_E2E_DUENO_PASSWORD: "E2E_Dueno_2026!Segura"
+      SONRISADIGITAL_E2E_DUENO_PASSWORD: ${{ secrets.CI_E2E_DUENO_PASSWORD }}
       SONRISADIGITAL_E2E_BASE_URL: "http://localhost:5175"
       # La suite inicia sesión más de 5 veces por minuto desde la misma IP (un
       # login por prueba más los reintentos). Sin este límite el POST de login

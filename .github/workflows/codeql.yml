@@ -1,0 +1,45 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main, Desarrollo]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analisis:
+    name: Análisis estático (C#)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Restaurar y compilar
+        run: |
+          dotnet restore SonrisaDigital.slnx
+          dotnet build SonrisaDigital.slnx -c Release --no-restore
+
+      - name: Analizar
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:csharp"
