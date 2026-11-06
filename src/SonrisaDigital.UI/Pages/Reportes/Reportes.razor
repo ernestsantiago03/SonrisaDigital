@@ -238,7 +238,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var cita in citas)
+                            @foreach (var cita in Paginar(citas))
                             {
                                 <tr>
                                     <td class="mono">@cita.Fecha.ToString("dd/MM/yyyy")</td>
@@ -254,6 +254,15 @@
                         </tbody>
                     </table>
                 </div>
+            }
+
+            @if (!cargandoPestana && citas.Count > 0)
+            {
+                <PaginationFooter Page="paginaActual"
+                                  TotalPages="TotalPaginas(citas.Count)"
+                                  Total="citas.Count"
+                                  ItemLabel="cita(s) en el período"
+                                  OnPageChange="CambiarPagina" />
             }
         </section>
     }
@@ -311,7 +320,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var paciente in pacientes)
+                            @foreach (var paciente in Paginar(pacientes))
                             {
                                 <tr>
                                     <td><strong>@paciente.Nombre</strong></td>
@@ -325,6 +334,15 @@
                         </tbody>
                     </table>
                 </div>
+            }
+
+            @if (!cargandoPestana && pacientes.Count > 0)
+            {
+                <PaginationFooter Page="paginaActual"
+                                  TotalPages="TotalPaginas(pacientes.Count)"
+                                  Total="pacientes.Count"
+                                  ItemLabel="paciente(s) en el período"
+                                  OnPageChange="CambiarPagina" />
             }
         </section>
     }
@@ -411,7 +429,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var tratamiento in tratamientos)
+                            @foreach (var tratamiento in Paginar(tratamientos))
                             {
                                 <tr>
                                     <td class="mono">@tratamiento.Fecha.ToString("dd/MM/yyyy")</td>
@@ -429,6 +447,15 @@
                         </tbody>
                     </table>
                 </div>
+            }
+
+            @if (!cargandoPestana && tratamientos.Count > 0)
+            {
+                <PaginationFooter Page="paginaActual"
+                                  TotalPages="TotalPaginas(tratamientos.Count)"
+                                  Total="tratamientos.Count"
+                                  ItemLabel="tratamiento(s) en el período"
+                                  OnPageChange="CambiarPagina" />
             }
         </section>
     }
@@ -503,7 +530,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var pago in pagos)
+                            @foreach (var pago in Paginar(pagos))
                             {
                                 <tr>
                                     <td class="mono">@pago.Fecha.ToString("dd/MM/yyyy")</td>
@@ -520,6 +547,15 @@
                     </table>
                 </div>
             }
+
+            @if (!cargandoPestana && pagos.Count > 0)
+            {
+                <PaginationFooter Page="paginaActual"
+                                  TotalPages="TotalPaginas(pagos.Count)"
+                                  Total="pagos.Count"
+                                  ItemLabel="pago(s) en el período"
+                                  OnPageChange="CambiarPagina" />
+            }
         </section>
     }
 </div>
@@ -527,6 +563,11 @@
 @code {
     // Cultura usada para mostrar los montos en pesos dominicanos.
     private static readonly CultureInfo Cultura = new("es-DO");
+
+    // Tamaño de página de las tablas. El PDF no usa este valor: siempre exporta
+    // todos los registros del período y los filtros seleccionados.
+    private const int ReportesPorPagina = 15;
+    private int paginaActual = 1;
 
     // Estado de la página y de cada consulta.
     private ReporteOpcionesDto opciones = new([], PuedeFiltrarOdontologos: false, PuedeVerPagos: false);
@@ -665,6 +706,8 @@
     /// <summary>Carga únicamente la tabla de la pestaña activa.</summary>
     private async Task CargarPestanaAsync()
     {
+        // Cada consulta nueva (período, filtros o pestaña) vuelve a la primera página.
+        paginaActual = 1;
         cargandoPestana = true;
         errorMessage = null;
 
@@ -706,6 +749,30 @@
             cargandoPestana = false;
         }
     }
+
+    /// <summary>Recorta el listado completo a la página visible de 20 registros.</summary>
+    private IEnumerable<T> Paginar<T>(IReadOnlyList<T> items) =>
+        items.Skip((paginaActual - 1) * ReportesPorPagina).Take(ReportesPorPagina);
+
+    /// <summary>Calcula cuántas páginas de 20 registros necesita el listado.</summary>
+    private static int TotalPaginas(int total) =>
+        Math.Max(1, (int)Math.Ceiling(total / (double)ReportesPorPagina));
+
+    /// <summary>Cambia de página sin volver a consultar la base de datos.</summary>
+    private void CambiarPagina(int pagina)
+    {
+        paginaActual = Math.Clamp(pagina, 1, TotalPaginas(TotalRegistrosPaginaActual));
+    }
+
+    /// <summary>Total del listado que se está mostrando en la pestaña activa.</summary>
+    private int TotalRegistrosPaginaActual => pestanaActiva switch
+    {
+        "citas" => citas.Count,
+        "pacientes" => pacientes.Count,
+        "tratamientos" => tratamientos.Count,
+        "pagos" => pagos.Count,
+        _ => 0
+    };
 
     /// <summary>Construye el filtro común a partir de los controles de la página.</summary>
     private ReporteFiltroDto CrearFiltro()

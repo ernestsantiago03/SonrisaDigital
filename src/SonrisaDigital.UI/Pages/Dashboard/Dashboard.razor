@@ -4,6 +4,7 @@
 @using SonrisaDigital.Services.Citas
 @using SonrisaDigital.Services.Citas.DTOs
 @using SonrisaDigital.Services.Dashboard
+@using SonrisaDigital.Services.Dashboard.DTOs
 @using SonrisaDigital.Services.Autorizacion
 @using SonrisaDigital.Services.Pagos
 @using SonrisaDigital.Services.Pagos.DTOs
@@ -17,14 +18,16 @@
 
    ¿Qué hace esta pantalla?
      Es el panel de bienvenida: resume en tarjetas lo que está pasando hoy (citas con sus
-     contadores, pacientes activos, odontólogos activos) y el saldo pendiente de pagos
-     (los mismos números reales del módulo de Pagos, no datos inventados).
+     contadores, pacientes activos, odontólogos activos), muestra el saldo pendiente de
+     pagos, las próximas citas de la semana y los cobros del mes. También ofrece accesos
+     rápidos a las acciones más usadas según los permisos del usuario.
 
    ¿Cómo se lee este archivo?
-     - Markup: tarjetas de métricas, tabla de citas de hoy y la tarjeta "Pagos pendientes".
+     - Markup: accesos rápidos, tarjetas de métricas, tabla de citas de hoy,
+       próximas citas, cobros del mes y la tarjeta "Pagos pendientes".
      - @code (al final):
          OnInitializedAsync     -> al abrir la página, cargar todo
-         LoadDashboardDataAsync -> 3 bloques: citas, métricas y pagos
+         LoadDashboardDataAsync -> 4 bloques: citas, métricas, próximas citas y cobros
          Ayudantes              -> dinero, plurales, colores y símbolos de las etiquetas
    ============================================================================ *@
 
@@ -35,6 +38,25 @@
         <div>
             <h1>Inicio</h1>
             <p>@RelojNegocio.Ahora().ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-DO"))</p>
+        </div>
+
+        @* --- ACCESOS RÁPIDOS (cada botón aparece solo con su permiso) --- *@
+        <div class="quick-actions">
+            <AuthorizeView Policy="Pacientes.Crear">
+                <Authorized>
+                    <a class="quick-action" href="/pacientes/nuevo" title="Registrar un paciente nuevo">
+                        <span aria-hidden="true">+</span> Paciente
+                    </a>
+                </Authorized>
+            </AuthorizeView>
+
+            <AuthorizeView Policy="Citas.Crear">
+                <Authorized>
+                    <a class="quick-action" href="/cita/nuevo" title="Agendar una cita nueva">
+                        <span aria-hidden="true">+</span> Cita
+                    </a>
+                </Authorized>
+            </AuthorizeView>
         </div>
     </div>
 
@@ -173,6 +195,96 @@
             </div>
         </Authorized>
     </AuthorizeView>
+
+    @* --- PRÓXIMAS CITAS Y COBROS DEL MES --- *@
+    @* Cada panel aparece solo si el usuario tiene el permiso correspondiente. *@
+    @if (puedeVerCitas || puedeVerPagos)
+    {
+        <div class="dashboard-grid @(puedeVerCitas && puedeVerPagos ? "" : "is-single")">
+            @if (puedeVerCitas)
+            {
+                <section class="dashboard-panel upcoming-panel">
+                    <div class="panel-heading">
+                        <h2>Próximas citas · 7 días</h2>
+                        <a href="/cita">Ver agenda</a>
+                    </div>
+
+                    <div class="table-scroll" style="max-height: 250px; overflow-y: auto;">
+                        @if (loading)
+                        {
+                            <div class="panel-placeholder">Cargando próximas citas...</div>
+                        }
+                        else if (proximasCitas.Count == 0)
+                        {
+                            <div class="panel-placeholder">No hay citas en los próximos 7 días.</div>
+                        }
+                        else
+                        {
+                            <table class="data-table">
+                                <thead style="position: sticky; top: 0; background-color: #ffffff; z-index: 2;">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Hora</th>
+                                        <th>Paciente</th>
+                                        <th>Odontólogo</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var cita in proximasCitas)
+                                    {
+                                        <tr>
+                                            <td class="mono">@cita.Fecha.ToString("ddd dd/MM", Cultura)</td>
+                                            <td class="mono">@cita.HoraInicio.ToString("HH:mm")</td>
+                                            <td><strong>@cita.PacienteNombre</strong></td>
+                                            <td>@cita.OdontologoNombre</td>
+                                            <td>
+                                                <span class="status @GetEstadoClassDashboard(cita.Estado)">
+                                                    @GetEstadoTextoDashboard(cita.Estado)
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (puedeVerPagos)
+            {
+                <section class="dashboard-panel collections-panel">
+                    <div class="panel-heading">
+                        <h2>Cobros del mes</h2>
+                        <a href="/reportes">Ver reportes</a>
+                    </div>
+
+                    <div class="collections-body">
+                        @if (loading || cobros is null)
+                        {
+                            <div class="panel-placeholder">@(loading ? "Cargando cobros..." : "No se pudieron cargar los cobros.")</div>
+                        }
+                        else
+                        {
+                            <div class="collection-item">
+                                <span>Cobrado hoy</span>
+                                <strong>@Money(cobros.CobradoHoy)</strong>
+                            </div>
+                            <div class="collection-item primary">
+                                <span>Cobrado este mes</span>
+                                <strong>@Money(cobros.CobradoMes)</strong>
+                            </div>
+                            <div class="collection-item">
+                                <span>Pagos registrados</span>
+                                <strong>@cobros.PagosMes.ToString("N0")</strong>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -181,9 +293,12 @@
 
     // ===== Datos que se pintan en la pantalla =====
     private List<CitaListItemDto> citasHoy = [];                    // citas de hoy, ordenadas por hora
+    private List<CitaListItemDto> proximasCitas = [];               // agenda de los próximos 7 días
     private PagosResumenDto resumen = new(0, 0, 0, 0);              // números de la tarjeta "Pagos pendientes"
+    private DashboardCobrosDto? cobros;                             // cobros de hoy y de lo que va del mes
     private bool loading = true;                                    // ¿la página sigue cargando?
     private bool puedeVerCitas;                                     // evita consultar las citas sin permiso
+    private bool puedeVerPagos;                                     // evita consultar los cobros sin permiso
 
     // ===== Contadores (métricas) que se calculan al cargar =====
     private int totalCitasHoy = 0;
@@ -204,8 +319,8 @@
 
     /// <summary>
     /// Carga todo lo que muestra el panel de inicio: las citas de hoy con sus contadores,
-    /// los pacientes y odontólogos activos y el resumen de pagos
-    /// (los mismos números reales del módulo de Pagos, sin datos inventados).
+    /// las próximas citas de la semana, los pacientes y odontólogos activos, el saldo
+    /// pendiente y los cobros del mes (los mismos números reales del módulo de Pagos).
     /// </summary>
     private async Task LoadDashboardDataAsync()
     {
@@ -219,6 +334,7 @@
             var usuario = authenticationState.User;
 
             puedeVerCitas = usuario.HasClaim(PermissionCatalog.ClaimType, "Citas.Ver");
+            puedeVerPagos = usuario.HasClaim(PermissionCatalog.ClaimType, "Pagos.Ver");
 
             DateOnly hoy = RelojNegocio.HoyDateOnly();
 
@@ -234,9 +350,15 @@
                 citasAtendidas = citasHoy.Count(c => c.Estado == EstadoCita.Atendida);
                 citasCanceladas = citasHoy.Count(c => c.Estado == EstadoCita.Cancelada);
                 citasNoAsistio = citasHoy.Count(c => c.Estado == EstadoCita.NoAsistio);
+
+                // 2. PRÓXIMAS CITAS (desde mañana hasta dentro de 7 días)
+                // Se excluyen las canceladas: no forman parte de la agenda por atender.
+                proximasCitas = (await CitaService.SearchRangoAsync(hoy.AddDays(1), hoy.AddDays(7)))
+                    .Where(c => c.Estado != EstadoCita.Cancelada)
+                    .ToList();
             }
 
-            // 2. MÉTRICAS DE PACIENTES Y ODONTÓLOGOS (solo con permiso de lectura de ambos)
+            // 3. MÉTRICAS DE PACIENTES Y ODONTÓLOGOS (solo con permiso de lectura de ambos)
             // El servicio hace los conteos en SQL; la pantalla ya no carga las listas completas.
             if (usuario.HasClaim(PermissionCatalog.ClaimType, "Pacientes.Ver")
                 && usuario.HasClaim(PermissionCatalog.ClaimType, "Odontologos.Ver"))
@@ -247,8 +369,14 @@
                 pacientesNuevosSemana = stats.PacientesRegistradosEstaSemana;
             }
 
-            // 3. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
+            // 4. SALDO PENDIENTE (misma fuente que el módulo de Pagos, sin datos ficticios)
             resumen = await DashboardService.GetResumenPagosAsync();
+
+            // 5. COBROS DEL MES (solo con permiso de lectura de pagos)
+            if (puedeVerPagos)
+            {
+                cobros = await DashboardService.GetCobrosMesAsync();
+            }
         }
         catch (Exception)
         {
@@ -279,6 +407,7 @@
         EstadoCita.Confirmada => "confirmed",
         EstadoCita.Atendida => "attended",
         EstadoCita.Cancelada => "cancelled",
+        EstadoCita.NoAsistio => "no-show",
         _ => ""
     };
 

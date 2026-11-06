@@ -13,6 +13,7 @@ public sealed class DashboardService(
     IPacienteRepository pacienteRepository,
     IOdontologoRepository odontologoRepository,
     IPagoRepository pagoRepository,
+    IReporteRepository reporteRepository,
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService) : IDashboardService
 {
@@ -75,6 +76,34 @@ public sealed class DashboardService(
             totales.TotalCobrado,
             totales.TotalFacturado - totales.TotalCobrado,
             totales.TratamientosConSaldo);
+    }
+
+    /// <summary>
+    /// Suma los pagos desde el primer día del mes hasta hoy. Se apoya en el rango de
+    /// calendario que ya usa Reportes: los pagos guardan su fecha en hora local.
+    /// </summary>
+    public async Task<DashboardCobrosDto> GetCobrosMesAsync(CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(
+            currentUserService,
+            "Pagos.Ver",
+            "No tienes permiso para consultar pagos.");
+
+        var hoy = RelojNegocio.HoyDateOnly();
+        var inicioMes = new DateOnly(hoy.Year, hoy.Month, 1);
+        var desde = inicioMes.ToDateTime(TimeOnly.MinValue);
+        var hastaExclusivo = hoy.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        var inicioDia = hoy.ToDateTime(TimeOnly.MinValue);
+
+        var pagos = await reporteRepository.GetPagosAsync(
+            desde,
+            hastaExclusivo,
+            cancellationToken: cancellationToken);
+
+        return new DashboardCobrosDto(
+            CobradoHoy: pagos.Where(pago => pago.Fecha >= inicioDia).Sum(pago => pago.Monto),
+            CobradoMes: pagos.Sum(pago => pago.Monto),
+            PagosMes: pagos.Count);
     }
 
     /// <summary>

@@ -25,6 +25,32 @@ public sealed class CitaRepository(ApplicationDbContext dbContext) : ICitaReposi
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Cita>> SearchRangoAsync(
+        DateOnly desde,
+        DateOnly hasta,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Cita> query = dbContext.Citas
+            .AsNoTracking()
+            .Where(c => c.Fecha >= desde && c.Fecha <= hasta);
+
+        if (odontologoId.HasValue)
+            query = query.Where(c => c.OdontologoId == odontologoId.Value);
+
+        if (estado.HasValue)
+            query = query.Where(c => c.Estado == estado.Value);
+
+        return await query
+            .Include(c => c.Paciente)
+            .Include(c => c.Odontologo)
+            .OrderBy(c => c.Fecha)
+            .ThenBy(c => c.HoraInicio)
+            .ThenBy(c => c.Id)
+            .ToListAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Página de citas para la tabla principal. Primero cuenta en SQL y después trae
     /// solamente las filas de la página solicitada, con paciente y odontólogo incluidos.

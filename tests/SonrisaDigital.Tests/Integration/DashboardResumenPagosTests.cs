@@ -20,6 +20,7 @@ public sealed class DashboardResumenPagosTests(SqlServerFixture fixture)
             pacienteRepository: null!,
             odontologoRepository: null!,
             pagoRepository: new PagoRepository(db),
+            reporteRepository: new ReporteRepository(db),
             currentUserService: TestSession.Crear(),
             authorizationService: new FakeAuthorizationService(permitir: false));
 
@@ -36,6 +37,7 @@ public sealed class DashboardResumenPagosTests(SqlServerFixture fixture)
             pacienteRepository: null!,
             odontologoRepository: null!,
             pagoRepository: new PagoRepository(db),
+            reporteRepository: new ReporteRepository(db),
             currentUserService: new CurrentUserService(),
             authorizationService: new FakeAuthorizationService());
 

@@ -14,6 +14,17 @@ public interface ICitaService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Citas dentro de un rango de fechas local [desde, hasta]. La usa el panel de
+    /// próximas citas del Inicio para mostrar la agenda de los siguientes días.
+    /// </summary>
+    Task<IReadOnlyList<CitaListItemDto>> SearchRangoAsync(
+        DateOnly desde,
+        DateOnly hasta,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Página de citas para la tabla principal. Devuelve también el total que cumple
     /// los filtros para poder mostrar la paginación.
     /// </summary>

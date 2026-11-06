@@ -48,6 +48,20 @@ public sealed class CitaService(
         return citas.Select(ToListItem).ToList();
     }
 
+    public async Task<IReadOnlyList<CitaListItemDto>> SearchRangoAsync(
+        DateOnly desde,
+        DateOnly hasta,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        CancellationToken cancellationToken = default)
+    {
+        await authorizationService.AsegurarPermisoAsync(currentUserService, "Citas.Ver", "No tienes permiso para consultar citas.");
+
+        var citas = await repository.SearchRangoAsync(desde, hasta, odontologoId, estado, cancellationToken);
+
+        return citas.Select(ToListItem).ToList();
+    }
+
     /// <summary>
     /// Devuelve una página de citas para la tabla principal. El repositorio hace el
     /// conteo y el recorte en SQL; aquí solo se convierten las filas al DTO.

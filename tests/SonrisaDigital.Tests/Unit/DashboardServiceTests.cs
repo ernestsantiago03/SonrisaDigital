@@ -12,10 +12,26 @@ public sealed class DashboardServiceTests
             pacienteRepository: null!,
             odontologoRepository: null!,
             pagoRepository: null!,
+            reporteRepository: null!,
             currentUserService: TestSession.Crear(),
             authorizationService: new FakeAuthorizationService(permitir: false));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => servicio.GetStatsAsync());
+    }
+
+    [Fact]
+    public async Task LosCobrosDelMesRechazanSinPermisoDePagosAntesDeConsultar()
+    {
+        var servicio = new DashboardService(
+            pacienteRepository: null!,
+            odontologoRepository: null!,
+            pagoRepository: null!,
+            reporteRepository: null!,
+            currentUserService: TestSession.Crear(),
+            authorizationService: new FakeAuthorizationService(permitir: false));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => servicio.GetCobrosMesAsync());
     }
 }

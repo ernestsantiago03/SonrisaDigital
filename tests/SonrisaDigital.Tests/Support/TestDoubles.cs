@@ -342,6 +342,14 @@ internal sealed class BarrierCitaRepository(ICitaRepository interno, AsyncBarrie
         CancellationToken cancellationToken = default) =>
         interno.SearchAsync(fecha, pacienteId, odontologoId, estado, cancellationToken);
 
+    public Task<IReadOnlyList<Cita>> SearchRangoAsync(
+        DateOnly desde,
+        DateOnly hasta,
+        int? odontologoId = null,
+        EstadoCita? estado = null,
+        CancellationToken cancellationToken = default) =>
+        interno.SearchRangoAsync(desde, hasta, odontologoId, estado, cancellationToken);
+
     public Task<PagedResult<Cita>> SearchPagedAsync(
         DateOnly? fecha,
         int? pacienteId,
