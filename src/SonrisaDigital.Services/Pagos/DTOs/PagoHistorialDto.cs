@@ -9,7 +9,7 @@ namespace SonrisaDigital.Services.Pagos.DTOs;
 public sealed record PagoHistorialDto(
     int Id,
     int TratamientoRealizadoId,
-    DateTime Fecha,
+    DateOnly Fecha,
     string PacienteNombre,
     string TratamientoNombre,
     decimal Monto,

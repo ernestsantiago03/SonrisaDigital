@@ -43,8 +43,8 @@ public interface IReporteRepository
     /// con sus pagos y datos relacionados.
     /// </summary>
     Task<IReadOnlyList<TratamientoRealizado>> GetTratamientosAsync(
-        DateTime desde,
-        DateTime hastaExclusivo,
+        DateOnly desde,
+        DateOnly hastaExclusivo,
         int? odontologoId = null,
         EstadoTratamiento? estado = null,
         CancellationToken cancellationToken = default);
@@ -63,8 +63,8 @@ public interface IReporteRepository
     /// paciente y usuario que los registró. Se puede limitar a los pagos de los tratamientos de un odontólogo.
     /// </summary>
     Task<IReadOnlyList<Pago>> GetPagosAsync(
-        DateTime desde,
-        DateTime hastaExclusivo,
+        DateOnly desde,
+        DateOnly hastaExclusivo,
         int? odontologoId = null,
         MetodoPago? metodoPago = null,
         CancellationToken cancellationToken = default);

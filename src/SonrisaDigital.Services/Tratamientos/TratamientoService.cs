@@ -363,7 +363,7 @@ public sealed class TratamientoService(
                     OdontologoId = model.OdontologoId,
                     PiezaDentalId = model.PiezaDentalId,
                     ConsultaId = model.ConsultaId,
-                    Fecha = model.Fecha.Date,
+                    Fecha = model.Fecha,
                     Precio = model.Precio,
                     Estado = EstadoTratamiento.EnProceso,
                     Observaciones = Normalize(model.Observaciones)
@@ -472,7 +472,7 @@ public sealed class TratamientoService(
         realizado.OdontologoId = model.OdontologoId;
         realizado.PiezaDentalId = model.PiezaDentalId;
         realizado.ConsultaId = model.ConsultaId;
-        realizado.Fecha = model.Fecha.Date;
+        realizado.Fecha = model.Fecha;
         realizado.Precio = model.Precio;
 
         realizado.Observaciones = Normalize(model.Observaciones);
@@ -732,7 +732,7 @@ public sealed class TratamientoService(
             throw new InvalidOperationException("La fecha del tratamiento es obligatoria.");
         }
 
-        if (model.Fecha.Date > RelojNegocio.Hoy())
+        if (model.Fecha > RelojNegocio.HoyDateOnly())
         {
             throw new InvalidOperationException("La fecha del tratamiento no puede ser futura.");
         }

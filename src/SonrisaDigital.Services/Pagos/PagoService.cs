@@ -305,8 +305,9 @@ public sealed class PagoService(
                 var pago = new Pago
                 {
                     TratamientoRealizadoId = tratamiento.Id,
-                    // La fecha de un pago es una fecha de calendario elegida por el usuario: se guarda sin hora.
-                    Fecha = model.Fecha.Date,
+                    // La fecha de un pago es una fecha de calendario elegida por el usuario:
+                    // se guarda como DateOnly, sin hora ni conversión de zona horaria.
+                    Fecha = model.Fecha,
                     Monto = monto,
                     MetodoPago = model.MetodoPago,
                     // Las observaciones vacías se guardan como null (no como texto vacío).

@@ -15,6 +15,6 @@ public sealed record TratamientoPagoListItemDto(
     decimal Pagado,
     decimal Saldo,
     EstadoTratamiento EstadoClinico,
-    DateTime? UltimoPago,
+    DateOnly? UltimoPago,
     MetodoPago? UltimoMetodo,
     EstadoFinanciero Estado);

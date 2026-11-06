@@ -65,7 +65,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 | **Tratamientos** | Catálogo y registro de tratamientos asociados al flujo clínico. | ✅ |
 | **Pagos** | Registro de pagos, historial y control de saldos pendientes. | ✅ |
 | **Usuarios** | Administración de cuentas, roles y estado de acceso. | ✅ |
-| **Roles y permisos** | Asignación granular de permisos por rol (38 permisos en 11 módulos). | ✅ |
+| **Roles y permisos** | Asignación granular de permisos por rol (38 permisos en 14 módulos). | ✅ |
 | **Auditoría** | Registro automático de operaciones y actividad reciente en el dashboard. | ✅ |
 | **Centro de ayuda** | Guías, preguntas frecuentes, solución de problemas y contacto de soporte. | ✅ |
 | **Reportes** | Panel de reportes de citas, pacientes atendidos, tratamientos y pagos con filtros, exportación PDF y alcance por odontólogo. | ✅ |
@@ -79,7 +79,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 - **HTTPS** obligatorio y **HSTS** en producción.
 - Página 404 personalizada y manejo controlado de errores.
 - Datos iniciales (roles, permisos, Dueño y catálogo odontográfico) creados automáticamente al arrancar. La clínica demo y su administrador solo se crean en Development/E2E.
-- **Fechas y horas del negocio** centralizadas en `RelojNegocio` (`America/Santo_Domingo`). Las fechas de calendario se calculan con la hora local de la clínica y las marcas de tiempo se guardan en UTC, aunque el servidor opere en otra zona horaria.
+- **Fechas y horas del negocio** centralizadas en `RelojNegocio` (`America/Santo_Domingo`). Las fechas de calendario (citas, pagos, tratamientos, nacimiento y estudios) usan `DateOnly` y se guardan como columna `date`, así que no se desplazan por la zona horaria del servidor. Las marcas de tiempo reales (registro, subida, auditoría) se guardan en UTC.
 
 ### Suscripción y facturación
 
@@ -100,22 +100,25 @@ El precio propuesto y los días de aviso se configuran en `Suscripcion` (`Precio
 
 ## Roles y permisos
 
-Sonrisa Digital incluye tres roles predefinidos. Los permisos son configurables desde el módulo **Roles y permisos**.
+Sonrisa Digital incluye cuatro roles predefinidos: **Dueño**, **Administrador**, **Recepcionista** y **Odontólogo**. Los roles y sus permisos son **globales**: un cambio afecta a todas las clínicas y no se personaliza por clínica.
 
-| Módulo | Administrador | Recepcionista | Odontólogo |
-|---|---|---|---|
-| Pacientes | Total | Total | Consulta |
-| Odontólogos | Total | Consulta | Consulta |
-| Citas | Total | Total (excepto atender) | Consulta y atención |
-| Historia clínica | Total | Consulta | Total |
-| Odontograma | Total | Consulta | Total |
-| Tratamientos | Total | Consulta | Total |
-| Pagos | Total | Registrar y consultar | — |
-| Usuarios | Total | — | — |
-| Roles y permisos | Total | — | — |
-| Auditoría | Total | — | — |
-| Reportes | Total | Consulta | Consulta |
+| Módulo | Dueño | Administrador | Recepcionista | Odontólogo |
+|---|---|---|---|---|
+| Pacientes | Total | Total | Total | Consulta |
+| Odontólogos | Total | Total | Consulta | Consulta |
+| Citas | Total | Total | Total (excepto atender) | Consulta y atención |
+| Historia clínica | Total | Total | Consulta | Total |
+| Odontograma | Total | Total | Consulta | Total |
+| Tratamientos | Total | Total | Consulta | Total |
+| Pagos | Total | Total | Registrar y consultar | — |
+| Usuarios | Total | — | — | — |
+| Roles y permisos | Total | — | — | — |
+| Auditoría | Total | — | — | — |
+| Clínicas | Total | — | — | — |
+| Archivos del paciente (ocultar/restaurar) | Total | — | — | — |
+| Reportes | Total | Total | Consulta | Consulta |
 
+> **Regla dura:** Usuarios, Roles y permisos, Auditoría, Clínicas y ocultar/restaurar archivos son exclusivos del Dueño. El sistema rechaza cualquier intento de asignar esos permisos a otro rol, aunque quien edite sea Dueño.
 > Los roles son acumulativos: un usuario puede tener más de un rol y recibe la unión de sus permisos.
 > En **Reportes**, el usuario con rol Odontólogo ve únicamente su propia actividad clínica.
 

@@ -284,7 +284,7 @@ public sealed class PagoRepositoryTests(SqlServerFixture fixture)
             new Pago
             {
                 TratamientoRealizadoId = parcial.Id,
-                Fecha = DateTime.UtcNow,
+                Fecha = RelojNegocio.HoyDateOnly(),
                 Monto = 40m,
                 MetodoPago = MetodoPago.Efectivo,
                 UsuarioId = usuario.Id
@@ -292,7 +292,7 @@ public sealed class PagoRepositoryTests(SqlServerFixture fixture)
             new Pago
             {
                 TratamientoRealizadoId = pagado.Id,
-                Fecha = DateTime.UtcNow,
+                Fecha = RelojNegocio.HoyDateOnly(),
                 Monto = 100m,
                 MetodoPago = MetodoPago.Tarjeta,
                 UsuarioId = usuario.Id

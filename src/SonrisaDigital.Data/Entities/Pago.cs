@@ -9,7 +9,7 @@ public class Pago : IPerteneceAClinica
 
     public int Id { get; set; }
     public int TratamientoRealizadoId { get; set; }
-    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
+    public DateOnly Fecha { get; set; } = RelojNegocio.HoyDateOnly();
     public decimal Monto { get; set; }
     public MetodoPago MetodoPago { get; set; }
     public string? Observaciones { get; set; }

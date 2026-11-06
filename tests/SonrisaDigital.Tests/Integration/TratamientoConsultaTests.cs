@@ -97,7 +97,7 @@ public sealed class TratamientoConsultaTests(SqlServerFixture fixture) : IClassF
         TratamientoId = tratamientoId,
         OdontologoId = odontologoId,
         ConsultaId = consultaId,
-        Fecha = RelojNegocio.Hoy(),
+        Fecha = RelojNegocio.HoyDateOnly(),
         Precio = 100m,
         Estado = EstadoTratamiento.EnProceso
     };

@@ -98,10 +98,13 @@ public sealed class RolService(
                 throw new InvalidOperationException("El rol Dueño no se puede modificar.");
             }
 
-            // Los permisos del panel de clínicas solo puede tenerlos el rol Dueño.
-            if (names.Any(PermissionCatalog.EsPermisoDeClinicas))
+            // Hay permisos reservados al Dueño (clínicas, usuarios, roles, auditoría y
+            // ocultar archivos clínicos). Aunque quien edita sea Dueño, no puede delegarlos
+            // a otro rol: la regla es del sistema, no un valor por defecto.
+            if (names.Any(PermissionCatalog.EsPermisoExclusivoDueno))
             {
-                throw new InvalidOperationException("Solo el rol Dueño puede tener permisos del panel de clínicas.");
+                throw new InvalidOperationException(
+                    "Usuarios, roles, auditoría, clínicas y ocultar archivos son exclusivos del rol Dueño.");
             }
 
             var permissions = await dbContext.Permisos

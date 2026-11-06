@@ -1,0 +1,64 @@
+/* CSS for MiCuentaDueno component */
+/* Modifica todos los cuadros de entrada dentro del formulario */
+.field input {
+    padding: 12px 15px; /* Agranda el cuadro dándole espacio interno (Arriba/Abajo y Izquierda/Derecha) */
+    font-size: 16px; /* Hace que la letra que escribe el usuario sea más grande y legible */
+    border: 1px solid #ccc; /* Un borde gris suave */
+    border-radius: 6px; /* Bordes ligeramente redondeados para una apariencia limpia */
+    width: 100%; /* Asegura que use todo el ancho de su columna */
+    box-sizing: border-box; /* Evita que el padding rompa el tamaño del cuadro */
+}
+/* Contenedor principal de todo el formulario */
+.form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Espacio vertical entre cada fila */
+    max-width: 500px; /* Ajusta el ancho total del formulario según tu diseño */
+}
+
+/* Cada fila del formulario */
+.field {
+    display: grid;
+    grid-template-columns: 200px 1fr; /* 200px fijos para la etiqueta, el resto para el input */
+    align-items: center; /* Centra verticalmente el texto con el cuadro */
+    gap: 10px; /* Espacio horizontal entre la etiqueta y el cuadro */
+}
+
+    /* Opcional: Estilo básico para los inputs para que se vean bien */
+    .field input {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 100%; /* Ocupará todo el espacio disponible del "1fr" */
+        box-sizing: border-box;
+    }
+
+/* Cada fila del formulario */
+.field {
+    display: grid;
+    grid-template-columns: 200px 1fr; /* Ajusta los 200px según el largo de tu texto */
+    align-items: center;
+    gap: 10px;
+}
+
+    /* Estilos específicos para las letras (etiquetas) */
+    .field label {
+        color: #000000; /* Hace que el texto sea completamente negro */
+        font-weight: 500; /* Opcional: le da un toque un poco más grueso/firme a la letra */
+        font-size: 14px; /* Opcional: ajusta el tamaño del texto si lo necesitas */
+    }
+
+    .field label {
+        color: #000000;
+        text-transform: uppercase; /* Convierte el texto automáticamente a MAYÚSCULAS */
+        font-size: 12px; /* Las mayúsculas suelen verse mejor un poco más pequeñas */
+    }
+    /* Modifica todos los cuadros de entrada dentro del formulario */
+    .field input {
+        padding: 12px 15px; /* Agranda el cuadro dándole espacio interno (Arriba/Abajo y Izquierda/Derecha) */
+        font-size: 16px; /* Hace que la letra que escribe el usuario sea más grande y legible */
+        border: 1px solid #ccc; /* Un borde gris suave */
+        border-radius: 6px; /* Bordes ligeramente redondeados para una apariencia limpia */
+        width: 100%; /* Asegura que use todo el ancho de su columna */
+        box-sizing: border-box; /* Evita que el padding rompa el tamaño del cuadro */
+    }

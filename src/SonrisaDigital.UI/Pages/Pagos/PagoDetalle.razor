@@ -293,7 +293,7 @@
         nuevoPago = new RegistrarPagoDto
         {
             TratamientoRealizadoId = detalle.TratamientoRealizadoId,
-            Fecha = RelojNegocio.Hoy(),
+            Fecha = RelojNegocio.HoyDateOnly(),
             MetodoPago = MetodoPago.Efectivo
         };
 

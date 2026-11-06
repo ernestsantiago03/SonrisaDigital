@@ -373,7 +373,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasAlternateKey(treatment => new { treatment.ClinicaId, treatment.Id });
             entity.Property(treatment => treatment.Precio).HasPrecision(12, 2);
             entity.Property(treatment => treatment.Estado).HasConversion<string>().HasMaxLength(20);
-            entity.Property(treatment => treatment.Fecha).HasDefaultValueSql("SYSUTCDATETIME()");
             entity.HasIndex(treatment => treatment.ClinicaId);
             entity.HasOne(treatment => treatment.Paciente)
                 .WithMany(patient => patient.TratamientosRealizados)
@@ -405,7 +404,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasKey(payment => payment.Id);
             entity.Property(payment => payment.Monto).HasPrecision(12, 2);
             entity.Property(payment => payment.MetodoPago).HasConversion<string>().HasMaxLength(20);
-            entity.Property(payment => payment.Fecha).HasDefaultValueSql("SYSUTCDATETIME()");
             entity.Property(payment => payment.UsuarioId).HasMaxLength(450).IsRequired();
             entity.HasIndex(payment => payment.ClinicaId);
             entity.HasIndex(payment => new { payment.ClinicaId, payment.Fecha });

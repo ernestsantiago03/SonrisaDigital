@@ -24,31 +24,42 @@
     }
     else
     {
-        <section class="mfa-panel">
-            <ol>
-                <li>Abre tu app autenticadora (Google Authenticator, Microsoft Authenticator o similar).</li>
-                <li>Agrega una cuenta nueva, de tipo <strong>basada en tiempo</strong>, con esta clave:
-                    <div class="mfa-clave"><code>@claveFormateada</code></div>
-                </li>
-                <li>Escribe el código de 6 dígitos que muestra la app y confirma.</li>
-            </ol>
+        <section class="mfa-container">
+            <div class="mfa-card">
+                <h2 class="mfa-title">Verificación en dos pasos</h2>
+                <p class="mfa-instructions">Escribe el código de 6 dígitos de tu app autenticadora.</p>
 
-            <form method="post" action="/seguridad/mfa/activar" class="mfa-confirmar">
-                <AntiforgeryToken />
-                <label for="mfa-codigo">Código de 6 dígitos</label>
-                <input id="mfa-codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required />
-                <button type="submit" class="primary-action">Activar segundo factor</button>
-            </form>
+                <form method="post" action="/seguridad/mfa/activar" class="mfa-form">
+                    <AntiforgeryToken />
+            
+                    <!-- Campo 1 -->
+                    <div class="mfa-field">
+                        <label for="mfa-codigo">Código de la app</label>
+                        <input id="mfa-codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" required />
+                    </div>
 
-            @if (Error == "invalid")
-            {
-                <div class="feedback error" role="alert">El código no es correcto. Revisa que la hora de tu teléfono esté sincronizada e inténtalo de nuevo.</div>
-            }
-            else if (Error == "expired")
-            {
-                <div class="feedback error" role="alert">La página expiró. Vuelve a intentarlo.</div>
-            }
+                    <!-- Campo 2 -->
+                    <div class="mfa-field">
+                        <label for="mfa-recuperacion">o código de recuperación</label>
+                        <input id="mfa-recuperacion" name="CodigoRecuperacion" type="text" placeholder="Solo si perdiste el acceso" />
+                    </div>
+
+                    <!-- Contenedor para alinear el botón con los inputs -->
+                    <div class="mfa-action-row">
+                        <button type="submit" class="mfa-btn">Verificar</button>
+                    </div>
+                </form>
+
+                @if (Error == "invalid" || Error == "expired")
+                {
+                    <div class="mfa-alert error" role="alert">
+                        @(Error == "invalid" ? "El código no es correcto." : "La página expiró.")
+                    </div>
+                }
+            </div>
         </section>
+
+
     }
 </div>
 

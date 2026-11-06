@@ -49,6 +49,17 @@ public static class PermissionCatalog
     /// <summary>Permisos del panel de clínicas. Solo los tiene el rol Dueño.</summary>
     public static bool EsPermisoDeClinicas(string nombre) => nombre.StartsWith("Clinicas.", StringComparison.Ordinal);
 
+    /// <summary>
+    /// Permisos que solo puede tener el Dueño. No es una configuración por defecto:
+    /// el sistema rechaza cualquier intento de asignarlos a otro rol.
+    /// </summary>
+    public static bool EsPermisoExclusivoDueno(string nombre) =>
+        EsPermisoDeClinicas(nombre)
+        || nombre.StartsWith("Usuarios.", StringComparison.Ordinal)
+        || nombre.StartsWith("Roles.", StringComparison.Ordinal)
+        || string.Equals(nombre, "Auditoria.Ver", StringComparison.Ordinal)
+        || string.Equals(nombre, "Archivos.Ocultar", StringComparison.Ordinal);
+
     public static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> DefaultRolePermissions =
         new Dictionary<string, IReadOnlySet<string>>
         {

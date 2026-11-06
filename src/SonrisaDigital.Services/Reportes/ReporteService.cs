@@ -60,7 +60,10 @@ public sealed class ReporteService(
 
         var odontologoId = ObtenerOdontologoId(filtro, contexto);
         var (desdeUtc, hastaUtcExclusivo) = ConvertirRangoLocalAUtc(filtro.Desde, filtro.Hasta);
-        var (desde, hastaExclusivo) = ConvertirRangoCalendario(filtro.Desde, filtro.Hasta);
+        // Pagos y tratamientos guardan su fecha como DateOnly: se comparan contra el
+        // calendario tal cual, sin convertir a UTC (eso desplazaría el día).
+        var desde = filtro.Desde;
+        var hastaExclusivo = filtro.Hasta.AddDays(1);
 
         // Las citas del período alimentan tanto el conteo por estado como el de
         // pacientes atendidos (pacientes únicos con cita Atendida).
@@ -222,7 +225,8 @@ public sealed class ReporteService(
         await EnsurePermisoAsync(contexto.Principal, PermisoTratamientos);
         ValidarFiltro(filtro);
 
-        var (desde, hastaExclusivo) = ConvertirRangoCalendario(filtro.Desde, filtro.Hasta);
+        var desde = filtro.Desde;
+        var hastaExclusivo = filtro.Hasta.AddDays(1);
 
         var tratamientos = await repository.GetTratamientosAsync(
             desde,
@@ -257,7 +261,8 @@ public sealed class ReporteService(
         await EnsurePermisoAsync(contexto.Principal, PermisoPagos);
         ValidarFiltro(filtro);
 
-        var (desde, hastaExclusivo) = ConvertirRangoCalendario(filtro.Desde, filtro.Hasta);
+        var desde = filtro.Desde;
+        var hastaExclusivo = filtro.Hasta.AddDays(1);
 
         var pagos = await repository.GetPagosAsync(
             desde,
@@ -361,17 +366,8 @@ public sealed class ReporteService(
     }
 
     /// <summary>
-    /// Rango de fecha de calendario para tratamientos y pagos. Esas fechas se guardan como
-    /// medianoche local, sin convertir a UTC, así que el rango también se compara en hora local.
-    /// El límite superior es exclusivo para incluir completo el último día.
-    /// </summary>
-    private static (DateTime Desde, DateTime HastaExclusivo) ConvertirRangoCalendario(
-        DateOnly desde,
-        DateOnly hasta) =>
-        (desde.ToDateTime(TimeOnly.MinValue), hasta.AddDays(1).ToDateTime(TimeOnly.MinValue));
-
-    /// <summary>
     /// Rango en UTC para los instantes de registro de pacientes, que sí se guardan en UTC.
+    /// Pagos y tratamientos no pasan por aquí porque usan fechas de calendario.
     /// </summary>
     private static (DateTime DesdeUtc, DateTime HastaUtcExclusivo) ConvertirRangoLocalAUtc(
         DateOnly desde,
