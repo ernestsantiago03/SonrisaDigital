@@ -56,6 +56,49 @@ function Invoke-SqlcmdSeguro {
     return $salida
 }
 
+function Get-HmacArchivo {
+    param(
+        [Parameter(Mandatory = $true)][string]$Ruta,
+        [Parameter(Mandatory = $true)][byte[]]$Clave,
+        [Parameter(Mandatory = $true)][long]$Longitud
+    )
+
+    $hmac = [Security.Cryptography.IncrementalHash]::CreateHMAC([Security.Cryptography.HashAlgorithmName]::SHA256, $Clave)
+    $fs = [IO.File]::OpenRead($Ruta)
+    try {
+        $restante = $Longitud
+        $buffer = New-Object byte[] (1 * 1024 * 1024)
+        while ($restante -gt 0) {
+            $n = [int][Math]::Min($buffer.Length, $restante)
+            $leidos = $fs.Read($buffer, 0, $n)
+            if ($leidos -le 0) {
+                throw "El archivo cambió mientras se calculaba su integridad."
+            }
+            $hmac.AppendData($buffer, 0, $leidos)
+            $restante -= $leidos
+        }
+        return $hmac.GetHashAndReset()
+    }
+    finally {
+        $fs.Dispose()
+        $hmac.Dispose()
+    }
+}
+
+function Test-IgualesConstante {
+    param([byte[]]$A, [byte[]]$B)
+
+    if ($A.Length -ne $B.Length) {
+        return $false
+    }
+
+    $diferencia = 0
+    for ($i = 0; $i -lt $A.Length; $i++) {
+        $diferencia = $diferencia -bor ($A[$i] -bxor $B[$i])
+    }
+    return $diferencia -eq 0
+}
+
 function Unprotect-File {
     param(
         [Parameter(Mandatory = $true)][string]$InputPath,
@@ -63,31 +106,80 @@ function Unprotect-File {
         [Parameter(Mandatory = $true)][string]$Password
     )
 
+    $cabeceraLongitud = 38
+    $etiquetaLongitud = 32
+
     $completado = $false
     $inStream = $null
-    $cryptoStream = $null
     $outStream = $null
+    $aes = $null
     try {
-        $inStream = [IO.File]::OpenRead($InputPath)
-        $salt = New-Object byte[] 16
-        $iv = New-Object byte[] 16
-        if ($inStream.Read($salt, 0, 16) -ne 16 -or $inStream.Read($iv, 0, 16) -ne 16) {
+        $longitud = (Get-Item -LiteralPath $InputPath).Length
+        if ($longitud -lt ($cabeceraLongitud + 16 + $etiquetaLongitud)) {
             throw "El respaldo cifrado está incompleto."
         }
 
+        $inStream = [IO.File]::OpenRead($InputPath)
+        $cabecera = New-Object byte[] $cabeceraLongitud
+        if ($inStream.Read($cabecera, 0, $cabeceraLongitud) -ne $cabeceraLongitud) {
+            throw "El respaldo cifrado está incompleto."
+        }
+        if ([Text.Encoding]::ASCII.GetString($cabecera, 0, 6) -ne "SDENC2") {
+            throw "Formato de cifrado no compatible. Genere de nuevo el respaldo con la versión actual del script."
+        }
+
+        $salt = New-Object byte[] 16
+        $iv = New-Object byte[] 16
+        [Array]::Copy($cabecera, 6, $salt, 0, 16)
+        [Array]::Copy($cabecera, 22, $iv, 0, 16)
+
         $pbkdf2 = New-Object Security.Cryptography.Rfc2898DeriveBytes($Password, $salt, 100000, [Security.Cryptography.HashAlgorithmName]::SHA256)
-        $key = $pbkdf2.GetBytes(32)
+        $claves = $pbkdf2.GetBytes(64)
+        $claveCifrado = New-Object byte[] 32
+        [Array]::Copy($claves, 0, $claveCifrado, 0, 32)
+        $claveMac = New-Object byte[] 32
+        [Array]::Copy($claves, 32, $claveMac, 0, 32)
+
+        # Primero se verifica la etiqueta: si no coincide, no se escribe ningún dato descifrado.
+        $cuerpo = $longitud - $etiquetaLongitud
+        $calculado = Get-HmacArchivo -Ruta $InputPath -Clave $claveMac -Longitud $cuerpo
+        $etiqueta = New-Object byte[] $etiquetaLongitud
+        $inStream.Position = $cuerpo
+        if ($inStream.Read($etiqueta, 0, $etiquetaLongitud) -ne $etiquetaLongitud) {
+            throw "El respaldo cifrado está incompleto."
+        }
+        if (-not (Test-IgualesConstante -A $calculado -B $etiqueta)) {
+            throw "El respaldo cifrado fue alterado o la clave es incorrecta."
+        }
 
         $aes = [Security.Cryptography.Aes]::Create()
-        $aes.Key = $key
+        $aes.Key = $claveCifrado
         $aes.IV = $iv
         $decryptor = $aes.CreateDecryptor()
 
-        $cryptoStream = New-Object Security.Cryptography.CryptoStream($inStream, $decryptor, [Security.Cryptography.CryptoStreamMode]::Read)
+        $inStream.Position = $cabeceraLongitud
+        $restante = $cuerpo - $cabeceraLongitud
+        if ($restante -le 0 -or ($restante % 16) -ne 0) {
+            throw "El respaldo cifrado está dañado."
+        }
+
         $outStream = [IO.File]::Create($OutputPath)
         $buffer = New-Object byte[] (1 * 1024 * 1024)
-        while (($read = $cryptoStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            $outStream.Write($buffer, 0, $read)
+        $salida = New-Object byte[] ($buffer.Length + 16)
+        while ($restante -gt 0) {
+            $n = [int][Math]::Min($buffer.Length, $restante)
+            if ($inStream.Read($buffer, 0, $n) -ne $n) {
+                throw "El respaldo cifrado está incompleto."
+            }
+            $restante -= $n
+            if ($restante -gt 0) {
+                $escritos = $decryptor.TransformBlock($buffer, 0, $n, $salida, 0)
+                $outStream.Write($salida, 0, $escritos)
+            }
+            else {
+                $final = $decryptor.TransformFinalBlock($buffer, 0, $n)
+                $outStream.Write($final, 0, $final.Length)
+            }
         }
         $completado = $true
     }
@@ -96,13 +188,13 @@ function Unprotect-File {
         # final, lanza otra excepción y dejaría los archivos abiertos.
         if ($inStream) { $inStream.Dispose() }
         if ($outStream) { $outStream.Dispose() }
+        if ($aes) { $aes.Dispose() }
         # Un descifrado fallido (clave incorrecta o archivo dañado) no debe dejar un .bak parcial.
         if (-not $completado -and (Test-Path -LiteralPath $OutputPath)) {
             Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
         }
     }
 }
-
 function Obtener-RutaInstancia {
     param([string]$Propiedad)
 

@@ -67,6 +67,51 @@ function Obtener-RutaInstancia {
     return $linea.Trim()
 }
 
+function Get-HmacArchivo {
+    param(
+        [Parameter(Mandatory = $true)][string]$Ruta,
+        [Parameter(Mandatory = $true)][byte[]]$Clave,
+        [Parameter(Mandatory = $true)][long]$Longitud
+    )
+
+    $hmac = [Security.Cryptography.IncrementalHash]::CreateHMAC([Security.Cryptography.HashAlgorithmName]::SHA256, $Clave)
+    $fs = [IO.File]::OpenRead($Ruta)
+    try {
+        $restante = $Longitud
+        $buffer = New-Object byte[] (1 * 1024 * 1024)
+        while ($restante -gt 0) {
+            $n = [int][Math]::Min($buffer.Length, $restante)
+            $leidos = $fs.Read($buffer, 0, $n)
+            if ($leidos -le 0) {
+                throw "El archivo cambió mientras se calculaba su integridad."
+            }
+            $hmac.AppendData($buffer, 0, $leidos)
+            $restante -= $leidos
+        }
+        return $hmac.GetHashAndReset()
+    }
+    finally {
+        $fs.Dispose()
+        $hmac.Dispose()
+    }
+}
+
+function Test-IgualesConstante {
+    param([byte[]]$A, [byte[]]$B)
+
+    if ($A.Length -ne $B.Length) {
+        return $false
+    }
+
+    $diferencia = 0
+    for ($i = 0; $i -lt $A.Length; $i++) {
+        $diferencia = $diferencia -bor ($A[$i] -bxor $B[$i])
+    }
+    return $diferencia -eq 0
+}
+
+# Formato: "SDENC2" | salt (16) | IV (16) | cifrado AES-256-CBC | HMAC-SHA256 (32) sobre todo lo anterior.
+# La clave AES y la clave HMAC salen de la misma contraseña, con PBKDF2-SHA256 y claves distintas.
 function Protect-File {
     param(
         [Parameter(Mandatory = $true)][string]$InputPath,
@@ -74,6 +119,7 @@ function Protect-File {
         [Parameter(Mandatory = $true)][string]$Password
     )
 
+    $cabecera = [Text.Encoding]::ASCII.GetBytes("SDENC2")
     $salt = New-Object byte[] 16
     $iv = New-Object byte[] 16
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -82,19 +128,23 @@ function Protect-File {
     $rng.Dispose()
 
     $pbkdf2 = New-Object Security.Cryptography.Rfc2898DeriveBytes($Password, $salt, 100000, [Security.Cryptography.HashAlgorithmName]::SHA256)
-    $key = $pbkdf2.GetBytes(32)
+    $claves = $pbkdf2.GetBytes(64)
+    $claveCifrado = New-Object byte[] 32
+    [Array]::Copy($claves, 0, $claveCifrado, 0, 32)
+    $claveMac = New-Object byte[] 32
+    [Array]::Copy($claves, 32, $claveMac, 0, 32)
 
     $aes = [Security.Cryptography.Aes]::Create()
-    $aes.Key = $key
+    $aes.Key = $claveCifrado
     $aes.IV = $iv
     $encryptor = $aes.CreateEncryptor()
 
     $completado = $false
     $outStream = $null
-    $cryptoStream = $null
     $inStream = $null
     try {
         $outStream = [IO.File]::Create($OutputPath)
+        $outStream.Write($cabecera, 0, $cabecera.Length)
         $outStream.Write($salt, 0, 16)
         $outStream.Write($iv, 0, 16)
 
@@ -105,6 +155,19 @@ function Protect-File {
             $cryptoStream.Write($buffer, 0, $read)
         }
         $cryptoStream.FlushFinalBlock()
+        $inStream.Dispose()
+        $inStream = $null
+        $outStream.Dispose()
+        $outStream = $null
+
+        $etiqueta = Get-HmacArchivo -Ruta $OutputPath -Clave $claveMac -Longitud (Get-Item -LiteralPath $OutputPath).Length
+        $salida = [IO.File]::Open($OutputPath, [IO.FileMode]::Append, [IO.FileAccess]::Write)
+        try {
+            $salida.Write($etiqueta, 0, $etiqueta.Length)
+        }
+        finally {
+            $salida.Dispose()
+        }
         $completado = $true
     }
     finally {
@@ -116,9 +179,9 @@ function Protect-File {
         if (-not $completado -and (Test-Path -LiteralPath $OutputPath)) {
             Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
         }
+        $aes.Dispose()
     }
 }
-
 if ($SqlUser -and [string]::IsNullOrWhiteSpace($env:SQLCMDPASSWORD)) {
     throw "Para usar autenticación SQL defina la variable SQLCMDPASSWORD. No pase la contraseña por parámetro."
 }

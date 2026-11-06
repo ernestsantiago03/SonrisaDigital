@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   analisis:
@@ -19,27 +18,67 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    permissions:
+      contents: read
+      # Necesario para publicar el SARIF. No basta por sí solo: en repos
+      # privados, el escaneo de código requiere GitHub Code Security.
+      security-events: write
+
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
 
+      # El escaneo de código no está disponible en todos los repositorios
+      # privados (requiere GitHub Code Security / Advanced Security). Si no
+      # está habilitado, el análisis fallaría al subir el SARIF y rompería la
+      # PR sin aportar nada. Se comprueba antes y, si no está disponible, se
+      # omite con un aviso. Para forzarlo, define la variable de repositorio
+      # CODEQL_HABILITADO=true en Settings → Secrets and variables → Actions.
+      - name: Comprobar si el escaneo de código está disponible
+        id: escaneo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORZAR: ${{ vars.CODEQL_HABILITADO }}
+        run: |
+          disponible=false
+          visibilidad=$(gh api "repos/$GITHUB_REPOSITORY" --jq '.visibility' 2>/dev/null || echo "desconocida")
+
+          if [ "$FORZAR" = "true" ] || [ "$visibilidad" = "public" ]; then
+            disponible=true
+          elif gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?per_page=1" > /dev/null 2>&1; then
+            disponible=true
+          fi
+
+          echo "valor=$disponible" >> "$GITHUB_OUTPUT"
+
+          if [ "$disponible" != "true" ]; then
+            echo "::warning title=CodeQL omitido::El escaneo de código no está habilitado en este repositorio. Actívalo en Settings → Code security (en repos privados requiere GitHub Code Security)."
+          fi
+
       - name: Instalar .NET 10
+        if: steps.escaneo.outputs.valor == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
       - name: Inicializar CodeQL
+        if: steps.escaneo.outputs.valor == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: csharp
           build-mode: manual
 
       - name: Restaurar y compilar
+        if: steps.escaneo.outputs.valor == 'true'
         run: |
           dotnet restore SonrisaDigital.slnx
+          # La compilación limpia garantiza que el extractor de CodeQL vea
+          # todos los assemblies y no reutilice salidas incrementales.
+          dotnet clean SonrisaDigital.slnx -c Release
           dotnet build SonrisaDigital.slnx -c Release --no-restore
 
       - name: Analizar
+        if: steps.escaneo.outputs.valor == 'true'
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:csharp"

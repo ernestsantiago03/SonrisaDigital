@@ -38,29 +38,58 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore SonrisaDigital.slnx
 
+      # Se usa la salida JSON porque el texto plano cambia con el idioma del
+      # runner y porque `dotnet list package` devuelve código 0 aunque haya
+      # vulnerabilidades, así que no sirve como comprobación por sí solo.
       - name: Buscar paquetes vulnerables
         shell: pwsh
         run: |
-          $salida = dotnet list SonrisaDigital.slnx package --vulnerable --include-transitive | Out-String
-          Write-Host $salida
+          $salida = dotnet list SonrisaDigital.slnx package --vulnerable --include-transitive --format json | Out-String
           if ($LASTEXITCODE -ne 0) {
             throw "dotnet list package terminó con error."
           }
-          if ($salida -match "has the following vulnerable packages") {
-            throw "Hay paquetes NuGet con vulnerabilidades conocidas. Revisa la lista de arriba y actualiza el paquete."
+
+          $reporte = $salida | ConvertFrom-Json
+          $hallazgos = @(
+            foreach ($proyecto in $reporte.projects) {
+              foreach ($paquete in @($proyecto.packages)) {
+                foreach ($vulnerabilidad in @($paquete.vulnerabilities)) {
+                  if ($null -ne $vulnerabilidad) {
+                    [pscustomobject]@{
+                      Proyecto  = Split-Path -Leaf $proyecto.path
+                      Paquete   = $paquete.id
+                      Version   = $paquete.resolvedVersion
+                      Severidad = $vulnerabilidad.severity
+                      Aviso     = $vulnerabilidad.advisoryurl
+                    }
+                  }
+                }
+              }
+            }
+          )
+
+          if ($hallazgos.Count -gt 0) {
+            $hallazgos | Format-Table -AutoSize | Out-String | Write-Host
+            throw "Hay $($hallazgos.Count) paquete(s) NuGet con vulnerabilidades conocidas. Actualiza la versión indicada."
           }
+
+          Write-Host "No se encontraron paquetes NuGet vulnerables."
 
   build-test:
     name: Compilar y probar
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # El SQL Server de CI es efímero y solo vive dentro del runner. El secret
+    # permite rotar la contraseña sin tocar el YAML; si no está definido (por
+    # ejemplo en PRs desde forks, donde los secretos no se comparten) se usa
+    # este valor de descarte, que no protege ningún dato real.
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD }}
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD || 'SonrisaDigitalCiSql2026' }}
           MSSQL_PID: "Express"
         ports:
           - 1433:1433
@@ -72,7 +101,7 @@ jobs:
           --health-start-period 20s
 
     env:
-      SONRISADIGITAL_TEST_CONNECTION: "Server=localhost,1433;Database=master;User Id=sa;Password=${{ secrets.CI_SQL_SA_PASSWORD }};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      SONRISADIGITAL_TEST_CONNECTION: "Server=localhost,1433;Database=master;User Id=sa;Password=${{ secrets.CI_SQL_SA_PASSWORD || 'SonrisaDigitalCiSql2026' }};TrustServerCertificate=True;MultipleActiveResultSets=True"
 
     steps:
       - name: Descargar código
@@ -151,7 +180,7 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD }}
+          MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD || 'SonrisaDigitalCiSql2026' }}
           MSSQL_PID: "Express"
         ports:
           - 1433:1433
@@ -163,12 +192,12 @@ jobs:
           --health-start-period 20s
 
     env:
-      MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD }}
-      SONRISADIGITAL_E2E_DB_CONNECTION: "Server=localhost,1433;Database=SonrisaDigitalE2E;User Id=sa;Password=${{ secrets.CI_SQL_SA_PASSWORD }};TrustServerCertificate=True;MultipleActiveResultSets=True"
+      MSSQL_SA_PASSWORD: ${{ secrets.CI_SQL_SA_PASSWORD || 'SonrisaDigitalCiSql2026' }}
+      SONRISADIGITAL_E2E_DB_CONNECTION: "Server=localhost,1433;Database=SonrisaDigitalE2E;User Id=sa;Password=${{ secrets.CI_SQL_SA_PASSWORD || 'SonrisaDigitalCiSql2026' }};TrustServerCertificate=True;MultipleActiveResultSets=True"
       SONRISADIGITAL_E2E_EMAIL: "e2e.admin@sonrisadigital.test"
-      SONRISADIGITAL_E2E_PASSWORD: ${{ secrets.CI_E2E_ADMIN_PASSWORD }}
+      SONRISADIGITAL_E2E_PASSWORD: ${{ secrets.CI_E2E_ADMIN_PASSWORD || 'SonrisaDigitalCiAdmin2026' }}
       SONRISADIGITAL_E2E_DUENO_EMAIL: "e2e.dueno@sonrisadigital.test"
-      SONRISADIGITAL_E2E_DUENO_PASSWORD: ${{ secrets.CI_E2E_DUENO_PASSWORD }}
+      SONRISADIGITAL_E2E_DUENO_PASSWORD: ${{ secrets.CI_E2E_DUENO_PASSWORD || 'SonrisaDigitalCiDueno2026' }}
       SONRISADIGITAL_E2E_BASE_URL: "http://localhost:5175"
       # La suite inicia sesión más de 5 veces por minuto desde la misma IP (un
       # login por prueba más los reintentos). Sin este límite el POST de login
