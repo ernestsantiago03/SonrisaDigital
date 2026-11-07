@@ -6,8 +6,10 @@
 @using SonrisaDigital.Services.Odontograma
 @using SonrisaDigital.Services.Odontograma.DTOs
 @using SonrisaDigital.Services.Archivos
+@using SonrisaDigital.Services.Autenticacion
 @inject IOdontogramaService OdontogramaService
 @inject IArchivoPacienteService ArchivoService
+@inject ICurrentUserService CurrentUserService
 @inject IJSRuntime JS
 
 @* ============================================================================
@@ -337,6 +339,8 @@
             {
                 <form class="archivo-upload" method="post" enctype="multipart/form-data" action="/pacientes/@selectedPatientId/archivos">
                     <AntiforgeryToken />
+                    @* La subida es una petición HTTP nueva: el Dueño debe indicar la clínica elegida en el selector. *@
+                    <input type="hidden" name="clinicaId" value="@(CurrentUserService.ClinicaSeleccionada)" />
                     <div class="field">
                         <label for="archivo-input">Imagen (JPG o PNG, máximo 20 MB)</label>
                         <input id="archivo-input" name="archivo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required />

@@ -58,13 +58,57 @@ public sealed class CatalogoCacheTests
             return Task.FromResult<IReadOnlyList<Tratamiento>>(soloActivos ? activos : todos);
         }
 
-        var primeraActiva = await cache.ObtenerTratamientosAsync(true, ct => Cargar(true, ct));
-        var segundaActiva = await cache.ObtenerTratamientosAsync(true, ct => Cargar(true, ct));
-        var completa = await cache.ObtenerTratamientosAsync(false, ct => Cargar(false, ct));
+        var primeraActiva = await cache.ObtenerTratamientosAsync(1, true, ct => Cargar(true, ct));
+        var segundaActiva = await cache.ObtenerTratamientosAsync(1, true, ct => Cargar(true, ct));
+        var completa = await cache.ObtenerTratamientosAsync(1, false, ct => Cargar(false, ct));
 
         Assert.Same(primeraActiva, segundaActiva);
         Assert.NotSame(primeraActiva, completa);
         Assert.Equal(2, cargas);
+    }
+
+    [Fact]
+    public async Task Tratamientos_CadaClinicaTieneSuPropiaEntrada()
+    {
+        using var memoria = new MemoryCache(new MemoryCacheOptions());
+        var cache = new CatalogoCache(memoria);
+        var cargas = 0;
+
+        Task<IReadOnlyList<Tratamiento>> Cargar(int clinicaId, CancellationToken _)
+        {
+            cargas++;
+            return Task.FromResult<IReadOnlyList<Tratamiento>>(
+                new[] { new Tratamiento { Id = clinicaId, ClinicaId = clinicaId, Nombre = $"Clínica {clinicaId}", PrecioBase = 100m } });
+        }
+
+        var deLaPrimera = await cache.ObtenerTratamientosAsync(1, true, ct => Cargar(1, ct));
+        var deLaSegunda = await cache.ObtenerTratamientosAsync(2, true, ct => Cargar(2, ct));
+
+        Assert.Equal(2, cargas);
+        Assert.Equal(1, deLaPrimera[0].ClinicaId);
+        Assert.Equal(2, deLaSegunda[0].ClinicaId);
+    }
+
+    [Fact]
+    public async Task Tratamientos_InvalidarAfectaATodasLasClinicas()
+    {
+        using var memoria = new MemoryCache(new MemoryCacheOptions());
+        var cache = new CatalogoCache(memoria);
+        var cargas = 0;
+
+        Task<IReadOnlyList<Tratamiento>> Cargar(CancellationToken _)
+        {
+            cargas++;
+            return Task.FromResult<IReadOnlyList<Tratamiento>>(Array.Empty<Tratamiento>());
+        }
+
+        await cache.ObtenerTratamientosAsync(1, true, Cargar);
+        await cache.ObtenerTratamientosAsync(2, true, Cargar);
+        cache.InvalidarTratamientos();
+        await cache.ObtenerTratamientosAsync(1, true, Cargar);
+        await cache.ObtenerTratamientosAsync(2, true, Cargar);
+
+        Assert.Equal(4, cargas);
     }
 
     [Fact]

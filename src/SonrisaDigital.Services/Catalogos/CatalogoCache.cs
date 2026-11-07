@@ -28,10 +28,11 @@ public sealed class CatalogoCache(IMemoryCache cache) : ICatalogoCache
         ObtenerOCrearAsync(ClavePiezas, cargar, cancellationToken);
 
     public Task<IReadOnlyList<Tratamiento>> ObtenerTratamientosAsync(
+        int clinicaId,
         bool soloActivos,
         Func<CancellationToken, Task<IReadOnlyList<Tratamiento>>> cargar,
         CancellationToken cancellationToken = default) =>
-        ObtenerOCrearAsync(ClaveTratamientos(soloActivos), cargar, cancellationToken);
+        ObtenerOCrearAsync(ClaveTratamientos(clinicaId, soloActivos), cargar, cancellationToken);
 
     public Task<IReadOnlyList<RolePermissionDto>> ObtenerRolesAsync(
         Func<CancellationToken, Task<IReadOnlyList<RolePermissionDto>>> cargar,
@@ -47,8 +48,8 @@ public sealed class CatalogoCache(IMemoryCache cache) : ICatalogoCache
     private string ClavePiezas =>
         $"catalogo:piezas:{Interlocked.Read(ref versionPiezas)}";
 
-    private string ClaveTratamientos(bool soloActivos) =>
-        $"catalogo:tratamientos:{(soloActivos ? "activos" : "todos")}:{Interlocked.Read(ref versionTratamientos)}";
+    private string ClaveTratamientos(int clinicaId, bool soloActivos) =>
+        $"catalogo:tratamientos:{clinicaId}:{(soloActivos ? "activos" : "todos")}:{Interlocked.Read(ref versionTratamientos)}";
 
     private string ClaveRoles =>
         $"catalogo:roles-permisos:{Interlocked.Read(ref versionRoles)}";

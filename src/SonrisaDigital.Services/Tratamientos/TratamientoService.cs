@@ -6,6 +6,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tenancy;
 using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
@@ -34,6 +35,7 @@ public sealed class TratamientoService(
     ITratamientoRepository repository,
     IAuditoriaService auditoriaService,
     ApplicationDbContext dbContext,
+    ITenantProvider tenant,
     ICurrentUserService currentUserService,
     IAuthorizationService authorizationService,
     ICatalogoCache catalogoCache,
@@ -619,9 +621,16 @@ public sealed class TratamientoService(
     {
         await authorizationService.AsegurarPermisoAsync(currentUserService, "Tratamientos.Ver", "No tienes permiso para consultar tratamientos.");
 
-        // Las opciones se comparten entre usuarios; se guardan en la caché global
-        // y se invalidan al crear o editar un tratamiento del catálogo.
+        // El catálogo pertenece a una clínica: la caché se separa por clínica para que
+        // nunca se sirvan tratamientos de otra. Se invalida al crear o editar un tratamiento.
+        var clinicaId = tenant.ClinicaId;
+        if (clinicaId is null)
+        {
+            return [];
+        }
+
         var tratamientos = await catalogoCache.ObtenerTratamientosAsync(
+            clinicaId.Value,
             soloActivos,
             ct => soloActivos
                 ? repository.GetActivosAsync(ct)

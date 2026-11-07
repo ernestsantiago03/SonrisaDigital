@@ -328,7 +328,7 @@ Antes de desplegar con clientes reales:
 - [ ] Portal de pacientes (consulta de citas e historial).
 - [ ] Soporte multi-clínica / multi-sucursal.
 - [x] Pruebas automatizadas y pipeline de integración continua.
-- [x] Despliegue con Docker e IIS documentado.
+- [x] Despliegue en IIS documentado en [docs/06-despliegue.md](docs/06-despliegue.md). Incluye un `Dockerfile` para contenedores Windows, todavía sin verificar.
 - [ ] Puesta en producción y aceptación con la clínica.
 - [ ] Interfaz en inglés (i18n).
 

@@ -29,6 +29,12 @@
                 <h2 class="mfa-title">Verificación en dos pasos</h2>
                 <p class="mfa-instructions">Escribe el código de 6 dígitos de tu app autenticadora.</p>
 
+                <div class="mfa-clave">
+                    <p>Si tu app no puede escanear un código, elige «Ingresar clave manualmente» y escribe esta clave:</p>
+                    <code id="mfa-clave" class="mfa-clave-valor">@claveFormateada</code>
+                    <p class="mfa-clave-detalle">Cuenta: @correo · Tipo: basada en tiempo (TOTP) · 6 dígitos</p>
+                </div>
+
                 <form method="post" action="/seguridad/mfa/activar" class="mfa-form">
                     <AntiforgeryToken />
             
@@ -67,6 +73,7 @@
     private bool noDisponible;
     private bool activo;
     private string claveRaw = string.Empty;
+    private string correo = string.Empty;
 
     [SupplyParameterFromQuery(Name = "error")]
     private string? Error { get; set; }
@@ -87,6 +94,7 @@
         if (!activo)
         {
             claveRaw = await UserManager.GetAuthenticatorKeyAsync(usuario) ?? string.Empty;
+            correo = usuario.Email ?? usuario.UserName ?? string.Empty;
         }
     }
 
