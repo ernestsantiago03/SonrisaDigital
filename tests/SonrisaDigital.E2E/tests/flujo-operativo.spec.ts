@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './support/csp';
 
 // Credenciales del administrador temporal que crea el script de arranque.
 const correoAdmin = process.env.SONRISADIGITAL_E2E_EMAIL;

@@ -364,6 +364,20 @@ app.Use(async (context, next) =>
         "frame-ancestors 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self';";
+    // Candidata estricta en modo informativo: no bloquea nada, solo registra en la consola del
+    // navegador lo que bloquearía. Sirve para probar los módulos antes de endurecer la política
+    // activa. Cuando las pruebas E2E no reporten violaciones, esta sustituye a la anterior.
+    headers["Content-Security-Policy-Report-Only"] =
+        "default-src 'self'; " +
+        "script-src 'self'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self' wss: ws:; " +
+        "object-src 'none'; " +
+        "frame-ancestors 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self';";
     await next();
 });
 

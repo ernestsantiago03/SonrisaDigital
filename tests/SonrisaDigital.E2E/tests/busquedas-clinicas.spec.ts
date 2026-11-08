@@ -1,4 +1,5 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type Page } from '@playwright/test';
+import { registrarViolacionesCsp, test } from './support/csp';
 
 // Credenciales del administrador temporal que crea el script de arranque.
 const correoAdmin = process.env.SONRISADIGITAL_E2E_EMAIL;
@@ -77,7 +78,9 @@ test.describe('Búsquedas clínicas', () => {
 
 async function nuevaPagina(browser: Browser): Promise<Page> {
   const contexto = await browser.newContext({ locale: 'es-DO', timezoneId: 'America/Santo_Domingo' });
-  return contexto.newPage();
+  const pagina = await contexto.newPage();
+  registrarViolacionesCsp(pagina, 'busquedas-clinicas (beforeAll)');
+  return pagina;
 }
 
 // Crea un paciente con el formulario real y devuelve su id, leído de la URL de su ficha.
