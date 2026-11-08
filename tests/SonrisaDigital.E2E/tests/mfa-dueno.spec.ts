@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './support/csp';
 
 // Esta prueba corre contra una instancia con Seguridad:MfaDuenoObligatorio=true y una base
 // nueva. La cuenta del Dueño empieza sin segundo factor, así que la prueba lo activa y luego

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './support/csp';
 
 // Credenciales temporales del Dueño que crea el script de arranque.
 const correoDueno = process.env.SONRISADIGITAL_E2E_DUENO_EMAIL;
