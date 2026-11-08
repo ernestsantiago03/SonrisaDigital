@@ -58,20 +58,43 @@ try {
     $archivo = Get-Item -LiteralPath $OutputPath
     $tamanoKb = [math]::Round($archivo.Length / 1KB, 2)
 
-    # La migración del índice de citas es la última de 6A. Si no aparece, el
-    # script quedó generado con un modelo anterior o la migración no se creó.
-    $migracionEsperada = "20261025015324_AddCitaPacienteFechaIndex"
-    if (-not (Select-String -LiteralPath $OutputPath -SimpleMatch $migracionEsperada -Quiet)) {
-        Write-Warning "El script no contiene la migración esperada: $migracionEsperada"
+    # Se comprueba contra todas las migraciones del proyecto, no contra una lista fija:
+    # así una migración nueva que no llegue al script (por un modelo desactualizado)
+    # detiene la generación en lugar de entregar un script incompleto al DBA.
+    $carpetaProyecto = Join-Path $raiz (Split-Path -Parent $Project)
+    $carpetaMigraciones = Join-Path $carpetaProyecto "Migrations"
+    if (-not (Test-Path -LiteralPath $carpetaMigraciones)) {
+        throw "No existe la carpeta de migraciones: $carpetaMigraciones"
+    }
+
+    $migraciones = @(
+        Get-ChildItem -LiteralPath $carpetaMigraciones -File -Filter "*.cs" |
+            Where-Object { $_.Name -notlike "*.Designer.cs" -and $_.Name -ne "ApplicationDbContextModelSnapshot.cs" } |
+            ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) } |
+            Sort-Object
+    )
+
+    if ($migraciones.Count -eq 0) {
+        throw "No se encontraron migraciones en $carpetaMigraciones."
+    }
+
+    $faltantes = @(
+        $migraciones |
+            Where-Object { -not (Select-String -LiteralPath $OutputPath -SimpleMatch $_ -Quiet) }
+    )
+
+    if ($faltantes.Count -gt 0) {
+        throw "El script generado no contiene estas migraciones: $($faltantes -join ', '). Revisa que el proyecto compile y que el modelo esté actualizado."
     }
 
     Write-Host "Script generado: $($archivo.FullName) ($tamanoKb KB)"
+    Write-Host "Migraciones verificadas: $($migraciones.Count)."
     Write-Host "Revísalo antes de entregarlo al DBA. No se debe versionar en el repositorio."
 
     [pscustomobject]@{
         Archivo = $archivo.FullName
         TamanoKB = $tamanoKb
-        MigracionEsperada = $migracionEsperada
+        Migraciones = $migraciones.Count
     }
 }
 finally {

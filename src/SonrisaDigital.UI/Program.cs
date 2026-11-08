@@ -475,6 +475,7 @@ app.MapPost("/seguridad/mfa/activar", async (
     HttpContext context,
     IAntiforgery antiforgery,
     UserManager<Usuario> userManager,
+    SignInManager<Usuario> signInManager,
     ILoggerFactory loggerFactory) =>
 {
     if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
@@ -511,6 +512,11 @@ app.MapPost("/seguridad/mfa/activar", async (
 
     await userManager.SetTwoFactorEnabledAsync(user, true);
     var codigosRecuperacion = (await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10))?.ToList() ?? [];
+
+    // La sesión que activó el factor no queda verificada: se cierra y el cambio de
+    // sello invalida cualquier cookie emitida antes de la activación.
+    await userManager.UpdateSecurityStampAsync(user);
+    await signInManager.SignOutAsync();
 
     var items = string.Concat(codigosRecuperacion.Select(item => $"<li><code>{WebUtility.HtmlEncode(item)}</code></li>"));
     var html = $$"""
@@ -744,7 +750,7 @@ app.MapPost("/account/login-2fa", async (
         return Results.Redirect(redireccionClinica);
     }
 
-    await signInManager.SignInAsync(user, PropiedadesSesion());
+    await signInManager.SignInWithClaimsAsync(user, PropiedadesSesion(), [ReclamacionesSegundoFactor.Crear()]);
     return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
 }).AllowAnonymous().RequireRateLimiting("login");
 

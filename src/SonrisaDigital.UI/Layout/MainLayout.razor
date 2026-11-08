@@ -264,14 +264,25 @@
     [Inject]
     private IOptions<SeguridadOptions> Seguridad { get; set; } = null!;
 
-    // Un Dueño sin segundo factor activo no puede usar ninguna pantalla del sistema. El middleware
-    // solo protege las peticiones HTTP; dentro del circuito de Blazor hay que comprobarlo aquí.
-    private bool segundoFactorPendiente;
+    // Un Dueño que no haya superado el segundo factor no puede usar ninguna pantalla del
+    // sistema. El middleware solo protege las peticiones HTTP; dentro del circuito de Blazor
+    // hay que comprobarlo aquí.
+    private EstadoSegundoFactor estadoSegundoFactor;
+
+    private enum EstadoSegundoFactor
+    {
+        NoAplica,
+        PendienteActivacion,
+        PendienteVerificacion,
+        Verificado
+    }
 
     private bool EnPaginaSegundoFactor =>
         Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("seguridad/mfa", StringComparison.OrdinalIgnoreCase);
 
-    private bool BloqueadoPorSegundoFactor => segundoFactorPendiente && !EnPaginaSegundoFactor;
+    private bool BloqueadoPorSegundoFactor =>
+        estadoSegundoFactor is EstadoSegundoFactor.PendienteActivacion or EstadoSegundoFactor.PendienteVerificacion
+        && !EnPaginaSegundoFactor;
 
     // Servicio con su propio DbContext: la página que carga usa el del circuito y no admite consultas a la vez.
     [Inject]
@@ -365,7 +376,7 @@
             CurrentUserService.Establecer(null, null, null);
             avisoSuscripcion = null;
             avisoCargadoParaUsuario = null;
-            segundoFactorPendiente = false;
+            estadoSegundoFactor = EstadoSegundoFactor.NoAplica;
             contenidoListo = true;
             return;
         }
@@ -386,9 +397,15 @@
         var usuarioId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         CurrentUserService.Establecer(usuarioId, UserName, user);
 
-        segundoFactorPendiente = EsDueno
-            && Seguridad.Value.MfaDuenoObligatorio
-            && !await SegundoFactorActivoAsync(user);
+        estadoSegundoFactor = await EvaluarSegundoFactorAsync(user);
+
+        // Una sesión con el factor activo que no lo superó se cierra: el middleware ya la
+        // rechaza en HTTP, aquí se cubre un circuito que ya estaba abierto.
+        if (estadoSegundoFactor == EstadoSegundoFactor.PendienteVerificacion)
+        {
+            Navigation.NavigateTo("/login?error=mfa", forceLoad: true);
+            return;
+        }
 
         if (BloqueadoPorSegundoFactor)
         {
@@ -421,10 +438,24 @@
         }
     }
 
-    private async Task<bool> SegundoFactorActivoAsync(ClaimsPrincipal user)
+    private async Task<EstadoSegundoFactor> EvaluarSegundoFactorAsync(ClaimsPrincipal user)
     {
+        if (!EsDueno || !Seguridad.Value.MfaDuenoObligatorio)
+        {
+            return EstadoSegundoFactor.NoAplica;
+        }
+
+        // El estado del factor manda: si se desactivó (por ejemplo desde la consola),
+        // la sesión debe volver a activarlo aunque conserve una marca anterior.
         var cuenta = await UserManager.GetUserAsync(user);
-        return cuenta?.TwoFactorEnabled == true;
+        if (cuenta?.TwoFactorEnabled != true)
+        {
+            return EstadoSegundoFactor.PendienteActivacion;
+        }
+
+        return ReclamacionesSegundoFactor.Verificada(user)
+            ? EstadoSegundoFactor.Verificado
+            : EstadoSegundoFactor.PendienteVerificacion;
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;

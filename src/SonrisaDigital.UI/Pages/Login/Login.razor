@@ -76,6 +76,12 @@
                     La mensualidad de tu clínica venció. Contacta al administrador del sistema para reactivar el acceso.
                 </div>
             }
+            else if (Error == "mfa")
+            {
+                <div class="login-error">
+                    Tu sesión no completó la verificación en dos pasos. Vuelve a iniciar sesión.
+                </div>
+            }
             else if (Error == "expired")
             {
                 <div class="login-error">
