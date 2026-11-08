@@ -8,8 +8,13 @@
 **/test-results/
 .git/
 .github/
+.config/
 artefactos/
+docs/
 publish/
+scripts/
+session-state/
+tests/
 
 # Configuración local con datos de desarrollo o secretos: nunca dentro de la imagen.
 **/appsettings.Development.json
