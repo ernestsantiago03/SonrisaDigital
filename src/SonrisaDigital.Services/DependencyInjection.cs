@@ -130,7 +130,7 @@ public static class DependencyInjection
         // Sin esto la cookie dura 30 minutos sin recargar los permisos; con el intervalo
         // en cero se regeneran los claims en cada petición HTTP. Para los circuitos
         // Blazor abiertos, el proveedor registrado en Program.cs hace la revalidación.
-        services.AddScoped<ISecurityStampValidator, SecurityStampValidator<Usuario>>();
+        services.AddScoped<ISecurityStampValidator, SecurityStampValidatorConSegundoFactor>();
         services.Configure<SecurityStampValidatorOptions>(options =>
             options.ValidationInterval = TimeSpan.Zero);
 

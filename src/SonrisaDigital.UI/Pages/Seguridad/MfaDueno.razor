@@ -37,20 +37,12 @@
 
                 <form method="post" action="/seguridad/mfa/activar" class="mfa-form">
                     <AntiforgeryToken />
-            
-                    <!-- Campo 1 -->
+
                     <div class="mfa-field">
                         <label for="mfa-codigo">Código de la app</label>
                         <input id="mfa-codigo" name="Codigo" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" required />
                     </div>
 
-                    <!-- Campo 2 -->
-                    <div class="mfa-field">
-                        <label for="mfa-recuperacion">o código de recuperación</label>
-                        <input id="mfa-recuperacion" name="CodigoRecuperacion" type="text" placeholder="Solo si perdiste el acceso" />
-                    </div>
-
-                    <!-- Contenedor para alinear el botón con los inputs -->
                     <div class="mfa-action-row">
                         <button type="submit" class="mfa-btn">Verificar</button>
                     </div>

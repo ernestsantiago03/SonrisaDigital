@@ -66,8 +66,8 @@ La cuenta SQL de la aplicación necesita, como mínimo, `db_datareader` y `db_da
 ## 5. Primer arranque
 
 1. Comprobar `https://sonrisa.midominio.com/health` (responde `Healthy`) y `/health/ready` (comprueba SQL Server).
-2. Entrar con la cuenta del Dueño. El sistema pide **activar el segundo factor** antes de cualquier otra pantalla: se muestra la clave manual para la app autenticadora y, al confirmar, se entregan 10 códigos de recuperación que solo se muestran una vez.
-3. Crear la primera clínica y su administrador desde la interfaz.
+2. Entrar con la cuenta del Dueño. El sistema pide **activar el segundo factor** antes de cualquier otra pantalla: se muestra la clave manual para la app autenticadora y, al confirmar, se entregan 10 códigos de recuperación que solo se muestran una vez. La activación cierra la sesión y obliga a entrar de nuevo con la contraseña y el código.
+3. Crear la primera clínica y su administrador desde la interfaz. **Solo el Dueño crea usuarios y roles**: los roles Administrador, Recepcionista y Odontólogo no pueden administrar cuentas ni permisos.
 
 Si el Dueño pierde el acceso al segundo factor, se restablece desde la consola del servidor (sin pantalla web):
 

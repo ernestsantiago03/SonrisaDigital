@@ -11,6 +11,7 @@ using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
+using SonrisaDigital.Services.Configuracion;
 
 namespace SonrisaDigital.UI.Components;
 
@@ -24,11 +25,13 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
     IOptions<IdentityOptions> optionsAccessor,
+    IOptions<SeguridadOptions> seguridadAccessor,
     ICurrentUserService currentUserService)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory)
 {
     private readonly IServiceScopeFactory scopeFactory = scopeFactory;
     private readonly IdentityOptions identityOptions = optionsAccessor.Value;
+    private readonly SeguridadOptions seguridad = seguridadAccessor.Value;
     private readonly ICurrentUserService currentUserService = currentUserService;
     private readonly DateTimeOffset circuitoIniciado = DateTimeOffset.UtcNow;
 
@@ -76,6 +79,16 @@ public sealed class RevalidatingIdentityAuthenticationStateProvider(
         // Un circuito abierto no vuelve a leer la cookie: la sesión del Dueño se mide desde que se abrió.
         if (principal.IsInRole(RolesSonrisaDigital.Dueno)
             && DateTimeOffset.UtcNow - circuitoIniciado > SeguridadDueno.DuracionSesion)
+        {
+            return false;
+        }
+
+        // Con el segundo factor activo, el circuito debe llevar la marca de haberlo superado.
+        // Una cookie anterior a la activación no la tiene y se cierra.
+        if (seguridad.MfaDuenoObligatorio
+            && user.TwoFactorEnabled
+            && principal.IsInRole(RolesSonrisaDigital.Dueno)
+            && !ReclamacionesSegundoFactor.Verificada(principal))
         {
             return false;
         }

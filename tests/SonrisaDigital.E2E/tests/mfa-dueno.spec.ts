@@ -38,6 +38,12 @@ test.describe('Segundo factor obligatorio del Dueño', () => {
     await page.getByRole('button', { name: 'Verificar' }).click();
     await expect(page.getByText('El código no es correcto.')).toBeVisible();
 
+    // Se guarda la cookie de la sesión que solo usó contraseña para comprobar después
+    // que la activación la invalida aunque se reinyecte en el navegador.
+    const cookieSinSegundoFactor = (await page.context().cookies())
+      .find((cookie) => cookie.name === 'SonrisaDigital.Auth');
+    expect(cookieSinSegundoFactor).toBeTruthy();
+
     // Con el código correcto se activa y se muestran los códigos de recuperación.
     await esperarBlazor(page);
     const pasoActivacion = pasoActual();
@@ -46,7 +52,16 @@ test.describe('Segundo factor obligatorio del Dueño', () => {
     await expect(page.getByRole('heading', { name: 'Segundo factor activo' })).toBeVisible();
     await expect(page.locator('li code')).toHaveCount(10);
 
+    // La sesión anterior quedó invalidada: el sello de seguridad cambió al activar el
+    // factor. Reinyectar la cookie vieja no debe dar acceso.
+    await page.context().clearCookies();
+    await page.context().addCookies([cookieSinSegundoFactor!]);
+    await page.goto('/pacientes');
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+
     // La sesión se cerró al activar: el siguiente ingreso pide el segundo paso.
+    await page.context().clearCookies();
     await iniciarSesion(page, correoDueno!, claveDueno!, false);
     await expect(page).toHaveURL(/\/login\/dos-pasos/);
 

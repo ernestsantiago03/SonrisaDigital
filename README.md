@@ -118,7 +118,7 @@ Sonrisa Digital incluye cuatro roles predefinidos: **Dueño**, **Administrador**
 | Archivos del paciente (ocultar/restaurar) | Total | — | — | — |
 | Reportes | Total | Total | Consulta | Consulta |
 
-> **Regla dura:** Usuarios, Roles y permisos, Auditoría, Clínicas y ocultar/restaurar archivos son exclusivos del Dueño. El sistema rechaza cualquier intento de asignar esos permisos a otro rol, aunque quien edite sea Dueño.
+> **Regla dura:** Usuarios, Roles y permisos, Auditoría, Clínicas y ocultar/restaurar archivos son exclusivos del Dueño. **Solo el Dueño crea y administra usuarios y roles.** El sistema rechaza cualquier intento de asignar esos permisos a otro rol, aunque quien edite sea Dueño.
 > Los roles son acumulativos: un usuario puede tener más de un rol y recibe la unión de sus permisos.
 > En **Reportes**, el usuario con rol Odontólogo ve únicamente su propia actividad clínica.
 

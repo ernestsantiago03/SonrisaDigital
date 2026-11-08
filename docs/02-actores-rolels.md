@@ -18,6 +18,8 @@ El sistema tendrá tres actores principales:
 
 Cada actor utilizará una cuenta de usuario para autenticarse en el sistema.
 
+Por encima de ellos existe la cuenta del **Dueño**, un rol global de administración de la plataforma que no pertenece a ninguna clínica (ver sección 4.1).
+
 La cuenta de usuario determinará el rol o roles que posee y, a partir de estos, los permisos disponibles.
 
 ---
@@ -49,15 +51,32 @@ No todos los usuarios tienen que estar asociados a un odontólogo. Por ejemplo, 
 
 Un rol representa un conjunto de responsabilidades dentro del sistema.
 
-El sistema tendrá inicialmente tres roles:
+El sistema tendrá inicialmente cuatro roles:
 
 ```text
+Dueño
 Administrador
 Recepcionista
 Odontólogo
 ```
 
 Los roles podrán estar asociados a múltiples permisos.
+
+---
+
+# 4.1. Dueño del sistema
+
+El **Dueño** es la cuenta global que administra la plataforma. No pertenece a ninguna clínica y no forma parte de la operación diaria de una clínica.
+
+Su responsabilidad es exclusiva sobre:
+
+* Crear, editar, activar y desactivar **usuarios** de cualquier clínica.
+* Crear, editar y desactivar **roles**, y asignar **permisos** a los roles.
+* Gestionar las **clínicas** y su facturación.
+* Consultar la **auditoría** completa.
+* **Ocultar y restaurar** archivos de pacientes.
+
+Estas capacidades son **exclusivas del Dueño**. Ningún otro rol puede recibirlas, ni siquiera si un Dueño intenta asignarlas desde la pantalla de roles: el catálogo de permisos las marca como exclusivas y el sistema rechaza la asignación. Los roles del sistema siguen siendo globales (no se personalizan por clínica).
 
 ---
 
@@ -73,19 +92,11 @@ El Administrador tendrá acceso a los módulos administrativos y podrá consulta
 
 ### Usuarios
 
-* Consultar usuarios.
-* Crear usuarios.
-* Editar usuarios.
-* Activar o desactivar usuarios.
-* Asignar roles.
+El Administrador **no** gestiona cuentas de usuario. Crear, editar, activar o desactivar usuarios y asignar roles es exclusivo del Dueño.
 
 ### Roles y permisos
 
-* Consultar roles.
-* Crear roles.
-* Editar roles.
-* Consultar permisos.
-* Asignar permisos a roles.
+El Administrador **no** crea ni modifica roles ni asigna permisos. Esa capacidad es exclusiva del Dueño.
 
 ### Pacientes
 
@@ -135,7 +146,7 @@ El Administrador tendrá acceso a los módulos administrativos y podrá consulta
 
 ### Auditoría
 
-* Consultar registros de auditoría.
+La auditoría completa es exclusiva del Dueño; el Administrador no puede consultarla.
 
 ### Reportes
 
@@ -371,7 +382,7 @@ Reportes.Ver
 
 # 9. Matriz inicial de permisos
 
-La siguiente matriz representa la configuración inicial propuesta.
+La siguiente matriz representa la configuración inicial de los roles de una clínica. El **Dueño** es un rol global fuera de la clínica: tiene todos los permisos y es el único que gestiona usuarios, roles y permisos, auditoría, clínicas y ocultar/restaurar archivos.
 
 | Módulo / Acción                    | Administrador | Recepcionista | Odontólogo |
 | ---------------------------------- | :-----------: | :-----------: | :--------: |
@@ -401,16 +412,16 @@ La siguiente matriz representa la configuración inicial propuesta.
 | Pagos - Ver                        |       ✓       |       ✓       |      —     |
 | Pagos - Crear                      |       ✓       |       ✓       |      —     |
 | Pagos - Editar                     |       ✓       |       —       |      —     |
-| Usuarios - Ver                     |       ✓       |       —       |      —     |
-| Usuarios - Crear                   |       ✓       |       —       |      —     |
-| Usuarios - Editar                  |       ✓       |       —       |      —     |
-| Usuarios - Desactivar              |       ✓       |       —       |      —     |
-| Roles - Ver                        |       ✓       |       —       |      —     |
-| Roles - Crear                      |       ✓       |       —       |      —     |
-| Roles - Editar                     |       ✓       |       —       |      —     |
-| Permisos - Ver                     |       ✓       |       —       |      —     |
-| Permisos - Asignar                 |       ✓       |       —       |      —     |
-| Auditoría - Ver                    |       ✓       |       —       |      —     |
+| Usuarios - Ver                     |       —       |       —       |      —     |
+| Usuarios - Crear                   |       —       |       —       |      —     |
+| Usuarios - Editar                  |       —       |       —       |      —     |
+| Usuarios - Desactivar              |       —       |       —       |      —     |
+| Roles - Ver                        |       —       |       —       |      —     |
+| Roles - Crear                      |       —       |       —       |      —     |
+| Roles - Editar                     |       —       |       —       |      —     |
+| Permisos - Ver                     |       —       |       —       |      —     |
+| Permisos - Asignar                 |       —       |       —       |      —     |
+| Auditoría - Ver                    |       —       |       —       |      —     |
 | Reportes - Administrativos         |       ✓       |       ✓       |      —     |
 | Reportes - Clínicos                |       ✓       |       —       |      ✓     |
 
