@@ -24,10 +24,21 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },
+  // El proyecto "chromium" corre contra la instancia sin segundo factor (para el resto de pruebas).
+  // El proyecto "mfa" corre contra una segunda instancia con Seguridad:MfaDuenoObligatorio=true.
   projects: [
     {
       name: 'chromium',
+      testIgnore: '**/mfa-dueno.spec.ts',
       use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'mfa',
+      testMatch: '**/mfa-dueno.spec.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.SONRISADIGITAL_E2E_MFA_BASE_URL ?? 'http://localhost:5176'
+      }
     }
   ]
 });

@@ -19,10 +19,12 @@ public interface ICatalogoCache
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Devuelve los tratamientos activos o todos los tratamientos, según
-    /// <paramref name="soloActivos"/>. Cada variante tiene su propia entrada.
+    /// Devuelve los tratamientos activos o todos los tratamientos de una clínica, según
+    /// <paramref name="soloActivos"/>. Cada clínica y cada variante tienen su propia entrada:
+    /// el catálogo de tratamientos es por clínica y nunca debe compartirse entre ellas.
     /// </summary>
     Task<IReadOnlyList<Tratamiento>> ObtenerTratamientosAsync(
+        int clinicaId,
         bool soloActivos,
         Func<CancellationToken, Task<IReadOnlyList<Tratamiento>>> cargar,
         CancellationToken cancellationToken = default);

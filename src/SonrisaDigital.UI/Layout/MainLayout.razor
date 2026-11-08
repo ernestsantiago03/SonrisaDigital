@@ -1,11 +1,15 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
+@using SonrisaDigital.Data.Entities
 @using SonrisaDigital.Data.Suscripciones
 @using SonrisaDigital.Services.Autenticacion
 @using SonrisaDigital.Services.Autorizacion
 @using SonrisaDigital.Services.Clinicas
 @using SonrisaDigital.Services.Clinicas.DTOs
+@using SonrisaDigital.Services.Configuracion
 @using SonrisaDigital.Services.Suscripciones
 @using SonrisaDigital.Services.Suscripciones.DTOs
 @using SonrisaDigital.UI.Services
@@ -200,7 +204,7 @@
         }
 
         <main class="app-content">
-            @if (contenidoListo)
+            @if (contenidoListo && !BloqueadoPorSegundoFactor)
             {
                 @Body
             }
@@ -253,6 +257,21 @@
 
     [Inject]
     private ICurrentUserService CurrentUserService { get; set; } = null!;
+
+    [Inject]
+    private UserManager<Usuario> UserManager { get; set; } = null!;
+
+    [Inject]
+    private IOptions<SeguridadOptions> Seguridad { get; set; } = null!;
+
+    // Un Dueño sin segundo factor activo no puede usar ninguna pantalla del sistema. El middleware
+    // solo protege las peticiones HTTP; dentro del circuito de Blazor hay que comprobarlo aquí.
+    private bool segundoFactorPendiente;
+
+    private bool EnPaginaSegundoFactor =>
+        Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("seguridad/mfa", StringComparison.OrdinalIgnoreCase);
+
+    private bool BloqueadoPorSegundoFactor => segundoFactorPendiente && !EnPaginaSegundoFactor;
 
     // Servicio con su propio DbContext: la página que carga usa el del circuito y no admite consultas a la vez.
     [Inject]
@@ -346,6 +365,7 @@
             CurrentUserService.Establecer(null, null, null);
             avisoSuscripcion = null;
             avisoCargadoParaUsuario = null;
+            segundoFactorPendiente = false;
             contenidoListo = true;
             return;
         }
@@ -365,6 +385,16 @@
         // puedan evaluar las mismas políticas de autorización que la interfaz.
         var usuarioId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         CurrentUserService.Establecer(usuarioId, UserName, user);
+
+        segundoFactorPendiente = EsDueno
+            && Seguridad.Value.MfaDuenoObligatorio
+            && !await SegundoFactorActivoAsync(user);
+
+        if (BloqueadoPorSegundoFactor)
+        {
+            Navigation.NavigateTo("/seguridad/mfa", forceLoad: true);
+            return;
+        }
 
         clinicas = EsDueno ? await CargarClinicasAsync() : [];
 
@@ -389,6 +419,12 @@
         {
             contenidoListo = true;
         }
+    }
+
+    private async Task<bool> SegundoFactorActivoAsync(ClaimsPrincipal user)
+    {
+        var cuenta = await UserManager.GetUserAsync(user);
+        return cuenta?.TwoFactorEnabled == true;
     }
 
     private void ToggleSidebar() => sidebarOpen = !sidebarOpen;

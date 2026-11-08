@@ -1,0 +1,19 @@
+# Carpetas generadas y de herramientas: no deben llegar al contexto de la imagen.
+**/bin/
+**/obj/
+**/.vs/
+**/TestResults/
+**/node_modules/
+**/playwright-report/
+**/test-results/
+.git/
+.github/
+artefactos/
+publish/
+
+# Configuración local con datos de desarrollo o secretos: nunca dentro de la imagen.
+**/appsettings.Development.json
+**/appsettings.Development.example.json
+**/appsettings.*.local.json
+**/.env
+**/*.user

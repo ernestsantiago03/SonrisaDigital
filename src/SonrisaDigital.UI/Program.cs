@@ -928,6 +928,12 @@ app.MapPost("/pacientes/{pacienteId:int}/archivos", async (
     var form = await context.Request.ReadFormAsync();
     var archivo = form.Files["archivo"];
 
+    // Igual que en /archivos: el Dueño no tiene clínica propia y esta petición no conoce el selector del circuito.
+    if (int.TryParse(form["clinicaId"].ToString(), out var clinicaId) && clinicaId > 0 && usuario.IsInRole(RolesSonrisaDigital.Dueno))
+    {
+        currentUserService.SeleccionarClinica(clinicaId);
+    }
+
     if (archivo is null || archivo.Length == 0)
     {
         return RedirigirArchivoConError(pacienteId, "Selecciona un archivo JPG o PNG.");
