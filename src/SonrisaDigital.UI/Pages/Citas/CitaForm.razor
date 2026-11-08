@@ -103,9 +103,9 @@
                         <label for="date">Fecha</label>
                         <InputDate id="date" @bind-Value="FechaSeleccionada" disabled="@(IsEditing ? "disabled" : null)" />
                         <ValidationMessage For="@(() => model.Fecha)" />
-                        @if (isWeekendError)
+                        @if (esDomingo)
                         {
-                            <span style="color: #dc2626; font-size: 10px; margin-top: 2px;">Solo laboramos de lunes a viernes.</span>
+                            <span style="color: #dc2626; font-size: 10px; margin-top: 2px;">Solo laboramos de lunes a sábado.</span>
                         }
                     </div>
 
@@ -239,7 +239,7 @@
     private bool saving;
     private bool notFound;
     private string? errorMessage;
-    private bool isWeekendError = false;
+    private bool esDomingo = false;
 
     private bool IsEditing => Id.HasValue;
 
@@ -267,7 +267,7 @@
         set
         {
             model.Fecha = value;
-            isWeekendError = value.DayOfWeek == DayOfWeek.Saturday || value.DayOfWeek == DayOfWeek.Sunday;
+            esDomingo = value.DayOfWeek == DayOfWeek.Sunday;
         }
     }
 
@@ -350,16 +350,14 @@
                     }
 
                     model = loaded;
-                    // Verificar si la fecha cargada es fin de semana
-                    isWeekendError = model.Fecha.DayOfWeek == DayOfWeek.Saturday || model.Fecha.DayOfWeek == DayOfWeek.Sunday;
+                    esDomingo = model.Fecha.DayOfWeek == DayOfWeek.Sunday;
                 }
             }
             else
             {
-                // Para una nueva cita, empezamos buscando el próximo día laborable
+                // Para una nueva cita, empezamos con hoy; si es domingo, el siguiente día laborable.
                 var defaultDate = RelojNegocio.HoyDateOnly();
-                if (defaultDate.DayOfWeek == DayOfWeek.Saturday) defaultDate = defaultDate.AddDays(2);
-                else if (defaultDate.DayOfWeek == DayOfWeek.Sunday) defaultDate = defaultDate.AddDays(1);
+                if (defaultDate.DayOfWeek == DayOfWeek.Sunday) defaultDate = defaultDate.AddDays(1);
 
                 model = new CitaFormDto
                 {
@@ -430,11 +428,30 @@
         try
         {
             // Validaciones base
-            if (model.Fecha.DayOfWeek == DayOfWeek.Saturday || model.Fecha.DayOfWeek == DayOfWeek.Sunday)
+            if (model.Fecha.DayOfWeek == DayOfWeek.Sunday)
             {
-                errorMessage = "Las citas solo pueden programarse en días laborables (lunes a viernes).";
+                errorMessage = "Las citas solo pueden programarse de lunes a sábado.";
                 saving = false;
                 return;
+            }
+
+            // Una cita nueva no puede quedar en una fecha ni hora que ya pasó (hora de la clínica).
+            if (!IsEditing)
+            {
+                var ahora = RelojNegocio.Ahora();
+                if (model.Fecha < DateOnly.FromDateTime(ahora))
+                {
+                    errorMessage = "No se pueden agendar citas en fechas pasadas.";
+                    saving = false;
+                    return;
+                }
+
+                if (model.Fecha == DateOnly.FromDateTime(ahora) && model.HoraInicio <= TimeOnly.FromDateTime(ahora))
+                {
+                    errorMessage = "No se pueden agendar citas en una hora que ya pasó.";
+                    saving = false;
+                    return;
+                }
             }
 
             if (model.PacienteId <= 0)

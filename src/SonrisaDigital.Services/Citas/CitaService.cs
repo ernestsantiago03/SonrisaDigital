@@ -5,6 +5,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -116,6 +117,7 @@ public sealed class CitaService(
         ArgumentNullException.ThrowIfNull(model);
         ValidadorDto.PrepararYValidar(model);
         ValidarDatosCita(model);
+        ValidarNoEsPasada(model, RelojNegocio.Ahora());
 
         var citaId = 0;
 
@@ -370,6 +372,20 @@ public sealed class CitaService(
 
         if (model.HoraInicio >= AlmuerzoInicio && model.HoraInicio < AlmuerzoFin)
             throw new InvalidOperationException("No se agendan citas durante el almuerzo (12:00 a 2:00 p.m.).");
+    }
+
+    /// <summary>
+    /// Una cita nueva no puede quedar en una fecha ni en una hora que ya pasó, según la hora de la clínica.
+    /// </summary>
+    public static void ValidarNoEsPasada(CitaFormDto model, DateTime ahora)
+    {
+        var hoy = DateOnly.FromDateTime(ahora);
+
+        if (model.Fecha < hoy)
+            throw new InvalidOperationException("No se pueden agendar citas en fechas pasadas.");
+
+        if (model.Fecha == hoy && model.HoraInicio <= TimeOnly.FromDateTime(ahora))
+            throw new InvalidOperationException("No se pueden agendar citas en una hora que ya pasó.");
     }
 
     /// <summary>
