@@ -46,10 +46,10 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -75,11 +75,19 @@ jobs:
           -RutaResultados tests/SonrisaDigital.Tests/TestResults
           -MinimoLinea 0.60
 
+      # Solo se guardan evidencias cuando algo falla. La cuenta Free de GitHub tiene
+      # 500 MB para artefactos: subirlos en cada ejecución agota la cuota y hace
+      # fallar el job con "Artifact storage quota has been hit".
+      # Además es informativo: una cuota agotada no debe marcar como fallida una
+      # compilación que ya pasó las pruebas.
       - name: Publicar resultados de pruebas
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
         with:
           name: resultados-pruebas
+          retention-days: 3
+          compression-level: 9
           path: |
             tests/SonrisaDigital.Tests/TestResults/**/*.trx
             tests/SonrisaDigital.Tests/TestResults/**/coverage.cobertura.xml
@@ -94,10 +102,10 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -153,10 +161,10 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -287,9 +295,12 @@ jobs:
 
       - name: Publicar evidencias E2E
         if: failure()
-        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
         with:
           name: evidencias-e2e
+          retention-days: 3
+          compression-level: 9
           path: |
             tests/SonrisaDigital.E2E/test-results/
             tests/SonrisaDigital.E2E/playwright-report/
@@ -306,10 +317,10 @@ jobs:
 
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -342,8 +353,13 @@ jobs:
           Write-Host "Publicación sin appsettings de desarrollo."
 
       - name: Guardar artefacto de publicación
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sonrisadigital-publicacion
-          path: publish/
+          # La cuenta Free de GitHub tiene 500 MB de almacenamiento de artefactos.
+          # Esta publicación se descarga a los pocos días de fusionar en main, así
+          # que no necesita la retención por defecto de 90 días.
+          retention-days: 3
+          compression-level: 9
+          path: publish
           if-no-files-found: error
