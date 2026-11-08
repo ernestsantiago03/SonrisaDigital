@@ -239,7 +239,8 @@ var app = builder.Build();
 // Comandos de administración desde la consola del servidor. No se exponen en la web.
 //   dotnet SonrisaDigital.UI.dll crear-dueno <correo> <nombre>
 //   dotnet SonrisaDigital.UI.dll desactivar-dueno <correo>
-if (args is ["crear-dueno" or "desactivar-dueno" or "restablecer-mfa-dueno", ..])
+//   dotnet SonrisaDigital.UI.dll desbloquear-cuenta <correo>
+if (args is ["crear-dueno" or "desactivar-dueno" or "restablecer-mfa-dueno" or "desbloquear-cuenta", ..])
 {
     Environment.ExitCode = await CliDueno.EjecutarAsync(app.Services, args);
     return;

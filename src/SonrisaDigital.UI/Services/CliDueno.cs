@@ -52,6 +52,12 @@ public static class CliDueno
                     Console.WriteLine($"Dueño desactivado: {correoBaja}.");
                     return 0;
 
+                case ["desbloquear-cuenta", var correoBloqueo]:
+                    await CuentasBloqueo.DesbloquearAsync(userManager, correoBloqueo);
+                    logger.LogWarning("Consola: se desbloqueó la cuenta {Correo}.", correoBloqueo);
+                    Console.WriteLine($"Cuenta desbloqueada: {correoBloqueo}.");
+                    return 0;
+
                 case ["restablecer-mfa-dueno", var correoMfa]:
                     if (Console.IsInputRedirected)
                     {
@@ -74,7 +80,7 @@ public static class CliDueno
 
                 default:
                     Console.Error.WriteLine(
-                        "Uso: crear-dueno <correo> <nombre>  |  desactivar-dueno <correo>  |  restablecer-mfa-dueno <correo>");
+                        "Uso: crear-dueno <correo> <nombre>  |  desactivar-dueno <correo>  |  restablecer-mfa-dueno <correo>  |  desbloquear-cuenta <correo>");
                     return 1;
             }
         }
