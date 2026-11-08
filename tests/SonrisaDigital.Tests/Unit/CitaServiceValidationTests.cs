@@ -92,6 +92,58 @@ public sealed class CitaServiceValidationTests
 
 
     [Fact]
+    public void RechazaFechaAnteriorAHoy()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0);
+        var modelo = ModeloValido();
+        modelo.Fecha = new DateOnly(2026, 11, 8);
+
+        var excepcion = Assert.Throws<InvalidOperationException>(
+            () => CitaService.ValidarNoEsPasada(modelo, ahora));
+
+        Assert.Equal("No se pueden agendar citas en fechas pasadas.", excepcion.Message);
+    }
+
+    [Fact]
+    public void RechazaHoraIgualOAnteriorALaActualDeHoy()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0);
+        var modelo = ModeloValido();
+        modelo.Fecha = new DateOnly(2026, 11, 9);
+        modelo.HoraInicio = new TimeOnly(10, 0);
+
+        var excepcion = Assert.Throws<InvalidOperationException>(
+            () => CitaService.ValidarNoEsPasada(modelo, ahora));
+
+        Assert.Equal("No se pueden agendar citas en una hora que ya pasó.", excepcion.Message);
+
+        modelo.HoraInicio = new TimeOnly(9, 0);
+        Assert.Throws<InvalidOperationException>(() => CitaService.ValidarNoEsPasada(modelo, ahora));
+    }
+
+    [Fact]
+    public void AceptaHoraFuturaDeHoy()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0);
+        var modelo = ModeloValido();
+        modelo.Fecha = new DateOnly(2026, 11, 9);
+        modelo.HoraInicio = new TimeOnly(10, 30);
+
+        CitaService.ValidarNoEsPasada(modelo, ahora);
+    }
+
+    [Fact]
+    public void AceptaCualquierHoraDeUnDiaFuturo()
+    {
+        var ahora = new DateTime(2026, 11, 9, 17, 0, 0);
+        var modelo = ModeloValido();
+        modelo.Fecha = new DateOnly(2026, 11, 10);
+        modelo.HoraInicio = new TimeOnly(8, 0);
+
+        CitaService.ValidarNoEsPasada(modelo, ahora);
+    }
+
+    [Fact]
     public async Task RechazaHorarioFueraDeAtencion()
     {
         var modelo = ModeloValido();

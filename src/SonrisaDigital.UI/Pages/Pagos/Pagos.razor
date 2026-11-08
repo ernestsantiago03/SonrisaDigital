@@ -5,6 +5,7 @@
 @using SonrisaDigital.Services.Pagos
 @using SonrisaDigital.Services.Pagos.DTOs
 @inject IPagoService PagoService
+@inject ILogger<Pagos> Logger
 
 @* ============================================================================
    PÁGINA: Pagos        Ruta: /pagos   (también /pagos?paciente=12)
@@ -339,8 +340,9 @@
             // Paso 4: los últimos 10 pagos para la tabla de historial.
             historial = (await PagoService.GetHistorialAsync(10)).ToList();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "Error al cargar la página de pagos.");
             errorMessage = "No fue posible cargar la información de pagos.";
         }
         finally
