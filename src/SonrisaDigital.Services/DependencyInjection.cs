@@ -117,7 +117,7 @@ public static class DependencyInjection
             options.Password.RequireDigit = true;
             options.Password.RequireUppercase = true;
             options.Password.RequireNonAlphanumeric = false;
-            options.Lockout.MaxFailedAccessAttempts = 5;
+            PoliticaBloqueoCuentas.Aplicar(options.Lockout);
             options.SignIn.RequireConfirmedAccount = false;
         })
         .AddRoles<Rol>()

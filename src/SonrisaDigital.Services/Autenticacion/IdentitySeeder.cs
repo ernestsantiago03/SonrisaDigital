@@ -20,6 +20,8 @@ public static class IdentitySeeder
         var roleManager = services.GetRequiredService<RoleManager<Rol>>();
         var userManager = services.GetRequiredService<UserManager<Usuario>>();
 
+        await HabilitarBloqueoCuentasAsync(services.GetRequiredService<ApplicationDbContext>());
+
         var createdRoles = new HashSet<string>(StringComparer.Ordinal);
         foreach (var roleName in new[] { RolesSonrisaDigital.Administrador, RolesSonrisaDigital.Recepcionista, RolesSonrisaDigital.Odontologo, RolesSonrisaDigital.Dueno })
         {
@@ -128,6 +130,16 @@ public static class IdentitySeeder
             var result = await userManager.AddToRoleAsync(admin, RolesSonrisaDigital.Administrador);
             EnsureSucceeded(result, "asignar el rol Administrador");
         }
+    }
+
+    /// <summary>
+    /// Las cuentas creadas sin LockoutEnabled no se bloquean nunca. Se activa en las existentes; es idempotente.
+    /// </summary>
+    public static async Task HabilitarBloqueoCuentasAsync(ApplicationDbContext dbContext)
+    {
+        await dbContext.Users
+            .Where(usuario => !usuario.LockoutEnabled)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(usuario => usuario.LockoutEnabled, true));
     }
 
     /// <summary>
