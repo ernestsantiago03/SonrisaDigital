@@ -24,9 +24,9 @@ public sealed record ResumenSuscripcionDto(
 /// <summary>Pago registrado en el historial de una clínica.</summary>
 public sealed record PagoSuscripcionDto(
     int Id,
-    DateTime FechaPago,
-    DateTime PeriodoDesde,
-    DateTime PeriodoHasta,
+    DateOnly FechaPago,
+    DateOnly PeriodoDesde,
+    DateOnly PeriodoHasta,
     decimal Monto,
     string Moneda,
     MetodoPagoSuscripcion Metodo,

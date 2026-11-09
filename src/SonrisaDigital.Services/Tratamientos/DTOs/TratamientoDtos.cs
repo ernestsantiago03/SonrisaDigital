@@ -78,7 +78,7 @@ public sealed record TratamientoRealizadoDetalleDto(
     int CantidadPagos);
 
 /// <summary>Consulta de un paciente, para elegir en qué consulta se realizó un tratamiento.</summary>
-public sealed record ConsultaOptionDto(int Id, DateTime Fecha, string Motivo);
+public sealed record ConsultaOptionDto(int Id, DateOnly Fecha, string Motivo);
 
 /// <summary>Datos del formulario "Registrar / Editar tratamiento realizado".</summary>
 public sealed class TratamientoRealizadoFormDto

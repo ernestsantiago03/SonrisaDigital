@@ -66,6 +66,18 @@ public sealed class PagoServiceTests
     }
 
     [Fact]
+    public async Task RechazaFechaFutura()
+    {
+        var modelo = ModeloValido();
+        modelo.Fecha = RelojNegocio.HoyDateOnly().AddDays(1);
+
+        var excepcion = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CrearServicio().RegistrarAsync(modelo));
+
+        Assert.Equal("La fecha del pago no puede ser futura.", excepcion.Message);
+    }
+
+    [Fact]
     public async Task RechazaMetodoDePagoDesconocido()
     {
         var modelo = ModeloValido();

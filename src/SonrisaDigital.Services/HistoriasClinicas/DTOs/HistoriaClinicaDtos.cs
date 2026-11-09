@@ -67,7 +67,7 @@ public sealed class HistoriaClinicaDto
 /// </summary>
 public sealed record ConsultaClinicaItemDto(
     int Id,
-    DateTime Fecha,
+    DateOnly Fecha,
     int OdontologoId,
     string Odontologo,
     string? Motivo,
@@ -105,7 +105,7 @@ public sealed class ConsultaClinicaFormDto
     public int OdontologoId { get; set; }
 
     /// <summary>Fecha en que se atendió al paciente. Por defecto, hoy.</summary>
-    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
+    public DateOnly Fecha { get; set; } = RelojNegocio.HoyDateOnly();
 
     /// <summary>Motivo de la consulta (obligatorio): qué trajo al paciente a la clínica.</summary>
     [Required(ErrorMessage = "El motivo de la consulta es obligatorio.")]

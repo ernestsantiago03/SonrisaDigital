@@ -46,6 +46,81 @@ public sealed class ReporteFechasTests(SqlServerFixture fixture) : IClassFixture
         Assert.Contains(pagos, pago => pago.Id == pagoId);
     }
 
+    [Fact]
+    public async Task ElResumenIncluyeLosPagosDeLosDiasLimiteYExcluyeLosDeAfuera()
+    {
+        var desde = new DateOnly(2036, 6, 10);
+        var hasta = desde.AddDays(2);
+        await CrearPagoAsync(desde);
+        await CrearPagoAsync(hasta);
+        await CrearPagoAsync(desde.AddDays(-1));
+        await CrearPagoAsync(hasta.AddDays(1));
+
+        await using var db = fixture.CreateContext();
+        var servicio = new ReporteService(
+            new ReporteRepository(db),
+            TestSession.Crear(),
+            new FakeAuthorizationService());
+
+        var resumen = await servicio.GetResumenAsync(new ReporteFiltroDto(desde, hasta));
+
+        Assert.NotNull(resumen.Pagos);
+        Assert.Equal(2, resumen.Pagos.CantidadPagos);
+        Assert.Equal(50m, resumen.Pagos.TotalCobrado);
+    }
+
+    [Fact]
+    public async Task LosPacientesNuevosSeCuentanConMedianocheLocalYNoConMedianocheUtc()
+    {
+        var dia = new DateOnly(2036, 4, 5);
+
+        // 23:30 del día anterior en Santo Domingo (UTC-4).
+        await CrearPacienteRegistradoAsync(new DateTime(2036, 4, 5, 3, 30, 0, DateTimeKind.Utc));
+        // 00:30 del día consultado en Santo Domingo.
+        await CrearPacienteRegistradoAsync(new DateTime(2036, 4, 5, 4, 30, 0, DateTimeKind.Utc));
+        // 23:30 del día consultado en Santo Domingo.
+        await CrearPacienteRegistradoAsync(new DateTime(2036, 4, 6, 3, 30, 0, DateTimeKind.Utc));
+
+        await using var db = fixture.CreateContext();
+        var servicio = new ReporteService(
+            new ReporteRepository(db),
+            TestSession.Crear(),
+            new FakeAuthorizationService());
+
+        var resumen = await servicio.GetResumenAsync(new ReporteFiltroDto(dia, dia));
+
+        Assert.Equal(2, resumen.PacientesNuevos);
+    }
+
+    [Fact]
+    public async Task ElServicioRechazaUnRangoDeReporteMayorAUnAnio()
+    {
+        var desde = new DateOnly(2036, 1, 1);
+        var servicio = new ReporteService(
+            null!,
+            TestSession.Crear(),
+            new FakeAuthorizationService());
+
+        var excepcion = await Assert.ThrowsAsync<ArgumentException>(
+            () => servicio.GetResumenAsync(new ReporteFiltroDto(desde, desde.AddDays(367))));
+
+        Assert.Contains("366", excepcion.Message);
+    }
+
+    private async Task CrearPacienteRegistradoAsync(DateTime fechaRegistroUtc)
+    {
+        await using var db = fixture.CreateContext();
+        var sufijo = Guid.NewGuid().ToString("N")[..8];
+        db.Pacientes.Add(new Paciente
+        {
+            Nombres = $"Paciente {sufijo}",
+            Apellidos = "Medianoche",
+            Estado = EstadoRegistro.Activo,
+            FechaRegistro = fechaRegistroUtc
+        });
+        await db.SaveChangesAsync();
+    }
+
     private async Task<int> CrearPagoAsync(DateOnly fecha)
     {
         await using var db = fixture.CreateContext();

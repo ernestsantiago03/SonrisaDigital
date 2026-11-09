@@ -85,7 +85,7 @@ public sealed class ArchivoPacienteService(
         var tipo = ImagenArchivo.DetectarTipo(contenido)
             ?? throw new InvalidOperationException("Solo se permiten archivos JPG o PNG.");
 
-        if (fechaEstudio == default || fechaEstudio > DateOnly.FromDateTime(RelojNegocio.Hoy()))
+        if (fechaEstudio == default || fechaEstudio > RelojNegocio.HoyDateOnly())
         {
             throw new InvalidOperationException("La fecha del estudio es obligatoria y no puede ser futura.");
         }

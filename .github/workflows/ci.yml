@@ -21,9 +21,21 @@ env:
 
 jobs:
   build-test:
-    name: Compilar y probar
+    name: Compilar y probar (${{ matrix.nombre }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    # La misma suite se ejecuta con el servidor en UTC y en la zona del negocio.
+    # Así una regresión que dependa de la zona horaria del servidor falla aquí
+    # y no en producción.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tz: UTC
+            nombre: UTC
+          - tz: America/Santo_Domingo
+            nombre: Santo_Domingo
 
     services:
       sqlserver:
@@ -42,6 +54,7 @@ jobs:
           --health-start-period 20s
 
     env:
+      TZ: ${{ matrix.tz }}
       SONRISADIGITAL_TEST_CONNECTION: "Server=localhost,1433;Database=master;User Id=sa;Password=SonrisaDigital_Test123!;TrustServerCertificate=True;MultipleActiveResultSets=True"
 
     steps:
@@ -85,7 +98,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: resultados-pruebas
+          name: resultados-pruebas-${{ matrix.nombre }}
           retention-days: 3
           compression-level: 9
           path: |

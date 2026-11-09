@@ -79,7 +79,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 - **HTTPS** obligatorio y **HSTS** en producción.
 - Página 404 personalizada y manejo controlado de errores.
 - Datos iniciales (roles, permisos, Dueño y catálogo odontográfico) creados automáticamente al arrancar. La clínica demo y su administrador solo se crean en Development/E2E.
-- **Fechas y horas del negocio** centralizadas en `RelojNegocio` (`America/Santo_Domingo`). Las fechas de calendario (citas, pagos, tratamientos, nacimiento y estudios) usan `DateOnly` y se guardan como columna `date`, así que no se desplazan por la zona horaria del servidor. Las marcas de tiempo reales (registro, subida, auditoría) se guardan en UTC.
+- **Fechas y horas del negocio** centralizadas en `RelojNegocio`, con la zona configurable en `RelojNegocio:ZonaHoraria` (`America/Santo_Domingo` por defecto). Las fechas de calendario (citas, consultas, pagos, tratamientos, pagos de suscripción, nacimiento y estudios) usan `DateOnly` y se guardan como columna `date`, así que no se desplazan por la zona horaria del servidor. Las marcas de tiempo reales (registro, subida, auditoría, pago de suscripción) se guardan en UTC. Si la zona configurada no existe, el arranque falla en lugar de caer silenciosamente a UTC. Ver `docs/07-fechas-y-zonas-horarias.md`.
 
 ### Suscripción y facturación
 

@@ -5,6 +5,7 @@ using SonrisaDigital.Data;
 using SonrisaDigital.Data.Common;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Data.Repositories;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.Services.Auditoria;
 using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Autorizacion;
@@ -255,6 +256,9 @@ public sealed class PagoService(
 
         if (model.Fecha == default)
             throw new InvalidOperationException("La fecha del pago no es válida.");
+
+        if (model.Fecha > RelojNegocio.HoyDateOnly())
+            throw new InvalidOperationException("La fecha del pago no puede ser futura.");
 
         if (!Enum.IsDefined(model.MetodoPago))
             throw new InvalidOperationException("El método de pago no es válido.");

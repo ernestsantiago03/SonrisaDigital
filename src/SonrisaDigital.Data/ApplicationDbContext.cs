@@ -241,7 +241,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasKey(consultation => consultation.Id);
             entity.HasAlternateKey(consultation => new { consultation.ClinicaId, consultation.Id });
             entity.Property(consultation => consultation.Estado).HasConversion<string>().HasMaxLength(20);
-            entity.Property(consultation => consultation.Fecha).HasDefaultValueSql("SYSUTCDATETIME()");
             entity.HasIndex(consultation => consultation.ClinicaId);
             entity.HasIndex(consultation => consultation.CitaId).IsUnique().HasFilter("[CitaId] IS NOT NULL");
             entity.HasOne(consultation => consultation.Paciente)
