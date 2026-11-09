@@ -28,6 +28,9 @@ public sealed class ReporteService(
     private const string PermisoTratamientos = "Tratamientos.Ver";
     private const string PermisoPagos = "Pagos.Ver";
 
+    /// <summary>Rango máximo que se puede consultar en un reporte, en días de diferencia.</summary>
+    private const int RangoMaximoDias = 366;
+
     public async Task<ReporteOpcionesDto> GetOpcionesAsync(CancellationToken cancellationToken = default)
     {
         var contexto = await CrearContextoAsync(cancellationToken);
@@ -355,13 +358,19 @@ public sealed class ReporteService(
         ContextoReporte contexto) =>
         contexto.OdontologoRestringidoId ?? filtro.OdontologoId;
 
-    /// <summary>Valida que el rango de fechas locales tenga sentido.</summary>
+    /// <summary>Valida que el rango de fechas locales tenga sentido y no sea desmedido.</summary>
     private static void ValidarFiltro(ReporteFiltroDto filtro)
     {
         if (filtro.Hasta < filtro.Desde)
         {
             throw new ArgumentException(
                 "La fecha final no puede ser anterior a la fecha inicial.");
+        }
+
+        if (filtro.Hasta.DayNumber - filtro.Desde.DayNumber > RangoMaximoDias)
+        {
+            throw new ArgumentException(
+                $"El rango del reporte no puede superar los {RangoMaximoDias} días.");
         }
     }
 

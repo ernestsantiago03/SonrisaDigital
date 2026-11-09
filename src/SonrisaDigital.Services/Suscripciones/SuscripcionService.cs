@@ -108,8 +108,11 @@ public sealed class SuscripcionService(
                 .SingleOrDefaultAsync(item => item.Id == model.ClinicaId, cancellationToken)
                 ?? throw new InvalidOperationException("La clínica no existe.");
 
-            var hoy = ReglaSuscripcion.Hoy();
-            var periodoDesde = ReglaSuscripcion.InicioPeriodo(clinica.FechaVencimiento, hoy);
+            var hoy = ReglaSuscripcion.HoyDateOnly();
+            var vencimientoActual = clinica.FechaVencimiento is DateTime vencimiento
+                ? DateOnly.FromDateTime(vencimiento)
+                : (DateOnly?)null;
+            var periodoDesde = ReglaSuscripcion.InicioPeriodo(vencimientoActual, hoy);
             var periodoHasta = periodoDesde.AddMonths(model.Meses);
 
             var pago = new PagoSuscripcion
@@ -133,8 +136,8 @@ public sealed class SuscripcionService(
             var reactivaPorPago = clinica.Estado == EstadoClinica.Suspendida
                 && clinica.MotivoSuspension == MotivoSuspension.FaltaDePago;
 
-            clinica.FechaVencimiento = periodoHasta;
-            clinica.FechaPrimerIngreso ??= hoy;
+            clinica.FechaVencimiento = periodoHasta.ToDateTime(TimeOnly.MinValue);
+            clinica.FechaPrimerIngreso ??= hoy.ToDateTime(TimeOnly.MinValue);
             clinica.EnPrueba = false;
             if (clinica.Estado != EstadoClinica.Suspendida || reactivaPorPago)
             {
@@ -175,10 +178,13 @@ public sealed class SuscripcionService(
                 .SingleOrDefaultAsync(item => item.Id == model.ClinicaId, cancellationToken)
                 ?? throw new InvalidOperationException("La clínica no existe.");
 
-            var hoy = ReglaSuscripcion.Hoy();
-            var inicio = ReglaSuscripcion.InicioPeriodo(clinica.FechaVencimiento, hoy);
-            clinica.FechaVencimiento = inicio.AddDays(model.Dias);
-            clinica.FechaPrimerIngreso ??= hoy;
+            var hoy = ReglaSuscripcion.HoyDateOnly();
+            var vencimientoActual = clinica.FechaVencimiento is DateTime vencimiento
+                ? DateOnly.FromDateTime(vencimiento)
+                : (DateOnly?)null;
+            var inicio = ReglaSuscripcion.InicioPeriodo(vencimientoActual, hoy);
+            clinica.FechaVencimiento = inicio.AddDays(model.Dias).ToDateTime(TimeOnly.MinValue);
+            clinica.FechaPrimerIngreso ??= hoy.ToDateTime(TimeOnly.MinValue);
 
             // La extensión sirve tanto para una clínica comercial como para una
             // prueba: se conserva el modo (EnPrueba/Plan) y solo se devuelve el
@@ -220,9 +226,10 @@ public sealed class SuscripcionService(
                 return;
             }
 
-            var hoy = ReglaSuscripcion.Hoy();
-            clinica.FechaPrimerIngreso = hoy;
-            clinica.FechaVencimiento = ReglaSuscripcion.VencimientoDePrueba(hoy);
+            var hoy = ReglaSuscripcion.HoyDateOnly();
+            clinica.FechaPrimerIngreso = hoy.ToDateTime(TimeOnly.MinValue);
+            clinica.FechaVencimiento = ReglaSuscripcion.VencimientoDePrueba(hoy)
+                .ToDateTime(TimeOnly.MinValue);
             clinica.Plan ??= PlanPrueba;
 
             await dbContext.SaveChangesAsync(cancellationToken);

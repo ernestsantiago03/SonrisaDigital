@@ -38,6 +38,9 @@ public static class ReglaSuscripcion
     /// <summary>Fecha actual (sin hora) en la zona horaria del negocio.</summary>
     public static DateTime Hoy() => RelojNegocio.Hoy();
 
+    /// <summary>Fecha actual del negocio como día de calendario.</summary>
+    public static DateOnly HoyDateOnly() => RelojNegocio.HoyDateOnly();
+
     /// <summary>
     /// Evalúa el acceso de una clínica. La suspensión manual siempre gana; si la
     /// prueba aún no empezó, se permite entrar para que ese primer ingreso la inicie.
@@ -86,6 +89,10 @@ public static class ReglaSuscripcion
     public static DateTime VencimientoDePrueba(DateTime hoy) =>
         hoy.Date.AddDays(DiasPrueba);
 
+    /// <summary>Fecha de vencimiento de la prueba como día de calendario.</summary>
+    public static DateOnly VencimientoDePrueba(DateOnly hoy) =>
+        hoy.AddDays(DiasPrueba);
+
     /// <summary>
     /// Primer día que cubre una renovación. Si la clínica todavía tiene tiempo
     /// vigente, el nuevo período empieza al vencer; si ya venció, empieza hoy.
@@ -94,6 +101,14 @@ public static class ReglaSuscripcion
         fechaVencimiento is DateTime vencimiento && vencimiento.Date > hoy.Date
             ? vencimiento.Date
             : hoy.Date;
+
+    /// <summary>
+    /// Primer día que cubre una renovación, expresado como <see cref="DateOnly"/>.
+    /// </summary>
+    public static DateOnly InicioPeriodo(DateOnly? fechaVencimiento, DateOnly hoy) =>
+        fechaVencimiento is DateOnly vencimiento && vencimiento > hoy
+            ? vencimiento
+            : hoy;
 
     /// <summary>
     /// Calcula el nuevo vencimiento al registrar un pago. Si la clínica todavía

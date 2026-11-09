@@ -79,7 +79,7 @@ public sealed class SuscripcionServiceTests(SqlServerFixture fixture)
             Assert.Equal("USD", pago.Moneda);
             Assert.Equal("TRF-001", pago.Referencia);
             Assert.Equal(usuarioId, pago.RegistradoPorId);
-            Assert.Equal(vencimientoEsperado, pago.PeriodoHasta);
+            Assert.Equal(DateOnly.FromDateTime(vencimientoEsperado), pago.PeriodoHasta);
         }
     }
 

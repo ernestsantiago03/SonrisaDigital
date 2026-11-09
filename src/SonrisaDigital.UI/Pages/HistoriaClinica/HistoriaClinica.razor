@@ -596,7 +596,8 @@
 
                     <div class="form-group">
                         <label class="form-label" for="consulta-fecha">Fecha</label>
-                        <input id="consulta-fecha" type="date" class="form-control" @bind="consultaForm.Fecha" />
+                        <input id="consulta-fecha" type="date" class="form-control" @bind="consultaForm.Fecha"
+                               max="@RelojNegocio.HoyDateOnly().ToString("yyyy-MM-dd")" />
                         <ValidationMessage For="@(() => consultaForm.Fecha)" />
                     </div>
 
@@ -972,7 +973,7 @@
         consultaForm = new ConsultaClinicaFormDto
         {
             PacienteId = model.PacienteId,
-            Fecha = RelojNegocio.Hoy()
+            Fecha = RelojNegocio.HoyDateOnly()
         };
 
         // Paso 2: cargar los odontólogos y preseleccionar al vinculado al usuario de la sesión,

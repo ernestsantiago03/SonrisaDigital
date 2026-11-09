@@ -17,13 +17,13 @@ public class PagoSuscripcion
     public Clinica Clinica { get; set; } = null!;
 
     /// <summary>Fecha en que se recibió el pago (sin hora).</summary>
-    public DateTime FechaPago { get; set; }
+    public DateOnly FechaPago { get; set; }
 
     /// <summary>Primer día que cubre este pago.</summary>
-    public DateTime PeriodoDesde { get; set; }
+    public DateOnly PeriodoDesde { get; set; }
 
     /// <summary>Fecha de vencimiento que deja este pago.</summary>
-    public DateTime PeriodoHasta { get; set; }
+    public DateOnly PeriodoHasta { get; set; }
 
     public decimal Monto { get; set; }
 

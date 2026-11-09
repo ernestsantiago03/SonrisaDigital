@@ -12,7 +12,7 @@ public class ConsultaClinica : IPerteneceAClinica
     public int OdontologoId { get; set; }
     public int? CitaId { get; set; }
     public int HistoriaClinicaId { get; set; }
-    public DateTime Fecha { get; set; } = RelojNegocio.Hoy();
+    public DateOnly Fecha { get; set; } = RelojNegocio.HoyDateOnly();
     public string? Motivo { get; set; }
     public string? Observaciones { get; set; }
     public string? Diagnostico { get; set; }

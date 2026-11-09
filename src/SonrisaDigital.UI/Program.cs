@@ -14,6 +14,7 @@ using System.Threading.RateLimiting;
 using SonrisaDigital.Data;
 using SonrisaDigital.Data.Suscripciones;
 using SonrisaDigital.Data.Tenancy;
+using SonrisaDigital.Data.Tiempo;
 using SonrisaDigital.UI.Components;
 using SonrisaDigital.UI.Services;
 using SonrisaDigital.Data.Entities;
@@ -31,6 +32,22 @@ using SonrisaDigital.Services.Suscripciones;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ============================================================================
+// Zona horaria oficial del negocio. Se resuelve antes de registrar servicios
+// porque las entidades y los formularios usan RelojNegocio desde su creación.
+// Una zona mal escrita detiene el arranque con un mensaje explícito: continuar
+// en UTC cambiaría el día de pagos, consultas y reportes sin que nadie lo note.
+// ============================================================================
+try
+{
+    RelojNegocio.Configurar(builder.Configuration["RelojNegocio:ZonaHoraria"]);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"[RelojNegocio] Error: {ex.Message}");
+    throw;
+}
 
 // En Development se mantiene la consola legible. En producción los logs salen en
 // JSON por consola (IIS stdout, journald o Docker) para poder filtrarlos por

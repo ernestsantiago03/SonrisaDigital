@@ -308,7 +308,7 @@ public sealed class HistoriaClinicaService(
             HistoriaClinicaId = historia.Id,
             OdontologoId = odontologo.Id,
             // La fecha de una consulta es un día de calendario, no una hora exacta.
-            Fecha = model.Fecha.Date,
+            Fecha = model.Fecha,
             Motivo = Normalize(model.Motivo),
             Diagnostico = Normalize(model.Diagnostico),
             PlanTratamiento = Normalize(model.PlanTratamiento),
@@ -370,7 +370,7 @@ public sealed class HistoriaClinicaService(
 
         // Paso 5: copiar los datos limpios a la fila que Entity Framework ya está vigilando.
         consulta.OdontologoId = odontologo.Id;
-        consulta.Fecha = model.Fecha.Date;
+        consulta.Fecha = model.Fecha;
         consulta.Motivo = Normalize(model.Motivo);
         consulta.Diagnostico = Normalize(model.Diagnostico);
         consulta.PlanTratamiento = Normalize(model.PlanTratamiento);
@@ -431,9 +431,8 @@ public sealed class HistoriaClinicaService(
             HistoriaClinicaId = historia.Id,
             OdontologoId = cita.OdontologoId,
             CitaId = cita.Id,
-            // La cita guarda un día de calendario y la consulta guarda fecha con hora:
-            // se convierte al comienzo de ese día.
-            Fecha = cita.Fecha.ToDateTime(TimeOnly.MinValue),
+            // La cita y la consulta guardan el mismo día de calendario.
+            Fecha = cita.Fecha,
             Motivo = Normalize(cita.Motivo),
             Estado = EstadoConsulta.Abierta
         };
@@ -599,7 +598,7 @@ public sealed class HistoriaClinicaService(
             throw new InvalidOperationException("El diagnóstico de la consulta es obligatorio.");
         }
 
-        if (model.Fecha.Date > RelojNegocio.Hoy())
+        if (model.Fecha > RelojNegocio.HoyDateOnly())
         {
             throw new InvalidOperationException("La fecha de la consulta no puede ser futura.");
         }
