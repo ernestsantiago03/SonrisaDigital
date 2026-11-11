@@ -267,19 +267,54 @@ using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("IdentitySeeder");
     var esDesarrollo = app.Environment.IsDevelopment();
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    // Si el esquema de la base está atrasado respecto al modelo, las consultas fallan con
+    // errores de conversión (por ejemplo DateOnly contra datetime2) y cada pantalla muestra
+    // un mensaje genérico. Se comprueba aquí para detener el arranque con la causa exacta.
+    IReadOnlyList<string> migracionesPendientes;
+    try
+    {
+        migracionesPendientes = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
+    }
+    catch (Exception exception)
+    {
+        logger.LogError(exception, "No se pudo verificar el esquema de la base de datos.");
+        if (!esDesarrollo)
+        {
+            throw;
+        }
+
+        // En Development se conserva el comportamiento anterior: si la base no existe
+        // todavía, el seeding registra el error y la aplicación sigue arrancando.
+        migracionesPendientes = [];
+    }
+
+    if (migracionesPendientes.Count > 0)
+    {
+        var detalle = string.Join(", ", migracionesPendientes);
+        logger.LogError(
+            "La base de datos tiene migraciones pendientes: {Migraciones}. " +
+            "Ejecuta 'dotnet ef database update' antes de usar la aplicación.",
+            detalle);
+
+        throw new InvalidOperationException(
+            $"La base de datos tiene migraciones pendientes: {detalle}. " +
+            "Ejecuta 'dotnet ef database update' para actualizar el esquema.");
+    }
+
     try
     {
         // La demo es una ayuda de desarrollo y de las pruebas E2E. En producción
         // no se crea: el Dueño registra la primera clínica desde la interfaz.
         if (esDesarrollo)
         {
-            await ClinicaDemoSeeder.SeedAsync(
-                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
+            await ClinicaDemoSeeder.SeedAsync(dbContext);
         }
 
         await IdentitySeeder.SeedAsync(scope.ServiceProvider, builder.Configuration, logger, esDesarrollo);
         await OdontogramaCatalogSeeder.SeedAsync(
-            scope.ServiceProvider.GetRequiredService<SonrisaDigital.Data.ApplicationDbContext>(),
+            dbContext,
             scope.ServiceProvider.GetRequiredService<ICatalogoCache>());
     }
     catch (Exception exception)
@@ -322,7 +357,8 @@ app.Use(async (context, next) =>
 // Health checks expuestos sin autenticacion y antes de la redireccion HTTPS,
 // para que un balanceador pueda consultarlos por HTTP sin recibir un 308.
 // /health -> live: indica que la aplicacion esta en marcha.
-// /health/ready -> ready: ademas valida que SQL Server responda.
+// /health/ready -> ready: ademas valida que SQL Server responda y que el
+// esquema tenga aplicadas todas las migraciones.
 app.MapGet("/health", (ApplicationDbContext db) =>
 {
     return Results.Json(new { status = "Healthy" });
@@ -337,6 +373,18 @@ app.MapGet("/health/ready", async (ApplicationDbContext db) =>
         {
             return Results.Json(
                 new { status = "Unhealthy", database = "unreachable" },
+                statusCode: 503);
+        }
+
+        var migracionesPendientes = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (migracionesPendientes.Count > 0)
+        {
+            app.Logger.LogError(
+                "La base de datos tiene migraciones pendientes: {Migraciones}.",
+                string.Join(", ", migracionesPendientes));
+
+            return Results.Json(
+                new { status = "Unhealthy", database = "schema-outdated" },
                 statusCode: 503);
         }
 
@@ -445,6 +493,19 @@ app.Use(async (context, next) =>
                 context.Response.StatusCode = 503;
                 context.Response.ContentType = "application/json; charset=utf-8";
                 await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"unreachable\"}");
+                return;
+            }
+
+            var migracionesPendientes = (await db.Database.GetPendingMigrationsAsync()).ToList();
+            if (migracionesPendientes.Count > 0)
+            {
+                app.Logger.LogError(
+                    "La base de datos tiene migraciones pendientes: {Migraciones}.",
+                    string.Join(", ", migracionesPendientes));
+
+                context.Response.StatusCode = 503;
+                context.Response.ContentType = "application/json; charset=utf-8";
+                await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"schema-outdated\"}");
                 return;
             }
 
