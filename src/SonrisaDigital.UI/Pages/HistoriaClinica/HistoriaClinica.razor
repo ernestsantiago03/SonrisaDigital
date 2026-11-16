@@ -7,6 +7,7 @@
 @using SonrisaDigital.Services.HistoriasClinicas.DTOs
 @inject IHistoriaClinicaService HistoriaService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<HistoriaClinica> Logger
 
 @* ============================================================================
    PÁGINA: Historia clínica        Rutas: /historia-clinica y /historia-clinica/{id}
@@ -742,8 +743,9 @@
                 canCreateConsulta = usuario.HasClaim(PermissionCatalog.ClaimType, "HistoriaClinica.Crear");
                 usuarioId = usuario.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                Logger.LogError(exception, "No fue posible validar los permisos del usuario en Historia clínica.");
                 errorMessage = "No fue posible validar tus permisos.";
             }
         }
@@ -793,9 +795,16 @@
             // Paso 3: reemplazar la página anterior por la pedida y su total.
             resultados = await HistoriaService.SearchPatientsPagedAsync(searchTerm, page, PageSize);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             // Si algo falla: lista vacía + mensaje de error (nunca se deja la pantalla a medias).
+            // El detalle queda en el log para poder diagnosticar la causa real.
+            Logger.LogError(
+                exception,
+                "No fue posible buscar los pacientes con el término {SearchTerm} (página {Page}).",
+                searchTerm,
+                page);
+
             resultados = PagedResult<HistoriaClinicaPacienteDto>.Empty(PageSize);
             errorMessage = "No fue posible buscar los pacientes.";
         }
@@ -872,8 +881,13 @@
                 consultasAbiertas.Add(model.Consultas[0].Id);
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Logger.LogError(
+                exception,
+                "No fue posible cargar la historia clínica del paciente {PacienteId}.",
+                selectedPatientId);
+
             model = null;
             errorMessage = "No fue posible cargar la historia clínica del paciente.";
         }
@@ -939,9 +953,14 @@
             // mensaje y se muestran tal cual.
             errorMessage = exception.Message;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            // Cualquier otro error se muestra con un mensaje general.
+            // Cualquier otro error se muestra con un mensaje general y queda en el log.
+            Logger.LogError(
+                exception,
+                "No fue posible guardar la historia clínica del paciente {PacienteId}.",
+                model.PacienteId);
+
             errorMessage = "No fue posible guardar la historia clínica.";
         }
         finally
@@ -1055,8 +1074,13 @@
                 }
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Logger.LogError(
+                exception,
+                "No fue posible cargar la lista de odontólogos para la consulta del paciente {PacienteId}.",
+                model?.PacienteId);
+
             errorConsulta = "No fue posible cargar la lista de odontólogos.";
         }
     }
@@ -1116,8 +1140,13 @@
             // se muestran dentro de la ventana para que el usuario corrija.
             errorConsulta = exception.Message;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Logger.LogError(
+                exception,
+                "No fue posible registrar la consulta clínica del paciente {PacienteId}.",
+                consultaForm.PacienteId);
+
             errorConsulta = "No fue posible registrar la consulta clínica.";
         }
         finally
@@ -1149,8 +1178,9 @@
         {
             errorMessage = exception.Message;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Logger.LogError(exception, "No fue posible cerrar la consulta clínica {ConsultaId}.", consultaId);
             errorMessage = "No fue posible cerrar la consulta.";
         }
         finally
