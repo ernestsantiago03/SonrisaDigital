@@ -23,6 +23,7 @@ using SonrisaDigital.Services.Pagos;
 using SonrisaDigital.Services.HistoriasClinicas;
 using SonrisaDigital.Services.Usuarios;
 using SonrisaDigital.Services.Auditoria;
+using SonrisaDigital.Services.Accesos;
 using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Tratamientos;
@@ -185,6 +186,9 @@ public static class DependencyInjection
         services.AddScoped<ICitaService, CitaService>();
         services.AddScoped<IAuditoriaRepository, AuditoriaRepository>();
         services.AddScoped<IAuditoriaService, AuditoriaService>();
+        // Bitácora global de accesos: no depende de una clínica ni de una sesión.
+        services.AddScoped<IEventoAccesoRepository, EventoAccesoRepository>();
+        services.AddScoped<IAccesoService, AccesoService>();
         // Reportes usa consultas de solo lectura sobre las entidades existentes;
         // no se registra ninguna tabla ni entidad nueva.
         services.AddScoped<IReporteRepository, ReporteRepository>();

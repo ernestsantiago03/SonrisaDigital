@@ -5,7 +5,8 @@
 #   - Windows Server 2025 -> ltsc2025
 # Ver docs/06-despliegue.md, sección 8.
 #
-# Construcción:
+# Construcción (recomendado: docker compose, que además levanta nginx y las
+# dos réplicas; ver docker-compose.yml y docs/06-despliegue.md, sección 8):
 #   docker build -t sonrisadigital:local .
 #   docker build --build-arg WINDOWS_TAG=ltsc2025 -t sonrisadigital:local .
 

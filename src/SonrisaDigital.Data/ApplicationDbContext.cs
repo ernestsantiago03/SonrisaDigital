@@ -28,6 +28,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<TratamientoRealizado> TratamientosRealizados => Set<TratamientoRealizado>();
     public DbSet<Pago> Pagos => Set<Pago>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
+    public DbSet<EventoAcceso> EventosAcceso => Set<EventoAcceso>();
     public DbSet<Clinica> Clinicas => Set<Clinica>();
     public DbSet<PagoSuscripcion> PagosSuscripcion => Set<PagoSuscripcion>();
 
@@ -436,6 +437,32 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(audit => audit.UsuarioId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(audit => audit.ClinicaId == ClinicaActual);
+        });
+
+        // La bitácora de accesos es global: no lleva filtro por clínica ni pasa por
+        // AplicarClinicaAlGuardar, porque los intentos ocurren antes de autenticar.
+        modelBuilder.Entity<EventoAcceso>(entity =>
+        {
+            entity.ToTable("EventosAcceso");
+            entity.HasKey(evento => evento.Id);
+            entity.Property(evento => evento.Correo).HasMaxLength(256);
+            entity.Property(evento => evento.Resultado).HasConversion<string>().HasMaxLength(40);
+            entity.Property(evento => evento.FechaHora).HasDefaultValueSql("SYSUTCDATETIME()");
+            entity.Property(evento => evento.DireccionIp).HasMaxLength(45);
+            entity.Property(evento => evento.Agente).HasMaxLength(300);
+            entity.Property(evento => evento.Detalle).HasMaxLength(500);
+            entity.HasIndex(evento => evento.FechaHora);
+            entity.HasIndex(evento => new { evento.Correo, evento.FechaHora });
+            entity.HasIndex(evento => new { evento.UsuarioId, evento.FechaHora });
+            entity.HasIndex(evento => evento.ClinicaId);
+            entity.HasOne(evento => evento.Usuario)
+                .WithMany()
+                .HasForeignKey(evento => evento.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(evento => evento.Clinica)
+                .WithMany()
+                .HasForeignKey(evento => evento.ClinicaId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

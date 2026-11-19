@@ -66,7 +66,7 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 | **Pagos** | Registro de pagos, historial y control de saldos pendientes. | ✅ |
 | **Usuarios** | Administración de cuentas, roles y estado de acceso. | ✅ |
 | **Roles y permisos** | Asignación granular de permisos por rol (38 permisos en 14 módulos). | ✅ |
-| **Auditoría** | Registro automático de operaciones y actividad reciente en el dashboard. | ✅ |
+| **Auditoría** | Registro automático de operaciones, bitácora de inicios de sesión y actividad reciente en el dashboard. | ✅ |
 | **Centro de ayuda** | Guías, preguntas frecuentes, solución de problemas y contacto de soporte. | ✅ |
 | **Reportes** | Panel de reportes de citas, pacientes atendidos, tratamientos y pagos con filtros, exportación PDF y alcance por odontólogo. | ✅ |
 | **Suscripción** | Prueba de 30 días desde el primer ingreso, mensualidad en USD, registro manual de pagos y bloqueo automático al vencer. | ✅ |
@@ -74,6 +74,8 @@ Sonrisa Digital está diseñado para el **personal interno de la clínica** (adm
 ### Capacidades transversales
 
 - Autenticación con **ASP.NET Core Identity** (cookie, bloqueo por intentos fallidos).
+- **Bloqueo de cuenta** tras 5 intentos fallidos durante 15 minutos; el contador persiste en la base y el Dueño puede desbloquear con `desbloquear-cuenta`.
+- **Bitácora de inicios de sesión** con fecha, cuenta, resultado, IP y navegador. Incluye intentos exitosos, claves incorrectas, bloqueos, límites de intentos, fallos de 2FA y cierres de sesión.
 - Autorización basada en **permisos** (`sonrisadigital.permission`), no solo en roles.
 - Protección **antiforgery** en formularios y acciones sensibles.
 - **HTTPS** obligatorio y **HSTS** en producción.
@@ -291,6 +293,8 @@ Antes de desplegar con clientes reales:
 > La guía de instalación, configuración, respaldos y operación se entrega aparte, junto con la instalación de cada clínica.
 
 - [x] Login de demostración retirado y sin credenciales por defecto en la interfaz.
+- [x] Bloqueo de cuenta tras 5 intentos fallidos durante 15 minutos, con desbloqueo manual por consola.
+- [x] Bitácora de accesos con IP y navegador, visible en **Auditoría → Inicios de sesión**.
 - [x] La aplicación valida al arrancar el dominio, la cadena de conexión y la ruta de Data Protection fuera de Development.
 - [x] Producción no crea la clínica `clinica-demo` ni un administrador automático; la primera clínica y su administrador se crean desde la cuenta del Dueño.
 - [ ] Cambiar la contraseña del Dueño después del primer acceso.
@@ -323,12 +327,13 @@ Antes de desplegar con clientes reales:
 
 - [x] Módulo de **Reportes** con filtros, períodos predefinidos, alcance por odontólogo y exportación a PDF.
 - [x] Pantalla dedicada de **Auditoría** con búsqueda y filtros.
+- [x] Bitácora de **inicios de sesión** con resultados, IP y navegador.
 - [x] Exportación de reportes a **PDF** con resumen ejecutivo y anexo de detalle.
 - [ ] Recordatorios de citas por correo o WhatsApp.
 - [ ] Portal de pacientes (consulta de citas e historial).
 - [ ] Soporte multi-clínica / multi-sucursal.
 - [x] Pruebas automatizadas y pipeline de integración continua.
-- [x] Despliegue en IIS documentado en [docs/06-despliegue.md](docs/06-despliegue.md). Incluye un `Dockerfile` para contenedores Windows, todavía sin verificar.
+- [x] Despliegue en IIS documentado en [docs/06-despliegue.md](docs/06-despliegue.md). Incluye `Dockerfile` y `docker-compose.yml` para contenedores Windows, con nginx y dos réplicas.
 - [ ] Puesta en producción y aceptación con la clínica.
 - [ ] Interfaz en inglés (i18n).
 

@@ -818,6 +818,29 @@ Usuario 1 ───── N RegistroAuditoria
 
 Los registros de auditoría deberán ser de solo lectura desde la aplicación.
 
+## 18.5. Bitácora de accesos
+
+```text id="accesos01"
+EventoAcceso
+----------------------------
+Id
+UsuarioId (opcional)
+Correo
+Resultado
+FechaHora
+DireccionIp
+Agente
+ClinicaId (opcional)
+Detalle
+```
+
+`EventoAcceso` es una entidad transversal y global: no implementa
+`IPerteneceAClinica` y no tiene filtro por clínica. Puede existir sin usuario
+(correo inexistente) y sin clínica (Dueño o intento anónimo). Se usa para auditar
+inicios de sesión, fallos de credenciales, bloqueos, límites de intentos, segundo
+factor y cierres de sesión. Al igual que `RegistroAuditoria`, es de solo lectura:
+un disparador de base de datos rechaza `UPDATE` y `DELETE`.
+
 ---
 
 # 19. Reportes

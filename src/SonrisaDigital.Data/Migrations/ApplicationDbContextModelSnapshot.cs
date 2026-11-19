@@ -406,6 +406,59 @@ namespace SonrisaDigital.Data.Migrations
                     b.ToTable("ConsultasClinicas", (string)null);
                 });
 
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.EventoAcceso", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Agente")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("ClinicaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Correo")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Detalle")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("DireccionIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<DateTime>("FechaHora")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("UsuarioId")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicaId");
+
+                    b.HasIndex("FechaHora");
+
+                    b.HasIndex("Correo", "FechaHora");
+
+                    b.HasIndex("UsuarioId", "FechaHora");
+
+                    b.ToTable("EventosAcceso", (string)null);
+                });
+
             modelBuilder.Entity("SonrisaDigital.Data.Entities.HistoriaClinica", b =>
                 {
                     b.Property<int>("Id")
@@ -1298,6 +1351,23 @@ namespace SonrisaDigital.Data.Migrations
                     b.Navigation("Odontologo");
 
                     b.Navigation("Paciente");
+                });
+
+            modelBuilder.Entity("SonrisaDigital.Data.Entities.EventoAcceso", b =>
+                {
+                    b.HasOne("SonrisaDigital.Data.Entities.Clinica", "Clinica")
+                        .WithMany()
+                        .HasForeignKey("ClinicaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("SonrisaDigital.Data.Entities.Usuario", "Usuario")
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Clinica");
+
+                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("SonrisaDigital.Data.Entities.HistoriaClinica", b =>

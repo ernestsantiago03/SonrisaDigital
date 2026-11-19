@@ -1,0 +1,80 @@
+# Sonrisa Digital en contenedores Windows.
+#
+# - Dos réplicas de la aplicación detrás de nginx (balanceo con afinidad).
+# - Las claves de Data Protection y las imágenes del odontograma se comparten
+#   entre las réplicas mediante carpetas del host.
+# - SQL Server NO se incluye: la cadena de conexión apunta a un servidor externo.
+#
+# Requisitos y operación: docs/06-despliegue.md, sección 8.
+# Antes de arrancar: copiar .env.example a .env y completar los valores.
+
+name: sonrisadigital
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DOTNET_VERSION: ${DOTNET_VERSION:-10.0}
+        WINDOWS_TAG: ${WINDOWS_TAG:-ltsc2022}
+    image: sonrisadigital-app:${SD_TAG:-local}
+
+    # Dos réplicas. `scale` es la forma de Compose sin Swarm; `deploy.replicas`
+    # se mantiene para las versiones que lo respetan. No definir container_name
+    # para que el servicio se pueda escalar.
+    scale: ${APP_REPLICAS:-2}
+    deploy:
+      replicas: ${APP_REPLICAS:-2}
+
+    restart: unless-stopped
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      AllowedHosts: ${ALLOWED_HOSTS:-localhost}
+      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING:?Configura CONNECTION_STRING en .env}
+      Dueno__Email: ${DUENO_EMAIL:?Configura DUENO_EMAIL en .env}
+      Dueno__Password: ${DUENO_PASSWORD:?Configura DUENO_PASSWORD en .env}
+      Seguridad__MfaDuenoObligatorio: "true"
+      DataProtection__KeysPath: C:\datos\claves
+      Archivos__Directorio: C:\datos\archivos
+      ReverseProxy__ForwardLimit: "1"
+
+    volumes:
+      # Las dos réplicas deben usar el mismo key ring; si no, una cookie emitida
+      # por una réplica no se puede descifrar en la otra.
+      - type: bind
+        source: ${SD_DATA_DIR:-C:/SonrisaDigital/datos}/claves
+        target: C:\datos\claves
+      # Radiografías y fotos compartidas: una réplica puede guardar el archivo
+      # y la otra servirlo.
+      - type: bind
+        source: ${SD_DATA_DIR:-C:/SonrisaDigital/datos}/archivos
+        target: C:\datos\archivos
+
+    networks:
+      - sonrisa
+
+  nginx:
+    build:
+      context: ./docker/nginx
+      args:
+        WINDOWS_TAG: ${WINDOWS_TAG:-ltsc2022}
+    image: sonrisadigital-nginx:${SD_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    networks:
+      - sonrisa
+
+networks:
+  sonrisa:
+    name: sonrisadigital_net
+    # Los contenedores son Windows; el driver de red debe ser nat.
+    # Si el host no permite crear otra red nat, usar la red integrada:
+    #   external: true
+    #   name: nat
+    driver: nat
