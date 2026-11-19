@@ -1,0 +1,253 @@
+@using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Accesos
+@using SonrisaDigital.Services.Accesos.DTOs
+@inject IAccesoService AccesoService
+
+@* ============================================================================
+   Pestaña "Inicios de sesión" de la página de Auditoría.
+
+   Muestra la bitácora global de accesos: intentos exitosos, claves incorrectas,
+   bloqueos, límites de intentos, fallos de 2FA y cierres de sesión. Solo llega
+   aquí quien tiene Auditoria.Ver; el Service vuelve a comprobar el permiso.
+   ============================================================================ *@
+
+<section class="access-toolbar" aria-label="Filtros de accesos">
+    <div class="access-search">
+        <label for="access-search">Buscar</label>
+        <div class="access-search-control">
+            <span aria-hidden="true">⌕</span>
+            <input id="access-search"
+                   @bind="texto"
+                   @bind:event="oninput"
+                   @onkeydown="HandleSearchKeyDown"
+                   placeholder="Correo, usuario, IP, navegador o detalle" />
+        </div>
+    </div>
+
+    <div class="access-filter">
+        <label for="access-result">Resultado</label>
+        <select id="access-result" @bind="resultado">
+            <option value="">Todos los resultados</option>
+            @foreach (var item in Enum.GetValues<ResultadoAcceso>())
+            {
+                <option value="@item">@Describir(item)</option>
+            }
+        </select>
+    </div>
+
+    <div class="access-filter access-date-filter">
+        <label for="access-from">Desde</label>
+        <input id="access-from" type="date" @bind="desde" />
+    </div>
+
+    <div class="access-filter access-date-filter">
+        <label for="access-to">Hasta</label>
+        <input id="access-to" type="date" @bind="hasta" />
+    </div>
+
+    <div class="access-filter access-page-size">
+        <label for="access-page-size">Filas</label>
+        <select id="access-page-size" @bind="tamanoPagina">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+        </select>
+    </div>
+
+    <div class="access-actions">
+        <button class="primary-action" @onclick="AplicarFiltrosAsync">Aplicar filtros</button>
+        <button class="secondary-action" @onclick="LimpiarFiltrosAsync">Limpiar</button>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="feedback error" role="alert">@errorMessage</div>
+}
+
+<section class="access-table-panel">
+    <div class="access-table-heading">
+        <div>
+            <h2>Intentos de acceso</h2>
+            <span>@(pagina?.Total ?? 0) intento(s) encontrados</span>
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="table-state">Cargando accesos...</div>
+    }
+    else if (pagina is null || pagina.Eventos.Count == 0)
+    {
+        <div class="table-state empty-state">
+            <strong>No hay accesos para mostrar</strong>
+            <span>Prueba con otros filtros o amplía el rango de fechas.</span>
+        </div>
+    }
+    else
+    {
+        <div class="table-scroll">
+            <table class="access-table">
+                <thead>
+                    <tr>
+                        <th>Fecha y hora</th>
+                        <th>Cuenta</th>
+                        <th>Usuario</th>
+                        <th>Resultado</th>
+                        <th>IP</th>
+                        <th>Navegador / equipo</th>
+                        <th>Detalle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var evento in pagina!.Eventos)
+                    {
+                        <tr>
+                            <td class="access-date">
+                                @RelojNegocio.DeUtc(evento.FechaHora).ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td class="access-account">@(evento.Correo ?? "—")</td>
+                            <td class="access-user">@evento.Usuario</td>
+                            <td>
+                                <span class="access-result @GetResultadoClass(evento.Resultado)">
+                                    @Describir(evento.Resultado)
+                                </span>
+                            </td>
+                            <td class="access-ip">@(evento.DireccionIp ?? "—")</td>
+                            <td class="access-agent">@(evento.Agente ?? "—")</td>
+                            <td class="access-detail">@evento.Detalle</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="access-pagination">
+            <span>
+                Página @pagina.Pagina de @pagina.TotalPaginas
+                · @pagina.Total intento(s)
+            </span>
+            <div class="access-pagination-actions">
+                <button class="secondary-action"
+                        disabled="@(!pagina.TienePaginaAnterior)"
+                        @onclick="() => IrPaginaAsync(pagina.Pagina - 1)">
+                    Anterior
+                </button>
+                <button class="secondary-action"
+                        disabled="@(!pagina.TienePaginaSiguiente)"
+                        @onclick="() => IrPaginaAsync(pagina.Pagina + 1)">
+                    Siguiente
+                </button>
+            </div>
+        </footer>
+    }
+</section>
+
+@code {
+    private AccesoPaginaDto? pagina;
+    private bool loading;
+
+    // Las fechas son locales para el usuario; al consultar se convierten a UTC.
+    private string texto = string.Empty;
+    private string resultado = string.Empty;
+    private DateTime? desde;
+    private DateTime? hasta;
+    private int tamanoPagina = 25;
+
+    private string? errorMessage;
+
+    protected override Task OnInitializedAsync() => CargarAsync(1);
+
+    private async Task CargarAsync(int paginaSolicitada)
+    {
+        if (desde.HasValue && hasta.HasValue && desde.Value.Date > hasta.Value.Date)
+        {
+            errorMessage = "La fecha inicial no puede ser posterior a la fecha final.";
+            return;
+        }
+
+        loading = true;
+        errorMessage = null;
+
+        try
+        {
+            var resultadoFiltro = Enum.TryParse<ResultadoAcceso>(resultado, out var parseado)
+                ? parseado
+                : (ResultadoAcceso?)null;
+
+            var filtro = new AccesoFiltroDto(
+                Texto: string.IsNullOrWhiteSpace(texto) ? null : texto.Trim(),
+                Resultado: resultadoFiltro,
+                DesdeUtc: desde.HasValue ? RelojNegocio.AUtc(desde.Value.Date) : null,
+                // Límite superior exclusivo: incluye todo el día seleccionado.
+                HastaUtcExclusivo: hasta.HasValue ? RelojNegocio.AUtc(hasta.Value.Date.AddDays(1)) : null,
+                Pagina: paginaSolicitada,
+                TamanoPagina: tamanoPagina);
+
+            pagina = await AccesoService.SearchAsync(filtro);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            errorMessage = exception.Message;
+        }
+        catch
+        {
+            errorMessage = "No fue posible cargar la bitácora de accesos.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task AplicarFiltrosAsync() => CargarAsync(1);
+
+    private async Task LimpiarFiltrosAsync()
+    {
+        texto = string.Empty;
+        resultado = string.Empty;
+        desde = null;
+        hasta = null;
+        tamanoPagina = 25;
+        await CargarAsync(1);
+    }
+
+    private Task IrPaginaAsync(int paginaDestino)
+    {
+        if (pagina is null) return Task.CompletedTask;
+        return CargarAsync(Math.Clamp(paginaDestino, 1, pagina.TotalPaginas));
+    }
+
+    private Task HandleSearchKeyDown(KeyboardEventArgs args) =>
+        args.Key == "Enter" ? AplicarFiltrosAsync() : Task.CompletedTask;
+
+    private static string Describir(ResultadoAcceso resultado) => resultado switch
+    {
+        ResultadoAcceso.Exitoso => "Acceso exitoso",
+        ResultadoAcceso.CredencialesInvalidas => "Credenciales inválidas",
+        ResultadoAcceso.ClaveIncorrecta => "Clave incorrecta",
+        ResultadoAcceso.CuentaInactiva => "Cuenta inactiva",
+        ResultadoAcceso.CuentaBloqueada => "Cuenta bloqueada",
+        ResultadoAcceso.LimiteExcedido => "Límite excedido",
+        ResultadoAcceso.SegundoFactorPendiente => "2FA pendiente",
+        ResultadoAcceso.SegundoFactorFallido => "2FA fallido",
+        ResultadoAcceso.AccesoClinicaDenegado => "Clínica sin acceso",
+        ResultadoAcceso.CierreSesion => "Cierre de sesión",
+        _ => resultado.ToString()
+    };
+
+    private static string GetResultadoClass(ResultadoAcceso resultado) => resultado switch
+    {
+        ResultadoAcceso.Exitoso => "success",
+        ResultadoAcceso.CredencialesInvalidas
+            or ResultadoAcceso.ClaveIncorrecta
+            or ResultadoAcceso.SegundoFactorFallido => "danger",
+        ResultadoAcceso.CuentaInactiva
+            or ResultadoAcceso.CuentaBloqueada
+            or ResultadoAcceso.LimiteExcedido
+            or ResultadoAcceso.AccesoClinicaDenegado => "warning",
+        ResultadoAcceso.SegundoFactorPendiente => "info",
+        _ => "neutral"
+    };
+}

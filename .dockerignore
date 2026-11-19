@@ -16,9 +16,14 @@ scripts/
 session-state/
 tests/
 
+# Archivos de despliegue: no forman parte de la imagen de la aplicación.
+docker/
+docker-compose*.yml
+
 # Configuración local con datos de desarrollo o secretos: nunca dentro de la imagen.
 **/appsettings.Development.json
 **/appsettings.Development.example.json
 **/appsettings.*.local.json
 **/.env
+**/.env.*
 **/*.user

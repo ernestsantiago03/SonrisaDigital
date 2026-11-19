@@ -27,11 +27,26 @@
         <div>
             <span class="page-eyebrow">Administración</span>
             <h1>Auditoría</h1>
-            <p>Consulta los movimientos del sistema y rastrea quién realizó cada cambio.</p>
+            <p>Consulta los movimientos del sistema y los intentos de acceso.</p>
         </div>
     </header>
 
-    <section class="audit-toolbar" aria-label="Filtros de auditoría">
+    <nav class="audit-tabs" aria-label="Secciones de auditoría">
+        <button type="button"
+                class="audit-tab @(vista == VistaMovimientos ? "active" : null)"
+                @onclick="MostrarMovimientos">
+            Movimientos
+        </button>
+        <button type="button"
+                class="audit-tab @(vista == VistaAccesos ? "active" : null)"
+                @onclick="MostrarAccesos">
+            Inicios de sesión
+        </button>
+    </nav>
+
+    @if (vista == VistaMovimientos)
+    {
+        <section class="audit-toolbar" aria-label="Filtros de auditoría">
         <div class="audit-search">
             <label for="audit-search">Buscar</label>
             <div class="audit-search-control">
@@ -182,9 +197,20 @@
             </footer>
         }
     </section>
+    }
+    else
+    {
+        <AccesosPanel />
+    }
 </div>
 
 @code {
+    // Pestañas de la página. Los movimientos clínicos y los accesos son bitácoras
+    // distintas: se consultan por separado para no mezclar paginaciones ni filtros.
+    private const string VistaMovimientos = "movimientos";
+    private const string VistaAccesos = "accesos";
+    private string vista = VistaMovimientos;
+
     // Datos que se muestran y estado de la consulta.
     private AuditoriaPaginaDto? pagina;
     private AuditoriaOpcionesDto opciones = new([], []);
@@ -271,6 +297,10 @@
             loading = false;
         }
     }
+
+    private void MostrarMovimientos() => vista = VistaMovimientos;
+
+    private void MostrarAccesos() => vista = VistaAccesos;
 
     private Task AplicarFiltrosAsync() => CargarAsync(1);
 

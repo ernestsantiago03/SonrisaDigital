@@ -20,6 +20,8 @@ using SonrisaDigital.UI.Services;
 using SonrisaDigital.Data.Entities;
 using SonrisaDigital.Services;
 using SonrisaDigital.Services.Autenticacion;
+using SonrisaDigital.Services.Accesos;
+using SonrisaDigital.Services.Accesos.DTOs;
 using SonrisaDigital.Services.Catalogos;
 using SonrisaDigital.Services.Configuracion;
 using SonrisaDigital.Services.Odontograma;
@@ -245,6 +247,11 @@ builder.Services.AddRateLimiter(options =>
             }));
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Un rechazo por IP también es un intento de acceso y queda en la bitácora.
+    // Solo se atienden las rutas de login: las demás políticas (subidas, MFA) tienen
+    // su propio significado y no son intentos de acceso.
+    options.OnRejected = RegistrarLimitePorIpAsync;
 });
 
 // Los circuitos Blazor no pasan por OnValidatePrincipal en cada interacción.
@@ -715,7 +722,8 @@ app.MapPost("/account/login", async (
     SignInManager<Usuario> signInManager,
     UserManager<Usuario> userManager,
     ILoggerFactory loggerFactory,
-    IOptions<SeguridadOptions> seguridad) =>
+    IOptions<SeguridadOptions> seguridad,
+    IAccesoService accesos) =>
 {
     // Un token vencido no es un error del servidor: la página de login quedó
     // obsoleta. Se devuelve al formulario con un aviso y un token nuevo.
@@ -732,13 +740,27 @@ app.MapPost("/account/login", async (
     // Límite por cuenta: aplica exista o no el correo, para no revelar qué cuentas existen.
     if (!context.RequestServices.GetRequiredService<LimitadorCuentaLogin>().PermitirIntento(email))
     {
+        await RegistrarAccesoAsync(
+            accesos, context, null, email, ResultadoAcceso.LimiteExcedido,
+            "Se superó el límite de intentos permitidos por cuenta.");
         return Results.Redirect("/login?error=throttled");
     }
 
     var user = await userManager.FindByEmailAsync(email);
 
-    if (user is null || user.Estado != EstadoRegistro.Activo)
+    if (user is null)
     {
+        await RegistrarAccesoAsync(
+            accesos, context, null, email, ResultadoAcceso.CredencialesInvalidas,
+            "El correo no corresponde a ninguna cuenta.");
+        return Results.Redirect("/login?error=invalid");
+    }
+
+    if (user.Estado != EstadoRegistro.Activo)
+    {
+        await RegistrarAccesoAsync(
+            accesos, context, user, email, ResultadoAcceso.CuentaInactiva,
+            "La cuenta está inactiva.");
         return Results.Redirect("/login?error=invalid");
     }
 
@@ -746,6 +768,12 @@ app.MapPost("/account/login", async (
     var result = await signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: true);
     if (!result.Succeeded)
     {
+        await RegistrarAccesoAsync(
+            accesos, context, user, email,
+            result.IsLockedOut ? ResultadoAcceso.CuentaBloqueada : ResultadoAcceso.ClaveIncorrecta,
+            result.IsLockedOut
+                ? "La cuenta está bloqueada temporalmente."
+                : "La contraseña no es correcta.");
         return Results.Redirect(result.IsLockedOut ? "/login?error=locked" : "/login?error=invalid");
     }
 
@@ -757,6 +785,9 @@ app.MapPost("/account/login", async (
         identidad.AddClaim(new Claim(ClaimTypes.Name, user.Id));
         await context.SignInAsync(IdentityConstants.TwoFactorUserIdScheme, new ClaimsPrincipal(identidad));
 
+        await RegistrarAccesoAsync(
+            accesos, context, user, email, ResultadoAcceso.SegundoFactorPendiente,
+            "Credenciales válidas; falta verificar el segundo factor.");
         return Results.Redirect(DestinoSegundoPaso(returnUrl));
     }
 
@@ -772,16 +803,23 @@ app.MapPost("/account/login", async (
         }
 
         await signInManager.SignInAsync(user, PropiedadesSesion());
+        await RegistrarAccesoAsync(
+            accesos, context, user, email, ResultadoAcceso.Exitoso,
+            "Sesión iniciada; debe configurar el segundo factor.");
         return Results.Redirect("/seguridad/mfa");
     }
 
     var redireccionClinica = await ValidarAccesoClinicaAsync(user, context, loggerFactory);
     if (redireccionClinica is not null)
     {
+        await RegistrarAccesoAsync(
+            accesos, context, user, email, ResultadoAcceso.AccesoClinicaDenegado,
+            "La clínica del usuario está suspendida o vencida.");
         return Results.Redirect(redireccionClinica);
     }
 
     await signInManager.SignInAsync(user, PropiedadesSesion());
+    await RegistrarAccesoAsync(accesos, context, user, email, ResultadoAcceso.Exitoso, null);
     return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
 }).AllowAnonymous().RequireRateLimiting("login");
 
@@ -792,7 +830,8 @@ app.MapPost("/account/login-2fa", async (
     IAntiforgery antiforgery,
     SignInManager<Usuario> signInManager,
     UserManager<Usuario> userManager,
-    ILoggerFactory loggerFactory) =>
+    ILoggerFactory loggerFactory,
+    IAccesoService accesos) =>
 {
     if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
     {
@@ -802,6 +841,9 @@ app.MapPost("/account/login-2fa", async (
     var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
     if (user is null)
     {
+        await RegistrarAccesoAsync(
+            accesos, context, null, null, ResultadoAcceso.SegundoFactorFallido,
+            "La sesión de segundo factor no existe o venció.");
         return Results.Redirect("/login?error=expired");
     }
 
@@ -814,6 +856,9 @@ app.MapPost("/account/login-2fa", async (
 
     if (await userManager.IsLockedOutAsync(user))
     {
+        await RegistrarAccesoAsync(
+            accesos, context, user, user.Email, ResultadoAcceso.CuentaBloqueada,
+            "La cuenta está bloqueada temporalmente.");
         return Results.Redirect(ErrorSegundoPaso(returnUrl, "locked"));
     }
 
@@ -831,6 +876,12 @@ app.MapPost("/account/login-2fa", async (
     {
         await userManager.AccessFailedAsync(user);
         var bloqueada = await userManager.IsLockedOutAsync(user);
+        await RegistrarAccesoAsync(
+            accesos, context, user, user.Email,
+            bloqueada ? ResultadoAcceso.CuentaBloqueada : ResultadoAcceso.SegundoFactorFallido,
+            bloqueada
+                ? "El código falló y la cuenta quedó bloqueada."
+                : "El código de segundo factor no es válido.");
         return Results.Redirect(ErrorSegundoPaso(returnUrl, bloqueada ? "locked" : "invalid"));
     }
 
@@ -840,10 +891,16 @@ app.MapPost("/account/login-2fa", async (
     var redireccionClinica = await ValidarAccesoClinicaAsync(user, context, loggerFactory);
     if (redireccionClinica is not null)
     {
+        await RegistrarAccesoAsync(
+            accesos, context, user, user.Email, ResultadoAcceso.AccesoClinicaDenegado,
+            "La clínica del usuario está suspendida o vencida.");
         return Results.Redirect(redireccionClinica);
     }
 
     await signInManager.SignInWithClaimsAsync(user, PropiedadesSesion(), [ReclamacionesSegundoFactor.Crear()]);
+    await RegistrarAccesoAsync(
+        accesos, context, user, user.Email, ResultadoAcceso.Exitoso,
+        "Segundo factor verificado.");
     return Results.Redirect(IsLocalUrl(returnUrl) ? returnUrl : "/");
 }).AllowAnonymous().RequireRateLimiting("login");
 
@@ -852,11 +909,20 @@ app.MapPost("/account/logout", async (
     HttpContext context,
     IAntiforgery antiforgery,
     SignInManager<Usuario> signInManager,
-    ILoggerFactory loggerFactory) =>
+    UserManager<Usuario> userManager,
+    ILoggerFactory loggerFactory,
+    IAccesoService accesos) =>
 {
     if (!await AntiforgeryValidoAsync(context, antiforgery, loggerFactory))
     {
         return Results.Redirect("/login?error=expired");
+    }
+
+    var usuario = await userManager.GetUserAsync(context.User);
+    if (usuario is not null)
+    {
+        await RegistrarAccesoAsync(
+            accesos, context, usuario, usuario.Email, ResultadoAcceso.CierreSesion, null);
     }
 
     await signInManager.SignOutAsync();
@@ -1151,6 +1217,52 @@ static AuthenticationProperties PropiedadesSesion()
     var propiedades = new AuthenticationProperties { IsPersistent = false };
     SeguridadDueno.MarcarInicioSesion(propiedades, DateTimeOffset.UtcNow);
     return propiedades;
+}
+
+// Registra un intento de acceso sin acoplar los endpoints a la entidad. El servicio
+// es tolerante a fallos: si la base no responde, el login sigue su curso.
+static Task RegistrarAccesoAsync(
+    IAccesoService accesos,
+    HttpContext context,
+    Usuario? usuario,
+    string? correo,
+    ResultadoAcceso resultado,
+    string? detalle)
+{
+    var agente = context.Request.Headers.UserAgent.ToString();
+
+    return accesos.RegistrarAsync(new RegistroAccesoDto(
+        UsuarioId: usuario?.Id,
+        Correo: correo,
+        Resultado: resultado,
+        ClinicaId: usuario?.ClinicaId,
+        DireccionIp: context.Connection.RemoteIpAddress?.ToString(),
+        Agente: string.IsNullOrWhiteSpace(agente) ? null : agente,
+        Detalle: detalle));
+}
+
+// El limitador por IP corta la petición antes del endpoint. Se deja rastro solo
+// cuando la ruta es de acceso; las demás políticas no son intentos de login.
+static async ValueTask RegistrarLimitePorIpAsync(
+    OnRejectedContext rechazo,
+    CancellationToken cancellationToken)
+{
+    var ruta = rechazo.HttpContext.Request.Path;
+    if (!ruta.Equals("/account/login", StringComparison.OrdinalIgnoreCase)
+        && !ruta.Equals("/account/login-2fa", StringComparison.OrdinalIgnoreCase))
+    {
+        return;
+    }
+
+    var accesos = rechazo.HttpContext.RequestServices.GetService<IAccesoService>();
+    if (accesos is null)
+    {
+        return;
+    }
+
+    await RegistrarAccesoAsync(
+        accesos, rechazo.HttpContext, null, null, ResultadoAcceso.LimiteExcedido,
+        "Se superó el límite de intentos permitidos por IP.");
 }
 
 static string DestinoSegundoPaso(string? returnUrl) =>

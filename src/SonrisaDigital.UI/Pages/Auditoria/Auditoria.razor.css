@@ -40,6 +40,36 @@
     font-size: 13px;
 }
 
+/* Pestañas ---------------------------------------------------------------- */
+.audit-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #dbe4ee;
+}
+
+.audit-tab {
+    padding: 9px 15px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.audit-tab:hover {
+    background: #f8fafc;
+    color: #1e293b;
+}
+
+.audit-tab.active {
+    border-bottom-color: #2563eb;
+    color: #1d4ed8;
+}
+
 /* Barra de filtros --------------------------------------------------------- */
 .audit-toolbar {
     display: flex;

@@ -818,7 +818,7 @@ Cada evento podrá contener:
 
 Como mínimo:
 
-* Inicio de sesión.
+* Inicio de sesión (exitoso, fallido o bloqueado).
 * Creación de registros.
 * Modificación de registros importantes.
 * Desactivación de registros.
@@ -838,6 +838,26 @@ El Administrador podrá buscar y filtrar registros por:
 * Entidad.
 
 Los registros de auditoría no podrán ser modificados desde la interfaz.
+
+## 13.5. Bitácora de accesos
+
+Los intentos de acceso se guardan en una bitácora global e independiente de la
+auditoría clínica, porque pueden ocurrir antes de que exista una sesión o una
+clínica. Cada evento registra:
+
+* Fecha y hora (UTC).
+* Correo intentado y usuario, si la cuenta existe.
+* Resultado: acceso exitoso, credenciales inválidas, clave incorrecta, cuenta
+  inactiva, cuenta bloqueada, límite excedido, segundo factor pendiente o
+  fallido, clínica sin acceso y cierre de sesión.
+* Dirección IP y navegador/equipo.
+* Clínica del usuario, cuando aplica.
+* Detalle del intento.
+
+La consulta está disponible en **Auditoría → Inicios de sesión** y exige el
+permiso `Auditoria.Ver`. La tabla es de solo lectura: un disparador de base de
+datos impide modificarla o borrarla. Si la escritura de la bitácora falla, el
+inicio de sesión continúa y el error queda en el log del servidor.
 
 ---
 
