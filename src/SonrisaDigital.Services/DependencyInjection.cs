@@ -114,7 +114,7 @@ public static class DependencyInjection
         services.AddIdentityCore<Usuario>(options =>
         {
             options.User.RequireUniqueEmail = true;
-            options.Password.RequiredLength = 8;
+            options.Password.RequiredLength = PoliticaClaves.LongitudMinimaGeneral;
             options.Password.RequireDigit = true;
             options.Password.RequireUppercase = true;
             options.Password.RequireNonAlphanumeric = false;

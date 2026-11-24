@@ -117,7 +117,7 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
         {
             Nombre = "Usuario tres",
             Email = $"usuario-{sufijo}@sonrisadigital.local",
-            Password = "Prueba123",
+            Password = "Prueba123456",
             Estado = EstadoRegistro.Activo,
             Roles = [RolesSonrisaDigital.Recepcionista]
         };
@@ -352,7 +352,7 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
         services.AddIdentityCore<Usuario>(options =>
             {
                 options.User.RequireUniqueEmail = true;
-                options.Password.RequiredLength = 8;
+                options.Password.RequiredLength = PoliticaClaves.LongitudMinimaGeneral;
                 options.Password.RequireDigit = true;
                 options.Password.RequireUppercase = true;
                 options.Password.RequireNonAlphanumeric = false;
@@ -428,7 +428,7 @@ public sealed class UsuarioServiceTests(SqlServerFixture fixture)
             ClinicaId = scope.ServiceProvider.GetRequiredService<ITenantProvider>().ClinicaId
         };
 
-        AsegurarResultado(await userManager.CreateAsync(usuario, "Prueba123"));
+        AsegurarResultado(await userManager.CreateAsync(usuario, "Prueba123456"));
         if (roles.Length > 0)
         {
             AsegurarResultado(await userManager.AddToRolesAsync(usuario, roles));

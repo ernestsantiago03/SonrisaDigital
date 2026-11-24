@@ -138,7 +138,7 @@ public sealed class SeedFase2Tests(SqlServerFixture fixture)
         {
             Nombre = "Administrador de la Clínica Nueva",
             Email = correoAdmin,
-            Password = "Prueba123",
+            Password = "Prueba123456",
             Estado = EstadoRegistro.Activo,
             Roles = [RolesSonrisaDigital.Administrador]
         });
@@ -158,7 +158,7 @@ public sealed class SeedFase2Tests(SqlServerFixture fixture)
                 ["Dueno:Email"] = correoDueno,
                 ["Dueno:Password"] = "PruebaDueno12345678",
                 ["Authentication:AdminEmail"] = correoAdmin,
-                ["Authentication:AdminPassword"] = "Prueba123"
+                ["Authentication:AdminPassword"] = "Prueba123456"
             })
             .Build();
 
@@ -175,7 +175,7 @@ public sealed class SeedFase2Tests(SqlServerFixture fixture)
         services.AddIdentityCore<Usuario>(options =>
             {
                 options.User.RequireUniqueEmail = true;
-                options.Password.RequiredLength = 8;
+                options.Password.RequiredLength = PoliticaClaves.LongitudMinimaGeneral;
                 options.Password.RequireDigit = true;
                 options.Password.RequireUppercase = true;
                 options.Password.RequireNonAlphanumeric = false;

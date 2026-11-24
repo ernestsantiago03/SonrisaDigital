@@ -228,7 +228,7 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
         {
             Nombre = nombre,
             Email = $"aislamiento-{sufijo}@sonrisadigital.local",
-            Password = "Prueba123",
+            Password = "Prueba123456",
             Roles = roles.ToList()
         };
     }
@@ -260,7 +260,7 @@ public sealed class AislamientoUsuariosTests(SqlServerFixture fixture)
         services.AddIdentityCore<Usuario>(options =>
             {
                 options.User.RequireUniqueEmail = true;
-                options.Password.RequiredLength = 8;
+                options.Password.RequiredLength = PoliticaClaves.LongitudMinimaGeneral;
                 options.Password.RequireDigit = true;
                 options.Password.RequireUppercase = true;
                 options.Password.RequireNonAlphanumeric = false;
