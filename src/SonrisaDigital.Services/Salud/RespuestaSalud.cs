@@ -68,10 +68,15 @@ public static class RespuestaSalud
 
         if (baseDatos.Status != HealthStatus.Healthy)
         {
-            // El check de EF devuelve Unhealthy sin excepcion cuando CanConnectAsync
-            // responde false (base inalcanzable) y con excepcion cuando la consulta
-            // falla (cadena invalida, permisos, timeout...).
-            return (estado, baseDatos.Exception is null ? "unreachable" : "error");
+            // CanConnectAsync devuelve Unhealthy sin excepcion cuando la base no
+            // responde. Una excepcion es un fallo de configuracion o de consulta,
+            // salvo un timeout (OperationCanceledException del health check o un
+            // TimeoutException de la capa de red), que tambien significa "no respondio".
+            var noResponde = baseDatos.Exception is null
+                || baseDatos.Exception is OperationCanceledException
+                || baseDatos.Exception is TimeoutException;
+
+            return (estado, noResponde ? "unreachable" : "error");
         }
 
         if (informe.Entries.TryGetValue(CheckMigraciones, out var migraciones)

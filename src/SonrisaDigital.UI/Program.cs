@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Security.Claims;
@@ -138,6 +139,13 @@ builder.Services
     .AddCheck<MigracionesPendientesHealthCheck>(
         RespuestaSalud.CheckMigraciones,
         tags: [RespuestaSalud.EtiquetaListo]);
+
+// AddDbContextCheck no acepta timeout en su firma: se aplica sobre los registros
+// para que una base que no responde devuelva 503 antes de que nginx corte la
+// sonda (proxy_read_timeout 15 s) y no se acumulen peticiones colgadas.
+builder.Services
+    .AddOptions<HealthCheckServiceOptions>()
+    .Configure(ConfiguracionSalud.AplicarTiempoMaximo);
 
 // ============================================================================
 //

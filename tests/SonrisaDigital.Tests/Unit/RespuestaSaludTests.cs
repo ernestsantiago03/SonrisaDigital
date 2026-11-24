@@ -54,6 +54,20 @@ public sealed class RespuestaSaludTests
     }
 
     [Fact]
+    public void UnTimeoutDeLaBaseSeReportaComoUnreachable()
+    {
+        // El timeout del health check llega como OperationCanceledException: la
+        // base no respondió a tiempo, no hay un error de configuración.
+        var informe = Informe(
+            (RespuestaSalud.CheckBaseDatos, HealthStatus.Unhealthy, new OperationCanceledException("timeout")));
+
+        var (estado, baseDatos) = RespuestaSalud.Interpretar(informe);
+
+        Assert.Equal("Unhealthy", estado);
+        Assert.Equal("unreachable", baseDatos);
+    }
+
+    [Fact]
     public void MigracionesPendientesSeReportanComoSchemaOutdated()
     {
         var informe = Informe(
