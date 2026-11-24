@@ -2,6 +2,7 @@
 @page "/usuarios/editar/{Id}"
 @attribute [Authorize(Policy = "Usuarios.Editar")]
 @using SonrisaDigital.Data.Entities
+@using SonrisaDigital.Services.Autenticacion
 @using SonrisaDigital.Services.Usuarios
 @using SonrisaDigital.Services.Usuarios.DTOs
 @inject IUsuarioService UsuarioService
@@ -96,20 +97,20 @@
                         <div class="field">
                             <label for="user-password">@(IsEditing ? "Nueva contraseña" : "Contraseña inicial")</label>
                             <div class="password-control">
-                                <InputText id="user-password" type="@(showPassword ? "text" : "password")" @bind-Value="model.Password" placeholder="••••••••" autocomplete="new-password" />
+                                <InputText id="user-password" type="@(showPassword ? "text" : "password")" @bind-Value="model.Password" placeholder="••••••••" autocomplete="new-password" minlength="@PoliticaClaves.LongitudMinimaGeneral" />
                                 @* type="button" evita que el toggle envíe el formulario. *@
                                 <button type="button" class="password-toggle" @onclick="TogglePassword" aria-label="@(showPassword ? "Ocultar contraseña" : "Mostrar contraseña")">
                                     @(showPassword ? "Ocultar" : "Ver")
                                 </button>
                             </div>
-                            <small class="field-help">Mínimo 8 caracteres, una mayúscula y un número. Se guarda protegida y no se puede consultar después.</small>
+                            <small class="field-help">Mínimo @PoliticaClaves.LongitudMinimaGeneral caracteres, una mayúscula y un número. Se guarda protegida y no se puede consultar después.</small>
                             <ValidationMessage For="@(() => model.Password)" />
                         </div>
                         @* La confirmación evita errores de tecleo y solo se valida en el cliente. *@
                         <div class="field">
                             <label for="user-password-confirm">Confirmar contraseña</label>
                             <div class="password-control">
-                                <InputText id="user-password-confirm" type="@(showConfirmPassword ? "text" : "password")" @bind-Value="confirmPassword" placeholder="Repite la contraseña" autocomplete="new-password" />
+                                <InputText id="user-password-confirm" type="@(showConfirmPassword ? "text" : "password")" @bind-Value="confirmPassword" placeholder="Repite la contraseña" autocomplete="new-password" minlength="@PoliticaClaves.LongitudMinimaGeneral" />
                                 <button type="button" class="password-toggle" @onclick="ToggleConfirmPassword" aria-label="@(showConfirmPassword ? "Ocultar confirmación de contraseña" : "Mostrar confirmación de contraseña")">
                                     @(showConfirmPassword ? "Ocultar" : "Ver")
                                 </button>

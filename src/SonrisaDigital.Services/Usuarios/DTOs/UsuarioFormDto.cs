@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using SonrisaDigital.Data.Entities;
+using SonrisaDigital.Services.Autenticacion;
 using SonrisaDigital.Services.Odontologos.DTOs;
 
 namespace SonrisaDigital.Services.Usuarios.DTOs;
@@ -17,7 +18,7 @@ public sealed class UsuarioFormDto
     [StringLength(256, ErrorMessage = "El correo no puede superar los 256 caracteres.")]
     public string Email { get; set; } = string.Empty;
 
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "La contraseña debe tener entre 8 y 100 caracteres.")]
+    [StringLength(100, MinimumLength = PoliticaClaves.LongitudMinimaGeneral, ErrorMessage = "La contraseña debe tener entre 12 y 100 caracteres.")]
     public string? Password { get; set; }
 
     public EstadoRegistro Estado { get; set; } = EstadoRegistro.Activo;
