@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Security.Claims;
@@ -30,6 +32,7 @@ using Microsoft.Extensions.Options;
 using SonrisaDigital.Services.Archivos;
 using SonrisaDigital.Services.Reportes;
 using SonrisaDigital.Services.Reportes.DTOs;
+using SonrisaDigital.Services.Salud;
 using SonrisaDigital.Services.Suscripciones;
 using System.Globalization;
 
@@ -120,6 +123,29 @@ if (!string.IsNullOrWhiteSpace(rutaClavesDataProtection))
 builder.Services.AddSonrisaDigitalServices(builder.Configuration, builder.Environment);
 // La clínica activa se comparte entre el selector, el panel de clínicas y las páginas.
 builder.Services.AddScoped<IClinicaActivaService, ClinicaActivaService>();
+
+// ============================================================================
+// Salud de la aplicación. Una sola fuente de verdad para los dos endpoints:
+//   /health       -> live: el proceso responde (no toca la base de datos).
+//   /health/ready -> ready: SQL Server responde y el esquema está al día.
+// Los checks y el formato de respuesta viven en SonrisaDigital.Services.Salud,
+// así que live y ready no pueden describir estados distintos.
+// ============================================================================
+builder.Services
+    .AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>(
+        RespuestaSalud.CheckBaseDatos,
+        tags: [RespuestaSalud.EtiquetaListo])
+    .AddCheck<MigracionesPendientesHealthCheck>(
+        RespuestaSalud.CheckMigraciones,
+        tags: [RespuestaSalud.EtiquetaListo]);
+
+// AddDbContextCheck no acepta timeout en su firma: se aplica sobre los registros
+// para que una base que no responde devuelva 503 antes de que nginx corte la
+// sonda (proxy_read_timeout 15 s) y no se acumulen peticiones colgadas.
+builder.Services
+    .AddOptions<HealthCheckServiceOptions>()
+    .Configure(ConfiguracionSalud.AplicarTiempoMaximo);
 
 // ============================================================================
 //
@@ -361,52 +387,6 @@ app.Use(async (context, next) =>
     }
 });
 
-// Health checks expuestos sin autenticacion y antes de la redireccion HTTPS,
-// para que un balanceador pueda consultarlos por HTTP sin recibir un 308.
-// /health -> live: indica que la aplicacion esta en marcha.
-// /health/ready -> ready: ademas valida que SQL Server responda y que el
-// esquema tenga aplicadas todas las migraciones.
-app.MapGet("/health", (ApplicationDbContext db) =>
-{
-    return Results.Json(new { status = "Healthy" });
-}).AllowAnonymous();
-
-app.MapGet("/health/ready", async (ApplicationDbContext db) =>
-{
-    try
-    {
-        var dbReady = await db.Database.CanConnectAsync();
-        if (!dbReady)
-        {
-            return Results.Json(
-                new { status = "Unhealthy", database = "unreachable" },
-                statusCode: 503);
-        }
-
-        var migracionesPendientes = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (migracionesPendientes.Count > 0)
-        {
-            app.Logger.LogError(
-                "La base de datos tiene migraciones pendientes: {Migraciones}.",
-                string.Join(", ", migracionesPendientes));
-
-            return Results.Json(
-                new { status = "Unhealthy", database = "schema-outdated" },
-                statusCode: 503);
-        }
-
-        return Results.Json(new { status = "Healthy", database = "reachable" });
-    }
-    catch
-    {
-        // No se expone el detalle de la excepcion (cadena de conexion,
-        // servidor, etc.) para no filtrar informacion interna.
-        return Results.Json(
-            new { status = "Unhealthy", database = "error" },
-            statusCode: 503);
-    }
-}).AllowAnonymous();
-
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -469,73 +449,13 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// Los endpoints de salud se responden sin forzar HTTPS para que un balanceador
-// pueda consultarlos por HTTP sin recibir un 308. Se colocan antes de
-// UseHttpsRedirection y devuelven la respuesta directamente, sin pasar al resto
-// del pipeline.
-app.Use(async (context, next) =>
-{
-    if (!context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase))
-    {
-        await next();
-        return;
-    }
-
-    var db = context.RequestServices.GetRequiredService<ApplicationDbContext>();
-
-    if (context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase))
-    {
-        context.Response.ContentType = "application/json; charset=utf-8";
-        await context.Response.WriteAsync("{\"status\":\"Healthy\"}");
-        return;
-    }
-
-    if (context.Request.Path.Equals("/health/ready", StringComparison.OrdinalIgnoreCase))
-    {
-        try
-        {
-            var dbReady = await db.Database.CanConnectAsync();
-            if (!dbReady)
-            {
-                context.Response.StatusCode = 503;
-                context.Response.ContentType = "application/json; charset=utf-8";
-                await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"unreachable\"}");
-                return;
-            }
-
-            var migracionesPendientes = (await db.Database.GetPendingMigrationsAsync()).ToList();
-            if (migracionesPendientes.Count > 0)
-            {
-                app.Logger.LogError(
-                    "La base de datos tiene migraciones pendientes: {Migraciones}.",
-                    string.Join(", ", migracionesPendientes));
-
-                context.Response.StatusCode = 503;
-                context.Response.ContentType = "application/json; charset=utf-8";
-                await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"schema-outdated\"}");
-                return;
-            }
-
-            context.Response.ContentType = "application/json; charset=utf-8";
-            await context.Response.WriteAsync("{\"status\":\"Healthy\",\"database\":\"reachable\"}");
-            return;
-        }
-        catch
-        {
-            // No se expone el detalle de la excepcion para no filtrar informacion interna.
-            context.Response.StatusCode = 503;
-            context.Response.ContentType = "application/json; charset=utf-8";
-            await context.Response.WriteAsync("{\"status\":\"Unhealthy\",\"database\":\"error\"}");
-            return;
-        }
-    }
-
-    await next();
-});
-
-// La redireccion a HTTPS va antes de autenticacion/autorizacion para que un
-// request HTTP no llegue a generar un challenge de login sobre HTTP.
-app.UseHttpsRedirection();
+// La redirección a HTTPS va antes de autenticación/autorización para que un
+// request HTTP no genere un challenge de login sobre HTTP. Se salta /health
+// porque los health checks se ejecutan al final del pipeline (routing) y el
+// balanceador los consulta por HTTP plano: un 308 los tomaría como caídos.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase),
+    rama => rama.UseHttpsRedirection());
 app.UseAuthentication();
 
 // Una cookie emitida antes de suspender o vencer la clínica seguiría siendo
@@ -567,6 +487,21 @@ app.UseStatusCodePagesWithReExecute("/404");
 // de entornos la pagina quedaba sin estilos y sin Blazor.
 app.MapStaticAssets().AllowAnonymous();
 app.UseAntiforgery();
+
+// Salud sin autenticación. El 308 de HTTPS ya los deja pasar (ver UseWhen más
+// arriba) y el contrato JSON lo fija RespuestaSalud para ambos endpoints.
+// live no ejecuta ningún check: una base caída no debe reiniciar el proceso.
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = RespuestaSalud.EscribirLiveAsync
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registro => registro.Tags.Contains(RespuestaSalud.EtiquetaListo),
+    ResponseWriter = RespuestaSalud.EscribirReadyAsync
+}).AllowAnonymous();
 
 // Activación del segundo factor. Va por un formulario normal y no por el circuito de Blazor: activar
 // cambia el sello de seguridad y cierra la sesión actual, así que los códigos de recuperación deben
