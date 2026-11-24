@@ -134,7 +134,7 @@
             }
             <NavLink href="/acercaDe" class="nav-item" title="Acerca de">
                 <span class="nav-icon">⌸</span>
-                Acerca De
+                Acerca de
             </NavLink>
             @if (EsDueno)
             {
@@ -229,25 +229,70 @@
     private string UserInitials = "US";
     private ClaimsPrincipal CurrentUser = new();
 
-    private string CurrentTitle => Navigation.Uri.ToLowerInvariant() switch
+    private static readonly (string Segmento, string Titulo)[] TitulosPorRuta =
+    [
+        ("clinicas/facturacion", "Facturación"),
+        ("clinicas", "Clínicas"),
+        ("seguridad/cuenta", "Mi cuenta"),
+        ("seguridad/mfa", "Segundo factor"),
+        ("centro-ayuda", "Centro de Ayudas"),
+        ("historia-clinica", "Historia clínica"),
+        ("odontograma", "Odontograma"),
+        ("tratamientos", "Tratamientos"),
+        ("pacientes", "Pacientes"),
+        ("odontologo", "Odontólogos"),
+        ("cita", "Citas"),
+        ("pagos", "Pagos"),
+        ("usuarios", "Usuarios"),
+        ("roles", "Roles y permisos"),
+        ("auditoria", "Auditoría"),
+        ("reportes", "Reportes"),
+        ("acercade", "Acerca de"),
+        ("acceso-denegado", "Sin permisos"),
+        ("404", "Página no encontrada"),
+        ("error", "Error")
+    ];
+
+    private string CurrentTitle
     {
-        var uri when uri.Contains("pacientes") => "Pacientes",
-        var uri when uri.Contains("odontologo") => "Odontólogos", // Las rutas usan singular: /odontologo
-        var uri when uri.Contains("cita") => "Citas", // Se ajustó "citas" por "cita" para coincidir con tus rutas
-        var uri when uri.Contains("historia") => "Historia clínica",
-        var uri when uri.Contains("odontograma") => "Odontograma",
-        var uri when uri.Contains("tratamientos") => "Tratamientos",
-        var uri when uri.Contains("pagos") => "Pagos",
-        var uri when uri.Contains("usuarios") => "Usuarios",
-        var uri when uri.Contains("roles") => "Roles y permisos",
-        var uri when uri.Contains("auditoria") => "Auditoría",
-        var uri when uri.Contains("reportes") => "Reportes",
-        var uri when uri.Contains("acercade") => "Acerca de",
-        var uri when uri.Contains("centro-ayuda") => "Centro de Ayudas",
-        var uri when uri.Contains("seguridad/cuenta") => "Mi cuenta",
-        var uri when uri.Contains("empresa") => "La Empresa", // Mapeo de título para la nueva página
-        _ => "Dashboard"
-    };
+        get
+        {
+            var ruta = RutaActual();
+
+            if (ruta.Length == 0)
+            {
+                return "Inicio";
+            }
+
+            return TitulosPorRuta
+                .Where(candidato => CoincideSegmento(ruta, candidato.Segmento))
+                .OrderByDescending(candidato => candidato.Segmento.Length)
+                .Select(candidato => candidato.Titulo)
+                .FirstOrDefault()
+                ?? "Sonrisa Digital";
+        }
+    }
+
+    // ToBaseRelativePath conserva la query y el fragmento: sin quitarlos,
+    // "/reportes?cita=5" se titulaba "Citas".
+    private string RutaActual()
+    {
+        var ruta = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var corte = ruta.IndexOfAny(['?', '#']);
+
+        if (corte >= 0)
+        {
+            ruta = ruta[..corte];
+        }
+
+        return ruta.Trim('/');
+    }
+
+    // Comparación por segmento, no por subcadena: "/capacitacion" no cae en "Citas"
+    // y "clinicas/facturacion" gana a "clinicas".
+    private static bool CoincideSegmento(string ruta, string segmento) =>
+        ruta.Equals(segmento, StringComparison.OrdinalIgnoreCase)
+        || ruta.StartsWith(segmento + "/", StringComparison.OrdinalIgnoreCase);
 
     [Inject]
     private NavigationManager Navigation { get; set; } = null!;
